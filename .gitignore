@@ -33,3 +33,6 @@ Thumbs.db
 npm-debug.log*
 pnpm-debug.log*
 dist-test/
+
+# npm pack output
+*.tgz
