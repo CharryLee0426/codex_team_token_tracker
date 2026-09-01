@@ -63,7 +63,10 @@ export function App() {
   const now = Date.now();
   const live = snap.live;
   const models = modelPeriod === "today" ? snap.modelsToday : snap.modelsMonth;
+  const agentsPeriod: "today" | "month" = snap.byAgentToday.length ? "today" : "month";
+  const agents = agentsPeriod === "today" ? snap.byAgentToday : snap.byAgentMonth;
   const auth = snap.auth;
+  const rl = snap.rateLimits;
 
   return (
     <div className="app">
@@ -127,6 +130,16 @@ export function App() {
               {t("reasoning")} <b>{formatTokens(snap.today.usage.reasoning)}</b>
             </span>
           </div>
+          {agents.length && (agents.length > 1 || agents[0].agent !== "codex") ? (
+            <div className="chips" title={t("sources")}>
+              <span className="chips-label">{t("sources")}{agentsPeriod === "month" ? ` · ${t("thisMonth")}` : ""}</span>
+              {agents.map((a) => (
+                <span className="chip" key={a.agent} title={`${formatTokens(a.usage.total)} · ${formatUSD(a.cost)} · ${a.sessions} ${t("sessions", { n: "" }).trim()}`}>
+                  {a.agent} <b>{formatPercent(a.share)}</b>
+                </span>
+              ))}
+            </div>
+          ) : null}
           {snap.today.remoteUsage && snap.today.remoteUsage.total > 0 ? (
             <div className="remote-row">
               <span>{t("allDevicesToday")}</span>
@@ -150,6 +163,7 @@ export function App() {
                   {live.projectName ?? live.sessionId.slice(0, 8)}
                 </span>
                 <span className="model">{live.model}</span>
+                {live.agent !== "codex" ? <span className="tag">{t("via", { agent: live.agent })}</span> : null}
               </div>
               <div className="tps">
                 <span className="value">{live.tokensPerSecond.toFixed(1)}</span>
@@ -196,17 +210,21 @@ export function App() {
         </section>
 
         {/* Rate limits */}
-        {snap.rateLimits && (snap.rateLimits.primary || snap.rateLimits.secondary) ? (
+        {rl && (rl.primary || rl.secondary || rl.additional.length) ? (
           <section className="card">
             <div className="card-title">
-              <span>{t("rateLimits")}</span>
-              {snap.rateLimits.planType ? (
+              <span>
+                {t("rateLimits")}
+                {rl.limitReached ? <span className="badge-err">{t("limitReached")}</span> : null}
+              </span>
+              {rl.planType ? (
                 <span className="hint">
-                  {t("plan")}: {snap.rateLimits.planType}
+                  {t("plan")}: {rl.planType}
+                  {rl.credits?.hasCredits ? ` · ${t("credits")}: ${rl.credits.unlimited ? "∞" : rl.credits.balance ?? ""}` : ""}
                 </span>
               ) : null}
             </div>
-            {[snap.rateLimits.primary, snap.rateLimits.secondary].map((w, i) =>
+            {[rl.primary, rl.secondary].map((w, i) =>
               w ? (
                 <div className="meter" key={i} style={{ marginTop: i ? 8 : 0 }}>
                   <div className="row">
@@ -222,6 +240,35 @@ export function App() {
                 </div>
               ) : null,
             )}
+            {rl.additional.length ? (
+              <div className="limits-extra">
+                <div className="chips-label">{t("additionalLimits")}</div>
+                {rl.additional.map((a) => (
+                  <div className="row" key={a.name}>
+                    <span title={a.name}>{a.name}</span>
+                    <b>
+                      {[a.primary, a.secondary]
+                        .filter(Boolean)
+                        .map((w) => `${windowLabel(L, w!.windowMinutes)} ${w!.usedPercent.toFixed(0)}%`)
+                        .join(" · ")}
+                    </b>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            <div className={`source-line ${rl.source === "live" ? "live" : "stale"}`}>
+              <i className="dot" />
+              <span>
+                {rl.source === "live"
+                  ? `${t("liveTag")} · ${t("updatedAgo", { time: relativeTime(L, snap.rateLimitsUpdatedAt, now) })}`
+                  : `${t("fromLogs")} · ${t("asOf", { time: snap.rateLimitsUpdatedAt ? new Intl.DateTimeFormat(tag, { dateStyle: "short", timeStyle: "short" }).format(new Date(snap.rateLimitsUpdatedAt)) : "?" })}`}
+              </span>
+              {snap.rateLimitsError ? (
+                <span className="err-hint" title={snap.rateLimitsError}>
+                  {t("liveLimitsError", { message: snap.rateLimitsError })}
+                </span>
+              ) : null}
+            </div>
           </section>
         ) : null}
 

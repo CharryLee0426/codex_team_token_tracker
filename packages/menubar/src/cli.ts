@@ -4,6 +4,7 @@ import { formatPercent, formatTokens, formatUSD, machineTimeZone } from "@codex-
 import {
   EDITABLE_KEYS,
   coerceConfigValue,
+  parseBool,
   configDir,
   loadConfig,
   updateConfig,
@@ -11,10 +12,10 @@ import {
 } from "./core/config";
 import { Engine } from "./core/engine";
 import { hasDisplay, platformKind, systemLocale } from "./core/platform";
-import { discoverSessionRoots } from "./core/scanner";
-import { SessionStore } from "./core/store";
+import { describeRoot, discoverSessionRoots } from "./core/sources";
+import { SOURCE_IDS, normalizeSources, type SourcesConfig } from "./core/config";
 import { errorMessage } from "./core/uploader";
-import { durationShort, localeTag, makeT, resolveLanguage, windowLabel, type LanguageSetting } from "./i18n";
+import { durationShort, localeTag, makeT, relativeTime, resolveLanguage, windowLabel, type LanguageSetting } from "./i18n";
 import { APP_VERSION } from "./version";
 
 interface Args {
@@ -123,20 +124,33 @@ async function runStatus(json: boolean): Promise<number> {
     line(t("cliStatusLive"), t("cliStatusNoLive"));
   }
   if (s.rateLimits) {
+    const rl = s.rateLimits;
     const parts: string[] = [];
-    for (const w of [s.rateLimits.primary, s.rateLimits.secondary]) {
+    for (const w of [rl.primary, rl.secondary]) {
       if (!w) continue;
       const reset = w.resetsAt ? ` (${t("resetsIn", { time: durationShort(L, w.resetsAt - Date.now()) })})` : "";
       parts.push(`${windowLabel(L, w.windowMinutes)}: ${w.usedPercent.toFixed(0)}%${reset}`);
     }
-    if (s.rateLimits.planType) parts.push(`${t("plan").toLowerCase()} ${s.rateLimits.planType}`);
+    if (rl.limitReached) parts.push(t("limitReached"));
+    if (rl.planType) parts.push(`${t("plan").toLowerCase()} ${rl.planType}`);
+    if (rl.credits?.hasCredits) parts.push(`${t("credits").toLowerCase()} ${rl.credits.balance ?? ""}`.trim());
+    const when = s.rateLimitsUpdatedAt ? relativeTime(L, s.rateLimitsUpdatedAt) : "";
+    parts.push(rl.source === "live" ? `${t("liveTag").toLowerCase()} ${when}`.trim() : `${t("fromLogs").toLowerCase()} ${when}`.trim());
     line(t("cliStatusLimits"), parts.join(" · "));
+    for (const a of rl.additional) {
+      const bits = [a.primary, a.secondary].filter(Boolean).map((w) => `${windowLabel(L, w!.windowMinutes)} ${w!.usedPercent.toFixed(0)}%`);
+      if (bits.length) console.log(`  ${a.name.padEnd(26)} ${bits.join(" · ")}`);
+    }
+    if (s.rateLimitsError) console.log(`  ${t("liveLimitsError", { message: s.rateLimitsError })}`);
+  }
+  if (s.byAgentMonth.length) {
+    line(t("cliStatusSources"), s.byAgentMonth.map((a) => `${a.agent} ${formatTokens(a.usage.total)} (${formatPercent(a.share)})`).join(" · "));
   }
   console.log("");
   console.log(t("cliStatusModels"));
   for (const m of s.modelsMonth.slice(0, 8)) {
     console.log(
-      `  ${m.model.padEnd(24)} ${formatPercent(m.share).padStart(4)}  ${formatTokens(m.usage.total).padStart(8)}  ${formatUSD(m.cost).padStart(9)}${m.estimated ? `  (${t("estimated")})` : ""}`,
+      `  ${m.model.padEnd(24)} ${formatPercent(m.share).padStart(4)}  ${formatTokens(m.usage.total).padStart(8)}  ${formatUSD(m.cost).padStart(9)}${m.estimated ? `  (${t("estimated")})` : ""}${m.agents.some((a) => a !== "codex") ? `  [${m.agents.join(", ")}]` : ""}`,
     );
   }
   console.log("");
@@ -147,7 +161,11 @@ async function runStatus(json: boolean): Promise<number> {
       : t("cliNotSignedIn"),
   );
   line(t("cliStatusDirs"), s.sessionDirs.join("\n" + " ".repeat(15)) || "-");
-  console.log(t("sessions", { n: s.counts.sessions }) + " · " + t("files", { n: s.counts.files }));
+  const byAgent = Object.entries(s.counts.byAgent)
+    .sort((a, b) => b[1].sessions - a[1].sessions)
+    .map(([agent, c]) => `${agent} ${c.sessions}`)
+    .join(", ");
+  console.log(t("sessions", { n: s.counts.sessions }) + " · " + t("files", { n: s.counts.files }) + (byAgent ? ` (${byAgent})` : ""));
   return 0;
 }
 
@@ -246,13 +264,15 @@ async function runAgent(flags: Args["flags"]): Promise<number> {
 function runPaths(): number {
   const cfg = loadConfig();
   const t = makeT(lang(cfg));
-  const roots = discoverSessionRoots(cfg.extraSessionDirs);
+  const roots = discoverSessionRoots({ extraSessionDirs: cfg.extraSessionDirs, sources: cfg.sources });
   if (!roots.length) {
     console.log(t("cliPathsNone"));
     return 1;
   }
   console.log(t("cliPathsTitle"));
-  for (const r of roots) console.log("  " + SessionStore.describeRoot(r));
+  for (const r of roots) console.log("  " + describeRoot(r));
+  const off = SOURCE_IDS.filter((id) => !cfg.sources[id]);
+  if (off.length) console.log(`  (disabled: ${off.join(", ")})`);
   console.log(t("cliConfigDir", { dir: configDir() }));
   return 0;
 }
@@ -261,6 +281,17 @@ function runConfig(positional: string[]): number {
   const cfg = loadConfig();
   const t = makeT(lang(cfg));
   const [action, key, ...rest] = positional;
+  if (action === "set" && key && key.startsWith("sources.")) {
+    const id = key.slice("sources.".length) as keyof SourcesConfig;
+    if (!SOURCE_IDS.includes(id)) {
+      console.error(t("cliConfigUnknownKey", { key, keys: SOURCE_IDS.map((s) => `sources.${s}`).join(", ") }));
+      return 1;
+    }
+    const sources = normalizeSources({ ...cfg.sources, [id]: parseBool(rest.join(" ")) });
+    updateConfig({ sources });
+    console.log(t("cliConfigSet", { key, value: JSON.stringify(sources[id]) }));
+    return 0;
+  }
   if (action === "set" && key) {
     if (!EDITABLE_KEYS.includes(key as keyof TrackerConfig)) {
       console.error(t("cliConfigUnknownKey", { key, keys: EDITABLE_KEYS.join(", ") }));

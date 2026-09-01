@@ -74,7 +74,11 @@ function bucketHash(b: HourBucket): string {
 }
 
 function sessionHash(s: ParsedSession, cost: number): string {
-  return `${s.model}|${s.lastActivityAt}|${s.cumulative.total}|${s.cumulative.requests}|${cost.toFixed(6)}|${s.projectName ?? ""}`;
+  return `${s.agent}|${s.model}|${s.lastActivityAt}|${s.cumulative.total}|${s.cumulative.requests}|${cost.toFixed(6)}|${s.projectName ?? ""}`;
+}
+
+function bucketStateKey(b: { hourStart: number; model: string; agent: string }): string {
+  return `${b.hourStart}|${b.model}|${b.agent}`;
 }
 
 export interface UploaderOptions {
@@ -159,13 +163,14 @@ export class Uploader {
       const changed: UploadHourBucket[] = [];
       const hashes = new Map<string, string>();
       for (const b of buckets.sort((a, b) => a.hourStart - b.hourStart)) {
-        const key = `${b.hourStart}|${b.model}`;
+        const key = bucketStateKey(b);
         const h = bucketHash(b);
         if (this.state.pushedBuckets[key] === h) continue;
         hashes.set(key, h);
         changed.push({
           hourStart: b.hourStart,
           model: b.model,
+          agent: b.agent,
           input: b.usage.input,
           cached: b.usage.cached,
           cacheWrite: b.usage.cacheWrite,
@@ -181,7 +186,7 @@ export class Uploader {
         const chunk = changed.slice(i, i + MAX_BUCKETS_PER_PUSH);
         await this.call((c, token) => c.mutation(api.ingest.pushHourly, { token, buckets: chunk }));
         for (const b of chunk) {
-          const key = `${b.hourStart}|${b.model}`;
+          const key = bucketStateKey(b);
           this.state.pushedBuckets[key] = hashes.get(key)!;
         }
         pushedBuckets += chunk.length;
@@ -193,12 +198,14 @@ export class Uploader {
       const sHashes = new Map<string, string>();
       for (const s of sessions) {
         if (!s.events.length) continue;
-        const cost = sessionCosts.get(s.sessionId) ?? 0;
+        const sKey = `${s.agent}:${s.sessionId}`;
+        const cost = sessionCosts.get(sKey) ?? 0;
         const h = sessionHash(s, cost);
-        if (this.state.pushedSessions[s.sessionId] === h) continue;
-        sHashes.set(s.sessionId, h);
+        if (this.state.pushedSessions[sKey] === h) continue;
+        sHashes.set(sKey, h);
         changedSessions.push({
           sessionId: s.sessionId,
+          agent: s.agent,
           model: s.model,
           projectName: s.projectName,
           cwdHash: s.cwd ? sha256Hex(s.cwd) : null,
@@ -220,7 +227,7 @@ export class Uploader {
       for (let i = 0; i < changedSessions.length; i += MAX_SESSIONS_PER_PUSH) {
         const chunk = changedSessions.slice(i, i + MAX_SESSIONS_PER_PUSH);
         await this.call((c, token) => c.mutation(api.ingest.pushSessions, { token, sessions: chunk }));
-        for (const s of chunk) this.state.pushedSessions[s.sessionId] = sHashes.get(s.sessionId)!;
+        for (const s of chunk) this.state.pushedSessions[`${s.agent}:${s.sessionId}`] = sHashes.get(`${s.agent}:${s.sessionId}`)!;
         pushedSessions += chunk.length;
         this.state.lastUploadAt = Date.now();
         saveState(this.state);

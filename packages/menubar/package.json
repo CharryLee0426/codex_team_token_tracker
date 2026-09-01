@@ -38,7 +38,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "node bin/codex-tracker.js",
     "prepublishOnly": "pnpm build && pnpm typecheck",
-    "build:icons": "node scripts/gen-icons.mjs"
+    "build:icons": "node scripts/gen-icons.mjs",
+    "test": "node scripts/test.mjs"
   },
   "dependencies": {
     "menubar": "^9.5.3"

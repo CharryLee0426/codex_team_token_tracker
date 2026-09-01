@@ -26,13 +26,30 @@ Tech stack: Node ≥ 20, TypeScript, pnpm workspaces, Next.js, Clerk, Convex, El
 
 ## How it works
 
-1. Codex CLI / Codex Desktop write one JSONL rollout per thread under `~/.codex/sessions/YYYY/MM/DD/`. Each API round-trip appends an `event_msg/token_count` line with cumulative `total_token_usage`, `last_token_usage`, the model (`turn_context`) and rate limits.
+1. Every agent signed in with the Codex subscription keeps a local transcript with per-request token usage. The tracker reads all of them (see *Sources* below): Codex CLI / Desktop rollouts under `~/.codex/sessions/YYYY/MM/DD/` (`event_msg/token_count` lines with cumulative `total_token_usage`, model from `turn_context`), pi sessions under `~/.pi/agent/sessions`, and best-effort readers for OpenCode, Cline/Roo/Kilo and Hermes.
 2. The tracker tails those files, turns cumulative counters into per-request deltas (`packages/shared/src/codex-parser.ts`), buckets them by **UTC hour × model**, prices them with the standard API table and uploads changed buckets to Convex (idempotent upserts – re-scanning never double counts).
 3. Every 15 s the device sends a heartbeat with its live snapshot (current session, tokens/sec, today's total) so the dashboard can show who is active right now.
 4. The dashboard subscribes to Convex queries (real time) and converts UTC buckets to the **viewer's machine time** for all day / hour / weekday views. The database only ever stores UTC.
 5. Teams are Clerk **Organizations**. Membership is synced from the JWT on dashboard load and from Clerk webhooks, so the team view aggregates every member who has connected a device.
 
-Privacy: only token counts, model names, the project folder *name* and a SHA-256 of the working directory leave the machine. Prompts, code and file contents never do.
+Privacy: only token counts, model names, the agent name, the project folder *name* and a SHA-256 of the working directory leave the machine. Prompts, code and file contents never do.
+
+### Sources (agents that use the Codex subscription OAuth)
+
+| Agent | Where the tracker reads | Notes |
+|---|---|---|
+| Codex CLI / Codex Desktop | `$CODEX_HOME/sessions`, `archived_sessions` | Exact per-request deltas from cumulative counters; verified against real logs |
+| pi | `~/.pi/agent/sessions/**/*.jsonl` | Only `openai-codex` (subscription) calls count by default; API-key providers are ignored unless `trackAllProviders` is on |
+| OpenCode | `~/.local/share/opencode/storage` (message JSON files) | `openai` counts as Codex auth when its `auth.json` entry is OAuth; best-effort |
+| Cline / Roo Code / Kilo Code | VS Code-family `globalStorage/<ext>/tasks/*/ui_messages.json` | Best-effort; provider detected from `task_metadata.json` |
+| Hermes | `~/.hermes/sessions` (+ `state.db` when readable) | Best-effort generic reader |
+| Anything else | `extraSessionDirs: [{ "path": "...", "agent": "name", "format": "codex" \| "pi" \| "generic" }]` | Generic reader accepts JSON/JSONL records with `usage` objects |
+
+Usage is tagged with the agent name end-to-end (menubar "Sources" row, dashboard "Sources" card, agent tag on sessions).
+
+### Rate limits
+
+The menubar shows the **live** account limits (5-hour / weekly windows, additional per-model limits, plan, credits) by calling the same endpoint the official Codex client uses (`https://chatgpt.com/backend-api/wham/usage`) with the local Codex login from `~/.codex/auth.json`. That token is only ever sent to chatgpt.com — never to the dashboard. When offline (or `liveRateLimits: false`) it falls back to the last values seen in Codex logs and labels them *From logs · as of …*.
 
 ## Quick start (local development)
 

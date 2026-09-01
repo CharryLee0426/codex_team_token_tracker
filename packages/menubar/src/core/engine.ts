@@ -1,11 +1,12 @@
 import { EventEmitter } from "node:events";
-import { machineTimeZone, type LiveSnapshot } from "@codex-tracker/shared";
+import { fromLogRateLimits, machineTimeZone, type LiveRateLimits, type LiveSnapshot } from "@codex-tracker/shared";
 import { loadConfig, loadPricingOverrides, updateConfig, type TrackerConfig } from "./config";
 import { SessionStore } from "./store";
 import { computeStats, type Stats } from "./stats";
 import { Uploader, SignedOutError, errorMessage } from "./uploader";
 import { deviceLogin, logoutDevice, type LoginResult } from "./auth";
 import { deviceName, hostname, platformKind, systemLocale } from "./platform";
+import { fetchLiveRateLimits } from "./usage-api";
 import { resolveLanguage, type Language, type LanguageSetting } from "../i18n";
 import type { Snapshot, AuthState } from "./snapshot";
 import { APP_VERSION } from "../version";
@@ -24,8 +25,10 @@ const SHALLOW_MS = 3_000;
 const DEEP_MS = 60_000;
 const TICK_MS = 2_000;
 const REMOTE_MS = 60_000;
+const LIVE_LIMITS_DEBOUNCE_MS = 10_000;
+const LIVE_LIMITS_MIN_GAP_MS = 20_000;
 
-/** Composes the file store, statistics and uploader; emits `snapshot` whenever the picture changes. */
+/** Composes the file store, statistics, live rate limits and uploader; emits `snapshot` whenever the picture changes. */
 export class Engine extends EventEmitter {
   config: TrackerConfig;
   readonly store: SessionStore;
@@ -36,11 +39,21 @@ export class Engine extends EventEmitter {
   private pending: { code: string | null; url: string | null; abort: AbortController } | null = null;
   private authError: string | null = null;
   private refreshing = false;
+  private liveLimits: LiveRateLimits | null = null;
+  private liveLimitsError: string | null = null;
+  private liveLimitsAt: number | null = null;
+  private liveLimitsInFlight = false;
+  private liveLimitsTimer: NodeJS.Timeout | null = null;
+  private lastLiveLimitsAttempt = 0;
 
   constructor(private readonly opts: EngineOptions) {
     super();
     this.config = loadConfig();
-    this.store = new SessionStore(() => this.config.extraSessionDirs);
+    this.store = new SessionStore(() => ({
+      extraSessionDirs: this.config.extraSessionDirs,
+      sources: this.config.sources,
+      trackAllProviders: this.config.trackAllProviders,
+    }));
     this.uploader = new Uploader({
       getConfig: () => this.config,
       onSignedOut: (reason) => {
@@ -72,10 +85,16 @@ export class Engine extends EventEmitter {
   async start() {
     await this.store.refreshDeep();
     this.recompute();
-    if (this.opts.watch === false) return;
+    if (this.opts.watch === false) {
+      // one-shot callers (CLI status/agent --once) want the live limits in the first snapshot
+      await this.refreshLiveLimits(true);
+      return;
+    }
+    void this.refreshLiveLimits(true);
     this.store.startWatching(() => void this.refresh(false));
     this.timers.push(setInterval(() => void this.refresh(false), SHALLOW_MS));
     this.timers.push(setInterval(() => void this.refresh(true), DEEP_MS));
+    this.timers.push(setInterval(() => void this.refreshLiveLimits(false), this.config.usageRefreshSec * 1000));
     this.timers.push(
       setInterval(() => {
         // live tokens/sec decays as events age; recompute while a session is active
@@ -94,6 +113,8 @@ export class Engine extends EventEmitter {
   stop() {
     for (const t of this.timers) clearInterval(t);
     this.timers = [];
+    if (this.liveLimitsTimer) clearTimeout(this.liveLimitsTimer);
+    this.liveLimitsTimer = null;
     this.store.stopWatching();
     this.pending?.abort.abort();
   }
@@ -103,7 +124,10 @@ export class Engine extends EventEmitter {
     this.refreshing = true;
     try {
       const changed = deep ? await this.store.refreshDeep() : await this.store.refreshShallow();
-      if (changed) this.recompute();
+      if (changed) {
+        this.recompute();
+        this.scheduleLiveLimits();
+      }
       return changed;
     } catch (err) {
       this.opts.log?.(`refresh failed: ${errorMessage(err)}`);
@@ -111,6 +135,39 @@ export class Engine extends EventEmitter {
     } finally {
       this.refreshing = false;
     }
+  }
+
+  /** Query chatgpt.com for the account's live limits (debounced; at most one request per 20 s unless forced). */
+  async refreshLiveLimits(force: boolean): Promise<void> {
+    if (!this.config.liveRateLimits || this.liveLimitsInFlight) return;
+    const now = Date.now();
+    if (!force && now - this.lastLiveLimitsAttempt < LIVE_LIMITS_MIN_GAP_MS) return;
+    this.lastLiveLimitsAttempt = now;
+    this.liveLimitsInFlight = true;
+    try {
+      const r = await fetchLiveRateLimits(APP_VERSION);
+      if (r.limits) {
+        this.liveLimits = r.limits;
+        this.liveLimitsError = null;
+        this.liveLimitsAt = r.fetchedAt;
+      } else {
+        this.liveLimitsError = r.error;
+        this.opts.log?.(`live rate limits unavailable: ${r.error}`);
+      }
+      this.emitSnapshot();
+    } finally {
+      this.liveLimitsInFlight = false;
+    }
+  }
+
+  /** New local usage was seen → re-check the live limits shortly (the backend updates a few seconds later). */
+  private scheduleLiveLimits() {
+    if (!this.config.liveRateLimits || this.opts.watch === false) return;
+    if (this.liveLimitsTimer) clearTimeout(this.liveLimitsTimer);
+    this.liveLimitsTimer = setTimeout(() => {
+      this.liveLimitsTimer = null;
+      void this.refreshLiveLimits(false);
+    }, LIVE_LIMITS_DEBOUNCE_MS);
   }
 
   recompute() {
@@ -247,6 +304,7 @@ export class Engine extends EventEmitter {
 
   snapshot(): Snapshot {
     const s = this.stats ?? computeStats({ sessions: [], heatmapWeeks: this.heatmapWeeks });
+    const sessions = this.store.sessions();
     return {
       version: APP_VERSION,
       generatedAt: Date.now(),
@@ -263,13 +321,17 @@ export class Engine extends EventEmitter {
       month: s.month,
       live: s.live,
       lastActivityAt: s.lastActivityAt,
-      rateLimits: s.rateLimits,
+      rateLimits: this.liveLimits ?? fromLogRateLimits(s.logRateLimits),
+      rateLimitsError: this.config.liveRateLimits ? this.liveLimitsError : null,
+      rateLimitsUpdatedAt: this.liveLimits ? this.liveLimitsAt : (s.logRateLimits?.observedAt ?? null),
       modelsToday: s.modelsToday,
       modelsMonth: s.modelsMonth,
+      byAgentToday: s.byAgentToday,
+      byAgentMonth: s.byAgentMonth,
       heatmap: s.heatmap,
       heatmapWeeks: this.heatmapWeeks,
       heatmapIncludesRemote: this.uploader.remoteRows.length > 0,
-      counts: { sessions: this.store.sessions().length, files: this.store.fileCount },
+      counts: { sessions: sessions.length, files: this.store.fileCount, byAgent: this.store.countsByAgent() },
       upload: {
         enabled: this.opts.upload && this.signedIn,
         lastUploadAt: this.uploader.lastUploadAt,
@@ -277,6 +339,7 @@ export class Engine extends EventEmitter {
         lastRemoteFetchAt: this.uploader.lastRemoteFetchAt,
       },
       sessionDirs: SessionStore.rootDirs(this.store.roots),
+      sessionRoots: this.store.roots.map((r) => ({ dir: r.dir, agent: r.agent, format: r.format, origin: r.origin })),
       launchAtLogin: this.config.launchAtLogin,
       trayTitle: this.config.trayTitle,
     };

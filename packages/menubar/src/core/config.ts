@@ -6,6 +6,31 @@ import type { LanguageSetting } from "../i18n";
 
 export const DEFAULT_DASHBOARD_URL = "https://codex-tracker.vercel.app";
 
+/** How a session directory's files are parsed (see src/core/sources). */
+export type SourceFormat = "codex" | "pi" | "generic" | "opencode" | "cline";
+export const SOURCE_FORMATS: SourceFormat[] = ["codex", "pi", "generic", "opencode", "cline"];
+
+/** A user-configured session directory: `{ "path": "~/.myagent/logs", "agent": "myagent", "format": "generic" }`. */
+export interface ExtraSessionDir {
+  path: string;
+  agent: string;
+  format?: SourceFormat;
+}
+
+/** Built-in sources that are auto-discovered when enabled. */
+export interface SourcesConfig {
+  codex: boolean;
+  pi: boolean;
+  hermes: boolean;
+  opencode: boolean;
+  cline: boolean;
+  roo: boolean;
+  kilo: boolean;
+}
+
+export const DEFAULT_SOURCES: SourcesConfig = { codex: true, pi: true, hermes: true, opencode: true, cline: true, roo: true, kilo: true };
+export const SOURCE_IDS = Object.keys(DEFAULT_SOURCES) as Array<keyof SourcesConfig>;
+
 export interface TrackerConfig {
   dashboardUrl: string;
   convexUrl: string | null;
@@ -15,9 +40,17 @@ export interface TrackerConfig {
   language: LanguageSetting;
   uploadIntervalSec: number;
   heartbeatIntervalSec: number;
-  extraSessionDirs: string[];
+  extraSessionDirs: Array<string | ExtraSessionDir>;
   launchAtLogin: boolean;
   trayTitle: "tokens" | "cost" | "none";
+  /** Which agents' logs to read. */
+  sources: SourcesConfig;
+  /** Count every provider found in other agents' logs (API keys etc.), not only Codex-subscription providers. */
+  trackAllProviders: boolean;
+  /** Query chatgpt.com for live rate limits using the local Codex login. */
+  liveRateLimits: boolean;
+  /** Seconds between live rate-limit refreshes. */
+  usageRefreshSec: number;
 }
 
 export const DEFAULT_CONFIG: TrackerConfig = {
@@ -32,9 +65,13 @@ export const DEFAULT_CONFIG: TrackerConfig = {
   extraSessionDirs: [],
   launchAtLogin: false,
   trayTitle: "tokens",
+  sources: { ...DEFAULT_SOURCES },
+  trackAllProviders: false,
+  liveRateLimits: true,
+  usageRefreshSec: 60,
 };
 
-/** Keys users may change through `codex-tracker config set`. */
+/** Keys users may change through `codex-tracker config set` (plus dotted `sources.<name>`). */
 export const EDITABLE_KEYS: Array<keyof TrackerConfig> = [
   "dashboardUrl",
   "language",
@@ -43,6 +80,10 @@ export const EDITABLE_KEYS: Array<keyof TrackerConfig> = [
   "extraSessionDirs",
   "launchAtLogin",
   "trayTitle",
+  "sources",
+  "trackAllProviders",
+  "liveRateLimits",
+  "usageRefreshSec",
 ];
 
 export interface UploadState {
@@ -76,10 +117,48 @@ export function configPath(): string {
   return path.join(configDir(), "config.json");
 }
 
+export function parseBool(raw: string): boolean {
+  return ["1", "true", "yes", "on"].includes(raw.trim().toLowerCase());
+}
+
+const AGENT_NAME_RE = /^[a-z0-9][a-z0-9_.-]{0,31}$/;
+
+/** Normalize a configured extra directory (string = Codex rollout dir) into its full form; null when invalid. */
+export function normalizeExtraDir(entry: unknown): ExtraSessionDir | null {
+  if (typeof entry === "string") {
+    return entry.trim() ? { path: entry.trim(), agent: "codex", format: "codex" } : null;
+  }
+  if (!entry || typeof entry !== "object") return null;
+  const o = entry as Record<string, unknown>;
+  if (typeof o.path !== "string" || !o.path.trim()) return null;
+  const agent = typeof o.agent === "string" && o.agent.trim() ? o.agent.trim().toLowerCase() : "codex";
+  if (!AGENT_NAME_RE.test(agent)) return null;
+  let format = SOURCE_FORMATS.includes(o.format as SourceFormat) ? (o.format as SourceFormat) : undefined;
+  if (!format) format = SOURCE_FORMATS.includes(agent as SourceFormat) ? (agent as SourceFormat) : ["roo", "kilo"].includes(agent) ? "cline" : "generic";
+  return { path: o.path.trim(), agent, format };
+}
+
+export function normalizeSources(value: unknown): SourcesConfig {
+  const out = { ...DEFAULT_SOURCES };
+  if (value && typeof value === "object") {
+    for (const k of SOURCE_IDS) {
+      const v = (value as Record<string, unknown>)[k];
+      if (typeof v === "boolean") out[k] = v;
+    }
+  }
+  return out;
+}
+
 export function loadConfig(): TrackerConfig {
   const stored = readJson<Partial<TrackerConfig>>(configPath(), {});
   const cfg: TrackerConfig = { ...DEFAULT_CONFIG, ...stored };
-  if (!Array.isArray(cfg.extraSessionDirs)) cfg.extraSessionDirs = [];
+  cfg.extraSessionDirs = Array.isArray(cfg.extraSessionDirs)
+    ? (cfg.extraSessionDirs.map(normalizeExtraDir).filter(Boolean) as ExtraSessionDir[])
+    : [];
+  cfg.sources = normalizeSources(stored.sources);
+  cfg.trackAllProviders = stored.trackAllProviders === true;
+  cfg.liveRateLimits = stored.liveRateLimits !== false;
+  if (!(cfg.usageRefreshSec >= 15)) cfg.usageRefreshSec = DEFAULT_CONFIG.usageRefreshSec;
   if (!["auto", "en", "zh"].includes(cfg.language)) cfg.language = "auto";
   if (!(cfg.uploadIntervalSec >= 10)) cfg.uploadIntervalSec = DEFAULT_CONFIG.uploadIntervalSec;
   if (!(cfg.heartbeatIntervalSec >= 5)) cfg.heartbeatIntervalSec = DEFAULT_CONFIG.heartbeatIntervalSec;
@@ -102,18 +181,46 @@ export function updateConfig(patch: Partial<TrackerConfig>): TrackerConfig {
 export function coerceConfigValue(key: keyof TrackerConfig, raw: string): TrackerConfig[keyof TrackerConfig] {
   switch (key) {
     case "uploadIntervalSec":
-    case "heartbeatIntervalSec": {
+    case "heartbeatIntervalSec":
+    case "usageRefreshSec": {
       const n = Number(raw);
       if (!Number.isFinite(n) || n <= 0) throw new Error(`${key} must be a positive number`);
+      if (key === "usageRefreshSec" && n < 15) throw new Error("usageRefreshSec must be at least 15");
       return Math.round(n);
     }
     case "launchAtLogin":
-      return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
-    case "extraSessionDirs":
-      return raw
+    case "trackAllProviders":
+    case "liveRateLimits":
+      return parseBool(raw);
+    case "extraSessionDirs": {
+      const trimmed = raw.trim();
+      if (trimmed.startsWith("[")) {
+        let arr: unknown;
+        try {
+          arr = JSON.parse(trimmed);
+        } catch {
+          throw new Error("extraSessionDirs must be a JSON array or a comma-separated list of paths");
+        }
+        if (!Array.isArray(arr)) throw new Error("extraSessionDirs must be a JSON array");
+        const out = arr.map(normalizeExtraDir);
+        if (out.some((e) => !e)) throw new Error(`each entry needs a "path" (and optional "agent", "format": ${SOURCE_FORMATS.join(" | ")})`);
+        return out as ExtraSessionDir[];
+      }
+      return trimmed
         .split(/[,;]/)
         .map((s) => s.trim())
         .filter(Boolean);
+    }
+    case "sources": {
+      let obj: unknown;
+      try {
+        obj = JSON.parse(raw);
+      } catch {
+        throw new Error('sources must be JSON, e.g. {"pi":true,"opencode":false} (or use `config set sources.pi false`)');
+      }
+      if (!obj || typeof obj !== "object" || Array.isArray(obj)) throw new Error("sources must be a JSON object");
+      return normalizeSources(obj);
+    }
     case "language":
       if (!["auto", "en", "zh"].includes(raw)) throw new Error("language must be en, zh or auto");
       return raw as LanguageSetting;

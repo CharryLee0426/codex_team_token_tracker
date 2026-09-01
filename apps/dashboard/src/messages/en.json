@@ -61,10 +61,22 @@
     "install": "Install the menu bar app",
     "installHint": "Works on macOS and Windows (native and WSL2). Sign in with Google or GitHub.",
     "features": {
-      "menubar": { "title": "Menu bar app", "body": "Live daily totals, tokens per second for the running session, model breakdown and a usage heatmap — right in your menu bar or system tray." },
-      "team": { "title": "Team dashboard", "body": "Organizations map to your Clerk org. Compare members, see active hours and weekday patterns, and spot who is live right now." },
-      "realtime": { "title": "Realtime by design", "body": "Devices sync hourly buckets to Convex; every chart updates the moment new usage lands. Stored in UTC, shown in your local time." },
-      "cost": { "title": "API-equivalent cost", "body": "Subscription usage priced at standard OpenAI API list prices, with cache-hit savings called out — so you know what the plan is worth." }
+      "menubar": {
+        "title": "Menu bar app",
+        "body": "Live daily totals, tokens per second for the running session, model breakdown and a usage heatmap — right in your menu bar or system tray."
+      },
+      "team": {
+        "title": "Team dashboard",
+        "body": "Organizations map to your Clerk org. Compare members, see active hours and weekday patterns, and spot who is live right now."
+      },
+      "realtime": {
+        "title": "Realtime by design",
+        "body": "Devices sync hourly buckets to Convex; every chart updates the moment new usage lands. Stored in UTC, shown in your local time."
+      },
+      "cost": {
+        "title": "API-equivalent cost",
+        "body": "Subscription usage priced at standard OpenAI API list prices, with cache-hit savings called out — so you know what the plan is worth."
+      }
     },
     "howTitle": "How it works",
     "how": {
@@ -131,7 +143,10 @@
     "status": "Status",
     "offline": "Offline",
     "empty": "No members yet — invite teammates from the organization switcher.",
-    "roles": { "org:admin": "Admin", "org:member": "Member" }
+    "roles": {
+      "org:admin": "Admin",
+      "org:member": "Member"
+    }
   },
   "devices": {
     "title": "My devices",
@@ -183,8 +198,24 @@
     "home": "Back home"
   },
   "weekdays": {
-    "short": { "0": "Sun", "1": "Mon", "2": "Tue", "3": "Wed", "4": "Thu", "5": "Fri", "6": "Sat" },
-    "long": { "0": "Sunday", "1": "Monday", "2": "Tuesday", "3": "Wednesday", "4": "Thursday", "5": "Friday", "6": "Saturday" }
+    "short": {
+      "0": "Sun",
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri",
+      "6": "Sat"
+    },
+    "long": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
+    }
   },
   "cliAuth": {
     "title": "Connect a device",
@@ -231,5 +262,9 @@
   "auth": {
     "signInTitle": "Sign in to Codex Tracker",
     "signUpTitle": "Create your account"
+  },
+  "sources": {
+    "title": "Sources",
+    "subtitle": "Which tools consumed the Codex subscription"
   }
 }

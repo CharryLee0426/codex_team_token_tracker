@@ -5,7 +5,7 @@ import { usageFields, liveValidator } from "./schema";
 import { MAX_BUCKETS_PER_PUSH, MAX_SESSIONS_PER_PUSH } from "@codex-tracker/shared/wire";
 import type { Doc } from "./_generated/dataModel";
 
-const bucketValidator = v.object({ hourStart: v.number(), model: v.string(), ...usageFields });
+const bucketValidator = v.object({ hourStart: v.number(), model: v.string(), agent: v.optional(v.string()), ...usageFields });
 
 function sumModels(models: Array<{ input: number; cached: number; cacheWrite: number; output: number; reasoning: number; total: number; requests: number; cost: number }>) {
   const t = { input: 0, cached: 0, cacheWrite: 0, output: 0, reasoning: 0, total: 0, requests: 0, cost: 0 };
@@ -22,7 +22,7 @@ export function compactRow(r: Doc<"hourlyUsage">) {
     u: r.userId as string,
     d: r.deviceId as string,
     i: r.input, c: r.cached, w: r.cacheWrite, o: r.output, r: r.reasoning, t: r.total, q: r.requests, usd: r.cost,
-    m: r.models.map((m) => ({ model: m.model, i: m.input, c: m.cached, w: m.cacheWrite, o: m.output, r: m.reasoning, t: m.total, q: m.requests, usd: m.cost })),
+    m: r.models.map((m) => ({ model: m.model, agent: m.agent ?? "codex", i: m.input, c: m.cached, w: m.cacheWrite, o: m.output, r: m.reasoning, t: m.total, q: m.requests, usd: m.cost })),
   };
 }
 
@@ -66,11 +66,13 @@ export const pushHourly = mutation({
         .query("hourlyUsage")
         .withIndex("by_device_hour", (q) => q.eq("deviceId", device._id).eq("hourStart", hourStart))
         .unique();
-      const models = new Map<string, { model: string; input: number; cached: number; cacheWrite: number; output: number; reasoning: number; total: number; requests: number; cost: number }>();
-      for (const m of existing?.models ?? []) models.set(m.model, m);
+      type ModelEntry = { model: string; agent?: string; input: number; cached: number; cacheWrite: number; output: number; reasoning: number; total: number; requests: number; cost: number };
+      const keyOf = (m: { model: string; agent?: string }) => `${m.agent ?? "codex"}|${m.model}`;
+      const models = new Map<string, ModelEntry>();
+      for (const m of existing?.models ?? []) models.set(keyOf(m), m);
       for (const b of list) {
-        models.set(b.model, {
-          model: b.model, input: b.input, cached: b.cached, cacheWrite: b.cacheWrite, output: b.output,
+        models.set(keyOf(b), {
+          model: b.model, agent: b.agent ?? "codex", input: b.input, cached: b.cached, cacheWrite: b.cacheWrite, output: b.output,
           reasoning: b.reasoning, total: b.total, requests: b.requests, cost: b.cost,
         });
       }
@@ -90,6 +92,7 @@ export const pushHourly = mutation({
 
 const sessionValidator = v.object({
   sessionId: v.string(),
+  agent: v.optional(v.string()),
   model: v.string(),
   projectName: v.union(v.string(), v.null()),
   cwdHash: v.union(v.string(), v.null()),
@@ -117,6 +120,7 @@ export const pushSessions = mutation({
         userId: user._id,
         deviceId: device._id,
         sessionId: s.sessionId,
+        agent: s.agent ?? "codex",
         model: s.model,
         projectName: s.projectName ?? undefined,
         cwdHash: s.cwdHash ?? undefined,

@@ -527,3 +527,19 @@ button.ghost:hover {
 .footer .status.err {
   color: var(--critical);
 }
+
+/* --- sources / agents / live limits --- */
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.chips-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-right: 2px; }
+.chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); display: inline-flex; gap: 5px; align-items: center; background: var(--surface-2, transparent); }
+.chip b { color: var(--text); font-weight: 600; }
+.tag { font-size: 10px; line-height: 14px; padding: 0 6px; border-radius: 6px; background: rgba(99, 102, 241, 0.14); color: #6366f1; margin-left: 6px; text-transform: lowercase; vertical-align: middle; white-space: nowrap; }
+.badge-err { font-size: 10px; line-height: 14px; padding: 0 6px; border-radius: 6px; background: rgba(208, 59, 59, 0.15); color: #d03b3b; margin-left: 6px; vertical-align: middle; }
+.limits-extra { margin-top: 10px; font-size: 11px; color: var(--muted); }
+.limits-extra .row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.limits-extra .row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.limits-extra .row b { color: var(--text); font-weight: 500; white-space: nowrap; }
+.source-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--muted); margin-top: 10px; }
+.source-line .dot { width: 6px; height: 6px; border-radius: 50%; background: #0ca30c; flex: none; }
+.source-line.stale .dot { background: #fab219; }
+.source-line .err-hint { color: #d03b3b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }

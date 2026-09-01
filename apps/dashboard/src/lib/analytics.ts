@@ -1,7 +1,7 @@
 import { expandCompactRows } from "@codex-tracker/shared/wire";
 import { addUsageInPlace, cacheHitRate, emptyUsage, type TokenUsage } from "@codex-tracker/shared/usage";
 import { resolvePrice } from "@codex-tracker/shared/pricing";
-import { groupByLocalDay, groupByModel, weekdayHourMatrix, weekdayTotals } from "@codex-tracker/shared/aggregate";
+import { groupByAgent, groupByLocalDay, groupByModel, weekdayHourMatrix, weekdayTotals } from "@codex-tracker/shared/aggregate";
 import { dayKeyRange, localParts, dayKeyToLocalStart } from "@codex-tracker/shared/time";
 
 export type UsageRow = ReturnType<typeof expandCompactRows>[number];
@@ -47,6 +47,22 @@ export function modelBreakdown(rows: UsageRow[]): ModelStat[] {
       const p = resolvePrice(c.key);
       return { model: c.key, usage: c.usage, cost: c.cost, share: c.usage.total / total, estimated: p.estimated, matchedKey: p.matchedKey };
     })
+    .sort((a, b) => b.usage.total - a.usage.total);
+}
+
+export interface AgentStat {
+  agent: string; // "codex" | "pi" | "hermes" | "opencode" | "cline" | ...
+  usage: TokenUsage;
+  cost: number;
+  share: number;
+}
+
+/** Usage split by the tool that produced it (Codex CLI/Desktop vs. other Codex-OAuth agents). */
+export function agentBreakdown(rows: UsageRow[]): AgentStat[] {
+  const grouped = groupByAgent(rows);
+  const total = [...grouped.values()].reduce((a, c) => a + c.usage.total, 0) || 1;
+  return [...grouped.values()]
+    .map((c) => ({ agent: c.key, usage: c.usage, cost: c.cost, share: c.usage.total / total }))
     .sort((a, b) => b.usage.total - a.usage.total);
 }
 

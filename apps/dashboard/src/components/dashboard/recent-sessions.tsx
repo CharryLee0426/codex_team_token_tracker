@@ -8,11 +8,13 @@ import { Avatar } from "@/components/ui/avatar";
 import { Table, TableWrap, Td, Th } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AgentTag } from "@/components/dashboard/agent-tag";
 
 export interface SessionItem {
   id: string;
   user: { id: string; name: string | null; email: string | null; imageUrl: string | null };
   sessionId: string;
+  agent: string;
   model: string;
   projectName: string | null;
   startedAt: number;
@@ -62,7 +64,10 @@ export function RecentSessions({ sessions, scope, now }: { sessions: SessionItem
                 <span className="block max-w-[220px] truncate font-medium text-fg" title={s.sessionId}>
                   {s.projectName ?? s.sessionId.slice(0, 8)}
                 </span>
-                {s.source ? <span className="text-[11px] text-muted">{s.source}</span> : null}
+                <span className="flex items-center gap-1.5 text-[11px] text-muted">
+                  <AgentTag agent={s.agent} />
+                  {s.source && s.source !== s.agent ? <span>{s.source}</span> : null}
+                </span>
               </Td>
               {scope === "team" ? (
                 <Td>

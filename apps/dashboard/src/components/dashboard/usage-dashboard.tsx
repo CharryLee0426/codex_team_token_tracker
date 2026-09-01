@@ -9,7 +9,7 @@ import { api } from "@codex-tracker/backend/convex/_generated/api";
 import type { Id } from "@codex-tracker/backend/convex/_generated/dataModel";
 import { buildHeatmap, groupByLocalDay } from "@codex-tracker/shared/aggregate";
 import { addLocalDays, dayKeyToLocalStart, hourStartOf } from "@codex-tracker/shared/time";
-import { activeHoursRows, dailyStack, memberStats, modelBreakdown, orderModels, summarize, weekdaySeries } from "@/lib/analytics";
+import { activeHoursRows, dailyStack, memberStats, agentBreakdown, modelBreakdown, orderModels, summarize, weekdaySeries } from "@/lib/analytics";
 import { rangeBounds, type RangeKey } from "@/lib/ranges";
 import { useHourlyRange, type Scope } from "@/hooks/use-hourly-range";
 import { useMe } from "@/hooks/use-me";
@@ -20,6 +20,7 @@ import { ContributionHeatmap } from "@/components/charts/contribution-heatmap";
 import { ActiveHoursHeatmap } from "@/components/charts/active-hours-heatmap";
 import { WeekdayComparison } from "@/components/charts/weekday-comparison";
 import { ModelDistribution } from "@/components/charts/model-distribution";
+import { SourcesBreakdown } from "@/components/dashboard/sources-breakdown";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageTitle } from "@/components/ui/page-title";
@@ -81,6 +82,7 @@ export function UsageDashboard({ scope, orgId, orgName }: Props) {
   const rangeRows = useMemo(() => data.rows.filter((r) => r.hourStart >= bounds.fromMs), [data.rows, bounds.fromMs]);
   const summary = useMemo(() => summarize(rangeRows), [rangeRows]);
   const stats = useMemo(() => modelBreakdown(rangeRows), [rangeRows]);
+  const agents = useMemo(() => agentBreakdown(rangeRows), [rangeRows]);
 
   // Stable series → color assignment: never repaints a model once it has a slot.
   const orderRef = useRef<string[]>([]);
@@ -115,6 +117,8 @@ export function UsageDashboard({ scope, orgId, orgName }: Props) {
       ) : null}
 
       <KpiRow summary={summary} loading={loading} scope={scope} liveCount={liveNow?.length ?? 0} deviceCount={devices?.length} />
+
+      {!loading ? <SourcesBreakdown stats={agents} /> : null}
 
       {empty ? (
         <Card>

@@ -24,6 +24,7 @@ export function Models({ models, lang, dark }: { models: ModelStat[]; lang: Lang
       share: rest.reduce((a, m) => a + m.share, 0),
       estimated: rest.some((m) => m.estimated),
       priceKey: null,
+      agents: [...new Set(rest.flatMap((m) => m.agents))].sort(),
       color: OTHER_COLOR,
     });
   }
@@ -55,6 +56,11 @@ export function Models({ models, lang, dark }: { models: ModelStat[]; lang: Lang
           <span className="name" title={m.model}>
             {m.model}
             {m.estimated && <span className="est">{t(lang, "estimated")}</span>}
+            {m.agents.filter((a) => a !== "codex").map((a) => (
+              <span className="tag" key={a}>
+                {a}
+              </span>
+            ))}
           </span>
           <span className="nums">
             <b>{formatPercent(m.share)}</b>

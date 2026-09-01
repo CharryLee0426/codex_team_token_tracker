@@ -24,6 +24,17 @@ export const en = {
   weekly: "Weekly",
   resetsIn: "resets in {time}",
   plan: "Plan",
+  sources: "Sources",
+  via: "via {agent}",
+  liveTag: "Live",
+  fromLogs: "From logs",
+  updatedAgo: "updated {time}",
+  asOf: "as of {time}",
+  limitReached: "Limit reached",
+  additionalLimits: "Other limits",
+  credits: "Credits",
+  liveLimitsError: "Live limits unavailable: {message}",
+  allProvidersOn: "all providers",
   activity: "Activity",
   lastWeeks: "last {n} weeks",
   models: "Models",
@@ -69,8 +80,8 @@ Commands:
   login             Connect this device to your dashboard (--dashboard <url>)
   logout            Disconnect this device
   status            Print today's usage, live session and rate limits
-  paths             Show detected Codex session directories
-  config get|set    Read or change settings (config get, config set uploadIntervalSec 30)
+  paths             Show detected session directories (Codex, pi, OpenCode, Cline/Roo/Kilo, Hermes, custom)
+  config get|set    Read or change settings (config set uploadIntervalSec 30, config set sources.pi false)
   lang <en|zh|auto> Set the display language
 
 Options:
@@ -104,11 +115,12 @@ Options:
   cliStatusLive: "Live",
   cliStatusNoLive: "No active session",
   cliStatusLimits: "Rate limits",
+  cliStatusSources: "Sources",
   cliStatusModels: "Models (30 days)",
   cliStatusAccount: "Account",
   cliStatusDirs: "Session dirs",
-  cliPathsTitle: "Detected Codex session directories:",
-  cliPathsNone: "No Codex session directory found. Set CODEX_HOME or add extraSessionDirs.",
+  cliPathsTitle: "Detected session directories:",
+  cliPathsNone: "No session directory found. Set CODEX_HOME or add extraSessionDirs.",
   cliConfigSet: "Set {key} = {value}",
   cliConfigUnknownKey: "Unknown config key: {key}. Keys: {keys}",
   cliLangSet: "Language set to {lang}",

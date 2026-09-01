@@ -113,6 +113,44 @@ Costs are "API-equivalent" — standard OpenAI list prices per 1M tokens (input,
 }
 ```
 
+## Sources
+
+The tracker reads the local transcripts of every agent that can use a Codex subscription (ChatGPT login) and
+attributes usage to an **agent** (shown as "Sources" chips in the popover, a `Sources` line in `codex-tracker status`,
+and as a tag on live sessions / model rows). Only Codex-subscription providers are counted unless
+`trackAllProviders` is `true`.
+
+| Source | Where it looks | Notes |
+|---|---|---|
+| `codex` – Codex CLI / Codex Desktop | `$CODEX_HOME` or `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, `archived_sessions/` | Reference format; also carries rate-limit snapshots and context-window size |
+| `pi` – [pi coding agent](https://github.com/badlogic/pi-mono) | `$PI_CODING_AGENT_DIR` or `~/.pi/agent/sessions/<project>/*.jsonl` | Counts messages whose `provider` is `openai-codex` (Codex OAuth); other providers (API keys) only with `trackAllProviders` |
+| `opencode` – [OpenCode](https://github.com/sst/opencode) | `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode/storage/` (Windows: `%LOCALAPPDATA%\opencode`, `%APPDATA%\opencode`) | One JSON file per message; `providerID` `openai` counts when `auth.json` shows an OAuth login. *Best-effort – format inferred, not verified on a real install* |
+| `cline`, `roo`, `kilo` – Cline / Roo Code / Kilo Code (VS Code, Cursor, Windsurf, VSCodium, Trae, VS Code Remote) | `<globalStorage>/<extension id>/tasks/<task>/ui_messages.json` + `task_metadata.json` | Per-request `api_req_started` entries; model/provider from `model_usage`. *Best-effort* |
+| `hermes` – Hermes agent | `$HERMES_HOME` or `~/.hermes/sessions/**/*.json\|jsonl` (+ `state.db` via `node:sqlite` when available) | Generic parser: any JSON/JSONL with per-request `usage` objects. *Best-effort* |
+| custom | `extraSessionDirs` | `{"path": "~/.myagent/logs", "agent": "myagent", "format": "generic"}` (formats: `codex`, `pi`, `generic`, `opencode`, `cline`) |
+
+All sources are on by default. Turn one off with `codex-tracker config set sources.opencode false` (or
+`config set sources '{"pi":false}'`); `codex-tracker paths` shows which roots were found. On Windows the WSL
+distros' homes are scanned too, and inside WSL the Windows user profiles under `/mnt/c/Users`.
+
+The opencode / cline / hermes readers were written from the projects' known on-disk layouts without a real
+install to test against. If your usage is missing, please open an issue with one anonymised sample file
+(`ui_messages.json`, a message JSON, or a session JSONL) and the output of `codex-tracker paths`.
+
+## Rate limits
+
+The popover and `codex-tracker status` show your account's rate-limit windows (e.g. weekly / 5-hour) **live** from
+`https://chatgpt.com/backend-api/wham/usage`, the same endpoint the official Codex client uses. The request is
+made with the access token from your local Codex login (`~/.codex/auth.json`); the token is read fresh each time,
+never written, never refreshed by the tracker, and is sent **only to chatgpt.com** – never to the dashboard.
+Because every Codex-subscription consumer (pi, OpenCode, …) draws from the same account, this is the only
+accurate number; the values inside Codex logs are just snapshots from Codex's own last request.
+
+- Refreshed every `usageRefreshSec` (default 60 s) and ~10 s after new local usage is seen.
+- If the request fails (offline, expired token, API-key login) the card falls back to the latest values from Codex
+  logs and is labelled *From logs · as of <time>* with the reason.
+- Disable with `codex-tracker config set liveRateLimits false`.
+
 ## What gets uploaded
 
 Only aggregates: token counts per UTC hour and model, per-session totals, the model name, the project **folder name** and a SHA-256 of its path, plus a heartbeat (tokens/s, today's totals). Prompts, code, file paths and session contents never leave your machine. Timestamps are stored in UTC; the app and dashboard display them in your local time zone.

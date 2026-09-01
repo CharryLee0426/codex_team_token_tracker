@@ -12,7 +12,8 @@ export const usageFields = {
   cost: v.number(),
 };
 
-export const modelUsageValidator = v.object({ model: v.string(), ...usageFields });
+/** `agent` = tool that produced the usage ("codex" | "pi" | "hermes" | custom); absent means "codex". */
+export const modelUsageValidator = v.object({ model: v.string(), agent: v.optional(v.string()), ...usageFields });
 
 export const liveValidator = v.object({
   sessionId: v.union(v.string(), v.null()),
@@ -102,6 +103,7 @@ export default defineSchema({
     userId: v.id("users"),
     deviceId: v.id("devices"),
     sessionId: v.string(),
+    agent: v.optional(v.string()),
     model: v.string(),
     projectName: v.optional(v.string()),
     cwdHash: v.optional(v.string()),

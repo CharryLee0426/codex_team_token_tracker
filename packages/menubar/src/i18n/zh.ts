@@ -25,6 +25,17 @@ export const zh: Record<MessageKey, string> = {
   weekly: "每周",
   resetsIn: "{time} 后重置",
   plan: "套餐",
+  sources: "来源",
+  via: "来自 {agent}",
+  liveTag: "实时",
+  fromLogs: "来自日志",
+  updatedAgo: "更新于 {time}",
+  asOf: "截至 {time}",
+  limitReached: "已达上限",
+  additionalLimits: "其他限额",
+  credits: "额度",
+  liveLimitsError: "无法获取实时限额：{message}",
+  allProvidersOn: "包含所有提供商",
   activity: "活跃度",
   lastWeeks: "最近 {n} 周",
   models: "模型分布",
@@ -69,8 +80,8 @@ export const zh: Record<MessageKey, string> = {
   login             将本设备连接到仪表盘（--dashboard <url>）
   logout            断开本设备
   status            打印今日用量、实时会话与限额
-  paths             显示检测到的 Codex 会话目录
-  config get|set    查看或修改设置（config get，config set uploadIntervalSec 30）
+  paths             显示检测到的会话目录（Codex、pi、OpenCode、Cline/Roo/Kilo、Hermes、自定义）
+  config get|set    读取或修改设置（config set uploadIntervalSec 30，config set sources.pi false）
   lang <en|zh|auto> 设置显示语言
 
 选项：
@@ -104,11 +115,12 @@ export const zh: Record<MessageKey, string> = {
   cliStatusLive: "实时",
   cliStatusNoLive: "当前没有活跃会话",
   cliStatusLimits: "用量限额",
+  cliStatusSources: "来源",
   cliStatusModels: "模型（30 天）",
   cliStatusAccount: "账号",
   cliStatusDirs: "会话目录",
-  cliPathsTitle: "检测到的 Codex 会话目录：",
-  cliPathsNone: "未找到 Codex 会话目录。请设置 CODEX_HOME 或添加 extraSessionDirs。",
+  cliPathsTitle: "检测到的会话目录：",
+  cliPathsNone: "未找到会话目录。请设置 CODEX_HOME 或添加 extraSessionDirs。",
   cliConfigSet: "已设置 {key} = {value}",
   cliConfigUnknownKey: "未知配置项：{key}。可用：{keys}",
   cliLangSet: "语言已设置为 {lang}",

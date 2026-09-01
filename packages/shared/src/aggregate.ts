@@ -7,12 +7,13 @@ import type { UsageEvent } from "./codex-parser.ts";
 export interface HourBucket {
   hourStart: number; // UTC ms
   model: string;
+  agent: string; // "codex" | "pi" | ...
   usage: TokenUsage;
   cost: number;
 }
 
-export function bucketKey(hourStart: number, model: string): string {
-  return `${hourStart}|${model}`;
+export function bucketKey(hourStart: number, model: string, agent = "codex"): string {
+  return `${hourStart}|${model}|${agent}`;
 }
 
 export function bucketEvents(
@@ -23,10 +24,11 @@ export function bucketEvents(
   const priceCache = new Map<string, ModelPrice>();
   for (const e of events) {
     const hourStart = hourStartOf(e.ts);
-    const key = bucketKey(hourStart, e.model);
+    const agent = e.agent || "codex";
+    const key = bucketKey(hourStart, e.model, agent);
     let b = into.get(key);
     if (!b) {
-      b = { hourStart, model: e.model, usage: emptyUsage(), cost: 0 };
+      b = { hourStart, model: e.model, agent, usage: emptyUsage(), cost: 0 };
       into.set(key, b);
     }
     addUsageInPlace(b.usage, e.usage);
@@ -44,6 +46,7 @@ export function bucketEvents(
 export interface HourRow {
   hourStart: number;
   model?: string;
+  agent?: string;
   usage: TokenUsage;
   cost: number;
   userId?: string;
@@ -76,6 +79,12 @@ export function groupByLocalDay(rows: Iterable<HourRow>, tz?: string): Map<strin
 export function groupByModel(rows: Iterable<HourRow>): Map<string, Cell> {
   const out = new Map<string, Cell>();
   for (const r of rows) accumulate(out, r.model ?? "unknown", r);
+  return out;
+}
+
+export function groupByAgent(rows: Iterable<HourRow>): Map<string, Cell> {
+  const out = new Map<string, Cell>();
+  for (const r of rows) accumulate(out, r.agent ?? "codex", r);
   return out;
 }
 

@@ -9,6 +9,7 @@ export const MAX_SESSIONS_PER_PUSH = 100;
 export interface UploadHourBucket {
   hourStart: number; // UTC ms, floored to the hour
   model: string;
+  agent: string; // which tool produced the usage: "codex" | "pi" | "hermes" | custom
   input: number;
   cached: number;
   cacheWrite: number;
@@ -21,6 +22,7 @@ export interface UploadHourBucket {
 
 export interface UploadSession {
   sessionId: string;
+  agent: string;
   model: string;
   projectName: string | null;
   cwdHash: string | null; // sha256 of cwd – path itself never leaves the machine
@@ -67,6 +69,7 @@ export type DeviceAuthStatus = "pending" | "approved" | "expired" | "consumed" |
 /** Compact hourly row as returned by dashboard/menubar queries (short keys keep payloads small). */
 export interface CompactModelUsage {
   model: string;
+  agent?: string; // absent = "codex" (rows written before multi-agent support)
   i: number; // input
   c: number; // cached
   w: number; // cache write
@@ -85,7 +88,7 @@ export interface CompactHourRow extends Omit<CompactModelUsage, "model"> {
 
 /** Expand compact rows into per-model HourRow-like records (one per model per hour). */
 export function expandCompactRows(rows: CompactHourRow[]): Array<{
-  hourStart: number; model: string; userId: string; deviceId: string; cost: number;
+  hourStart: number; model: string; agent: string; userId: string; deviceId: string; cost: number;
   usage: { input: number; cached: number; cacheWrite: number; output: number; reasoning: number; total: number; requests: number };
 }> {
   const out: ReturnType<typeof expandCompactRows> = [];
@@ -93,7 +96,7 @@ export function expandCompactRows(rows: CompactHourRow[]): Array<{
     const models = r.m.length ? r.m : [{ model: "unknown", i: r.i, c: r.c, w: r.w, o: r.o, r: r.r, t: r.t, q: r.q, usd: r.usd }];
     for (const m of models) {
       out.push({
-        hourStart: r.h, model: m.model, userId: r.u, deviceId: r.d, cost: m.usd,
+        hourStart: r.h, model: m.model, agent: m.agent ?? "codex", userId: r.u, deviceId: r.d, cost: m.usd,
         usage: { input: m.i, cached: m.c, cacheWrite: m.w, output: m.o, reasoning: m.r, total: m.t, requests: m.q },
       });
     }

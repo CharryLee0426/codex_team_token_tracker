@@ -96,3 +96,72 @@ test("formatting", () => {
   assert.equal(formatUSD(0.001), "<$0.01");
   assert.equal(formatUSD(1234.5), "$1,234.50");
 });
+
+import { parsePiSessionText, piSessionIdFromFilename } from "../pi-parser.ts";
+import { parseGenericSessionText } from "../generic-parser.ts";
+import { parseCodexUsageResponse } from "../codex-usage-api.ts";
+
+const PI_SAMPLE = [
+  `{"type":"session","version":3,"id":"01a05bf2-a72b-7ce9-ae2e-0677c61a6c1d","timestamp":"2026-09-01T07:50:24.299Z","cwd":"/Users/x/Desktop/charlie/lark_pi"}`,
+  `{"type":"message","id":"a","timestamp":"2026-09-01T07:51:50.174Z","message":{"role":"user","content":"hi"}}`,
+  `{"type":"message","id":"b","timestamp":"2026-09-01T07:51:50.174Z","message":{"role":"assistant","content":"…","api":"openai-codex-responses","provider":"openai-codex","model":"gpt-5.6-sol","usage":{"input":16958,"output":208,"cacheRead":0,"cacheWrite":0,"reasoning":123,"totalTokens":17166,"cost":{"total":0.09}}}}`,
+  `{"type":"message","id":"c","timestamp":"2026-09-01T07:52:10.000Z","message":{"role":"assistant","content":"…","api":"openai-codex-responses","provider":"openai-codex","model":"gpt-5.6-sol","usage":{"input":54,"output":134,"cacheRead":1792,"cacheWrite":0,"reasoning":26,"totalTokens":1980}}}`,
+  `{"type":"message","id":"d","timestamp":"2026-09-01T07:53:00.000Z","message":{"role":"assistant","content":"…","api":"openai-completions","provider":"deepseek","model":"deepseek-chat","usage":{"input":10,"output":5,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":15}}}`,
+].join("\n");
+
+test("pi parser: codex-auth providers only by default, cache-inclusive input", () => {
+  const s = parsePiSessionText(PI_SAMPLE, "f");
+  assert.ok(s);
+  assert.equal(s.agent, "pi");
+  assert.equal(s.sessionId, "01a05bf2-a72b-7ce9-ae2e-0677c61a6c1d");
+  assert.equal(s.projectName, "lark_pi");
+  assert.equal(s.events.length, 2); // deepseek excluded
+  assert.equal(s.events[1].usage.input, 54 + 1792);
+  assert.equal(s.events[1].usage.cached, 1792);
+  assert.equal(s.events[1].usage.total, 1980);
+  assert.equal(s.events[1].provider, "openai-codex");
+  assert.equal(s.cumulative.requests, 2);
+  const all = parsePiSessionText(PI_SAMPLE, "f", { includeAllProviders: true })!;
+  assert.equal(all.events.length, 3);
+  assert.equal(piSessionIdFromFilename("/a/2026-09-01T07-50-24-299Z_01a05bf2-a72b-7ce9-ae2e-0677c61a6c1d.jsonl"), "01a05bf2-a72b-7ce9-ae2e-0677c61a6c1d");
+});
+
+test("generic parser handles JSON documents and JSONL with common usage spellings", () => {
+  const doc = JSON.stringify({
+    id: "sess-1", cwd: "/tmp/proj",
+    messages: [
+      { role: "assistant", created_at: "2026-09-01T10:00:00Z", model: "gpt-5.2-codex", provider: "openai-codex", usage: { input_tokens: 100, output_tokens: 20, input_tokens_details: { cached_tokens: 40 } } },
+      { role: "assistant", created_at: "2026-09-01T10:01:00Z", model: "gpt-5.2-codex", provider: "openai-codex", usage: { prompt_tokens: 50, completion_tokens: 10 } },
+    ],
+  });
+  const s = parseGenericSessionText(doc, "fb", { agent: "hermes" });
+  assert.ok(s);
+  assert.equal(s.agent, "hermes");
+  assert.equal(s.sessionId, "sess-1");
+  assert.equal(s.events.length, 2);
+  assert.equal(s.events[0].usage.cached, 40);
+  assert.equal(s.events[0].usage.total, 120);
+  const jsonl = `{"timestamp":1756720000,"model":"gpt-5","usage":{"input":5,"output":5}}\n{"timestamp":1756720100,"model":"gpt-5","usage":{"input":7,"output":1}}`;
+  const s2 = parseGenericSessionText(jsonl, "fb2", { agent: "custom", includeAllProviders: true });
+  assert.equal(s2!.events.length, 2);
+  assert.equal(s2!.cumulative.input, 12);
+});
+
+test("parses wham/usage response", () => {
+  const body = {
+    plan_type: "pro",
+    rate_limit: { allowed: true, limit_reached: false, primary_window: { used_percent: 39, limit_window_seconds: 604800, reset_after_seconds: 498508, reset_at: 1788747991 }, secondary_window: null },
+    additional_rate_limits: [{ limit_name: "GPT-5.3-Codex-Spark", rate_limit: { primary_window: { used_percent: 0, limit_window_seconds: 18000, reset_at: 1788267483 }, secondary_window: { used_percent: 0, limit_window_seconds: 604800, reset_at: 1788854283 } } }],
+    credits: { has_credits: false, unlimited: false, balance: "0" },
+  };
+  const rl = parseCodexUsageResponse(body, 1_000_000)!;
+  assert.equal(rl.source, "live");
+  assert.equal(rl.planType, "pro");
+  assert.equal(rl.primary?.usedPercent, 39);
+  assert.equal(rl.primary?.windowMinutes, 10080);
+  assert.equal(rl.primary?.resetsAt, 1788747991000);
+  assert.equal(rl.secondary, null);
+  assert.equal(rl.additional.length, 1);
+  assert.equal(rl.additional[0].primary?.windowMinutes, 300);
+  assert.equal(parseCodexUsageResponse({ foo: 1 }), null);
+});

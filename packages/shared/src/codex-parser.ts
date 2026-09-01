@@ -1,10 +1,17 @@
 import { emptyUsage, type TokenUsage } from "./usage.ts";
 
 /** One API request worth of token usage (a delta between consecutive `token_count` events). */
+/** Identifier of the tool that produced the usage: "codex" (Codex CLI/Desktop), "pi", "hermes", or a custom name. */
+export type AgentName = string;
+export const AGENT_CODEX = "codex";
+
 export interface UsageEvent {
   ts: number; // UTC ms
   model: string;
   usage: TokenUsage; // requests === 1
+  agent: AgentName;
+  /** Upstream provider id as reported by the agent (e.g. "openai-codex"); null when implicit (Codex CLI). */
+  provider?: string | null;
 }
 
 export interface RateLimitWindow {
@@ -23,6 +30,8 @@ export interface RateLimits {
 
 export interface ParsedSession {
   sessionId: string;
+  agent: AgentName;
+  provider: string | null;
   startedAt: number;
   lastActivityAt: number;
   cwd: string | null;
@@ -180,7 +189,7 @@ export function createSessionParser(fallbackSessionId: string): {
     if (delta.total <= 0 && delta.input <= 0 && delta.output <= 0) return; // duplicate / rate-limit-only event
     delta.requests = 1;
     requests += 1;
-    events.push({ ts, model, usage: delta });
+    events.push({ ts, model, usage: delta, agent: AGENT_CODEX, provider: null });
   }
 
   return {
@@ -252,6 +261,8 @@ export function createSessionParser(fallbackSessionId: string): {
       const cumulative = lastCumulative ? { ...lastCumulative, requests } : { ...emptyUsage(), requests };
       return {
         sessionId: id,
+        agent: AGENT_CODEX,
+        provider: null,
         startedAt: startedAt ?? lastActivityAt,
         lastActivityAt,
         cwd,

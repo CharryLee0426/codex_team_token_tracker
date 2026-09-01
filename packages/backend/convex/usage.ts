@@ -71,6 +71,7 @@ export const recentSessions = query({
           user: publicUser(u),
           deviceId: s.deviceId,
           sessionId: s.sessionId,
+          agent: s.agent ?? "codex",
           model: s.model,
           projectName: s.projectName ?? null,
           startedAt: s.startedAt,

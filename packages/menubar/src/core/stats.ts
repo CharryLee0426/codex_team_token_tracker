@@ -18,7 +18,7 @@ import {
   type TokenUsage,
   type UsageEvent,
 } from "@codex-tracker/shared";
-import type { LiveState, ModelStat, PeriodStat } from "./snapshot";
+import type { AgentStat, LiveState, ModelStat, PeriodStat } from "./snapshot";
 
 export interface StatsInput {
   sessions: ParsedSession[];
@@ -36,9 +36,12 @@ export interface Stats {
   remoteToday: { usage: TokenUsage; cost: number } | null;
   live: LiveState | null;
   lastActivityAt: number | null;
-  rateLimits: RateLimits | null;
+  /** Latest rate limits seen in Codex logs (stale whenever other agents consume the same subscription). */
+  logRateLimits: RateLimits | null;
   modelsToday: ModelStat[];
   modelsMonth: ModelStat[];
+  byAgentToday: AgentStat[];
+  byAgentMonth: AgentStat[];
   heatmap: ReturnType<typeof buildHeatmap>;
   sessionCosts: Map<string, number>;
 }
@@ -74,22 +77,49 @@ function periodStat(events: Iterable<UsageEvent>, since: number, prices: PriceCa
 }
 
 function modelStats(events: Iterable<UsageEvent>, since: number, prices: PriceCache): ModelStat[] {
-  const map = new Map<string, ModelStat>();
+  const map = new Map<string, ModelStat & { agentSet: Set<string> }>();
   let total = 0;
   for (const e of events) {
     if (e.ts < since) continue;
     let m = map.get(e.model);
     if (!m) {
       const pm = prices.get(e.model);
-      m = { model: e.model, usage: emptyUsage(), cost: 0, share: 0, estimated: pm.estimated, priceKey: pm.matchedKey };
+      m = { model: e.model, usage: emptyUsage(), cost: 0, share: 0, estimated: pm.estimated, priceKey: pm.matchedKey, agents: [], agentSet: new Set() };
       map.set(e.model, m);
     }
     addUsageInPlace(m.usage, e.usage);
     m.cost += prices.cost(e.model, e.usage);
+    m.agentSet.add(e.agent || "codex");
     total += e.usage.total;
   }
   const out = [...map.values()].sort((a, b) => b.usage.total - a.usage.total);
-  for (const m of out) m.share = total ? m.usage.total / total : 0;
+  return out.map(({ agentSet, ...m }) => ({ ...m, agents: [...agentSet].sort(), share: total ? m.usage.total / total : 0 }));
+}
+
+function agentStats(sessions: ParsedSession[], since: number, prices: PriceCache): AgentStat[] {
+  const map = new Map<string, AgentStat>();
+  let total = 0;
+  for (const s of sessions) {
+    let counted = false;
+    for (const e of s.events) {
+      if (e.ts < since) continue;
+      const agent = e.agent || s.agent || "codex";
+      let a = map.get(agent);
+      if (!a) {
+        a = { agent, usage: emptyUsage(), cost: 0, share: 0, sessions: 0 };
+        map.set(agent, a);
+      }
+      addUsageInPlace(a.usage, e.usage);
+      a.cost += prices.cost(e.model, e.usage);
+      total += e.usage.total;
+      if (!counted) {
+        a.sessions++;
+        counted = true;
+      }
+    }
+  }
+  const out = [...map.values()].sort((a, b) => b.usage.total - a.usage.total);
+  for (const a of out) a.share = total ? a.usage.total / total : 0;
   return out;
 }
 
@@ -108,7 +138,7 @@ export function computeStats(input: StatsInput): Stats {
       allEvents.push(e);
       cost += prices.cost(e.model, e.usage);
     }
-    sessionCosts.set(s.sessionId, cost);
+    sessionCosts.set(`${s.agent}:${s.sessionId}`, cost);
     if (s.lastActivityAt && (lastActivityAt === null || s.lastActivityAt > lastActivityAt)) lastActivityAt = s.lastActivityAt;
     if (s.rateLimits && (!latestLimits || s.rateLimits.observedAt > latestLimits.observedAt)) latestLimits = s.rateLimits;
   }
@@ -119,8 +149,10 @@ export function computeStats(input: StatsInput): Stats {
   const month = periodStat(allEvents, dayStart - 29 * DAY, prices);
   const modelsToday = modelStats(allEvents, dayStart, prices);
   const modelsMonth = modelStats(allEvents, dayStart - 29 * DAY, prices);
+  const byAgentToday = agentStats(sessions, dayStart, prices);
+  const byAgentMonth = agentStats(sessions, dayStart - 29 * DAY, prices);
 
-  // live session: most recent activity within the live window
+  // live session: most recent activity within the live window, across every agent
   let live: LiveState | null = null;
   const liveSession = sessions
     .filter((s) => s.events.length && now - s.lastActivityAt <= LIVE_WINDOW_MS)
@@ -136,6 +168,7 @@ export function computeStats(input: StatsInput): Stats {
     const last = liveSession.events[liveSession.events.length - 1];
     live = {
       sessionId: liveSession.sessionId,
+      agent: liveSession.agent,
       projectName: liveSession.projectName,
       model: liveSession.model,
       startedAt: liveSession.startedAt,
@@ -145,14 +178,14 @@ export function computeStats(input: StatsInput): Stats {
       contextUsed: last.usage.input + last.usage.output,
       contextWindow: liveSession.contextWindow,
       sessionUsage: { ...liveSession.cumulative },
-      sessionCost: sessionCosts.get(liveSession.sessionId) ?? 0,
+      sessionCost: sessionCosts.get(`${liveSession.agent}:${liveSession.sessionId}`) ?? 0,
     };
   }
 
-  // hourly buckets (UTC) → local heatmap, merged with rows from other devices
+  // hourly buckets (UTC, per model × agent) → local heatmap, merged with rows from other devices
   const bucketMap = bucketEvents(allEvents, input.pricing);
   const buckets = [...bucketMap.values()];
-  const rows: HourRow[] = buckets.map((b) => ({ hourStart: b.hourStart, model: b.model, usage: b.usage, cost: b.cost }));
+  const rows: HourRow[] = buckets.map((b) => ({ hourStart: b.hourStart, model: b.model, agent: b.agent, usage: b.usage, cost: b.cost }));
   const remoteRows = input.remoteRows ?? [];
   const days = groupByLocalDay([...rows, ...remoteRows]);
   const heatmap = buildHeatmap(days, todayKey(), input.heatmapWeeks ?? 16);
@@ -178,9 +211,11 @@ export function computeStats(input: StatsInput): Stats {
     remoteToday,
     live,
     lastActivityAt,
-    rateLimits: latestLimits,
+    logRateLimits: latestLimits,
     modelsToday,
     modelsMonth,
+    byAgentToday,
+    byAgentMonth,
     heatmap,
     sessionCosts,
   };

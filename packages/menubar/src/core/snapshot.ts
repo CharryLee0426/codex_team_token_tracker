@@ -1,4 +1,4 @@
-import type { TokenUsage, HeatmapGrid, RateLimits } from "@codex-tracker/shared";
+import type { TokenUsage, HeatmapGrid, LiveRateLimits } from "@codex-tracker/shared";
 import type { Language, LanguageSetting } from "../i18n";
 import type { PlatformKind } from "./platform";
 
@@ -9,10 +9,22 @@ export interface ModelStat {
   share: number; // 0..1 of total tokens in the period
   estimated: boolean; // pricing inferred (model not in table)
   priceKey: string | null;
+  /** Agents that used this model in the period (e.g. ["codex", "pi"]). */
+  agents: string[];
+}
+
+/** Usage attributed to one agent (codex, pi, opencode, …) in a period. */
+export interface AgentStat {
+  agent: string;
+  usage: TokenUsage;
+  cost: number;
+  share: number; // 0..1 of total tokens in the period
+  sessions: number;
 }
 
 export interface LiveState {
   sessionId: string;
+  agent: string;
   projectName: string | null;
   model: string;
   startedAt: number;
@@ -43,6 +55,13 @@ export interface PeriodStat {
   cacheHitRate: number;
 }
 
+export interface SessionRootInfo {
+  dir: string;
+  agent: string;
+  format: string;
+  origin: string;
+}
+
 export interface Snapshot {
   version: string;
   generatedAt: number;
@@ -55,13 +74,18 @@ export interface Snapshot {
   month: PeriodStat;
   live: LiveState | null;
   lastActivityAt: number | null;
-  rateLimits: RateLimits | null;
+  /** Live account limits from chatgpt.com when available, else the latest values seen in Codex logs (`source: "log"`). */
+  rateLimits: LiveRateLimits | null;
+  rateLimitsError: string | null;
+  rateLimitsUpdatedAt: number | null;
   modelsToday: ModelStat[];
   modelsMonth: ModelStat[];
+  byAgentToday: AgentStat[];
+  byAgentMonth: AgentStat[];
   heatmap: HeatmapGrid;
   heatmapWeeks: number;
   heatmapIncludesRemote: boolean;
-  counts: { sessions: number; files: number };
+  counts: { sessions: number; files: number; byAgent: Record<string, { sessions: number; files: number }> };
   upload: {
     enabled: boolean;
     lastUploadAt: number | null;
@@ -69,6 +93,7 @@ export interface Snapshot {
     lastRemoteFetchAt: number | null;
   };
   sessionDirs: string[];
+  sessionRoots: SessionRootInfo[];
   launchAtLogin: boolean;
   trayTitle: "tokens" | "cost" | "none";
 }
