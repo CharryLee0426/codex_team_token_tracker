@@ -30,7 +30,7 @@ codex-tracker                  # start the menu bar app (agent mode when there i
 codex-tracker status           # terminal summary — handy in WSL / over SSH
 ```
 
-`login` prints a short code and opens `https://<dashboard>/cli-auth?code=XXXX-XXXX` in your browser. Approve the device there and the tracker receives a device token. Local tracking works without signing in; signing in enables uploads and the multi-device heatmap.
+By default the tool connects to **https://codex.chenli.dev**; other teams pass their own dashboard with `--dashboard <url>` (remembered afterwards). `login` prints a short code and opens `https://<dashboard>/cli-auth?code=XXXX-XXXX` in your browser. Approve the device there and the tracker receives a device token. Local tracking works without signing in; signing in enables uploads and the multi-device heatmap.
 
 ### Self-hosted dashboard
 
@@ -93,7 +93,7 @@ Config lives in `~/.codex-tracker/` (override with `CODEX_TRACKER_HOME`):
 
 | Key | Default | Notes |
 | --- | --- | --- |
-| `dashboardUrl` | `https://codex-tracker.vercel.app` | Your dashboard |
+| `dashboardUrl` | `https://codex.chenli.dev` | Your team dashboard (self-hosters: `codex-tracker login --dashboard <url>`) |
 | `language` | `auto` | `en`, `zh` or `auto` (OS language) |
 | `uploadIntervalSec` | `60` | Push interval |
 | `heartbeatIntervalSec` | `15` | Live status interval |

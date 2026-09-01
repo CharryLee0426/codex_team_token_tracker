@@ -1,3 +1,5 @@
+> Production deployment steps (Vercel + Convex prod + Clerk prod): see [docs/ADMIN_DEPLOY.md](../../docs/ADMIN_DEPLOY.md).
+
 # Codex Tracker – Dashboard
 
 Next.js 15 (App Router) dashboard for team Codex token usage. Auth by Clerk (Google / GitHub, Organizations), realtime data from Convex, English + Chinese, light / dark / system theme, OpenRouter-style UI.

@@ -3,6 +3,16 @@
   "version": "0.1.0",
   "description": "Menu bar / system tray app and headless agent that tracks OpenAI Codex token usage, cache hits, model mix and API-equivalent cost \u2014 and syncs it to your team dashboard.",
   "license": "MIT",
+  "author": "Chen Li",
+  "homepage": "https://codex.chenli.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CharryLee0426/codex_team_token_tracker.git",
+    "directory": "packages/menubar"
+  },
+  "bugs": {
+    "url": "https://github.com/CharryLee0426/codex_team_token_tracker/issues"
+  },
   "keywords": [
     "codex",
     "openai",
@@ -32,6 +42,9 @@
     "win32",
     "linux"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --watch",

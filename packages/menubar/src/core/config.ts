@@ -4,7 +4,7 @@ import path from "node:path";
 import type { ModelPrice } from "@codex-tracker/shared";
 import type { LanguageSetting } from "../i18n";
 
-export const DEFAULT_DASHBOARD_URL = "https://codex-tracker.vercel.app";
+export const DEFAULT_DASHBOARD_URL = "https://codex.chenli.dev";
 
 /** How a session directory's files are parsed (see src/core/sources). */
 export type SourceFormat = "codex" | "pi" | "generic" | "opencode" | "cline";

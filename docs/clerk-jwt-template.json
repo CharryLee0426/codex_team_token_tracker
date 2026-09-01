@@ -1,0 +1,16 @@
+{
+  "name": "convex",
+  "lifetime": 60,
+  "allowed_clock_skew": 5,
+  "custom_signing_key": false,
+  "claims": {
+    "aud": "convex",
+    "org_id": "{{org.id}}",
+    "org_role": "{{org.role}}",
+    "org_slug": "{{org.slug}}",
+    "org_name": "{{org.name}}",
+    "email": "{{user.primary_email_address}}",
+    "name": "{{user.full_name}}",
+    "picture": "{{user.image_url}}"
+  }
+}
