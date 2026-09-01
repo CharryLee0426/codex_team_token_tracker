@@ -1,0 +1,22 @@
+{
+  "name": "@codex-tracker/backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Convex backend (schema + functions) shared by the dashboard and the menubar tool",
+  "type": "module",
+  "scripts": {
+    "build": "echo 'backend: deployed via convex deploy from apps/dashboard'",
+    "typecheck": "tsc --noEmit -p convex/tsconfig.json",
+    "codegen": "convex codegen",
+    "dev": "convex dev",
+    "deploy": "convex deploy"
+  },
+  "dependencies": {
+    "@codex-tracker/shared": "workspace:*",
+    "convex": "^1.45.0",
+    "svix": "^1.45.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "name": "codex-token-tracker",
+  "version": "0.1.0",
+  "description": "Menu bar / system tray app and headless agent that tracks OpenAI Codex token usage, cache hits, model mix and API-equivalent cost \u2014 and syncs it to your team dashboard.",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "openai",
+    "tokens",
+    "usage",
+    "tracker",
+    "menubar",
+    "tray",
+    "electron",
+    "convex"
+  ],
+  "bin": {
+    "codex-tracker": "bin/codex-tracker.js"
+  },
+  "main": "dist/main.js",
+  "files": [
+    "bin",
+    "dist",
+    "assets",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "darwin",
+    "win32",
+    "linux"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "node bin/codex-tracker.js",
+    "prepublishOnly": "pnpm build && pnpm typecheck",
+    "build:icons": "node scripts/gen-icons.mjs"
+  },
+  "dependencies": {
+    "menubar": "^9.5.3"
+  },
+  "optionalDependencies": {
+    "electron": "^38.8.6"
+  },
+  "devDependencies": {
+    "@codex-tracker/backend": "workspace:*",
+    "@codex-tracker/shared": "workspace:*",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "convex": "^1.45.0",
+    "esbuild": "^0.28.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "~5.9.3"
+  }
+}

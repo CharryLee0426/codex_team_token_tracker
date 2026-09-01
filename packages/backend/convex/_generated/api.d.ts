@@ -1,0 +1,55 @@
+/* eslint-disable */
+/**
+ * Generated `api` utility.
+ *
+ * THIS CODE IS AUTOMATICALLY GENERATED.
+ *
+ * To regenerate, run `npx convex dev`.
+ * @module
+ */
+
+import type * as crons from "../crons.js";
+import type * as deviceAuth from "../deviceAuth.js";
+import type * as http from "../http.js";
+import type * as ingest from "../ingest.js";
+import type * as lib_auth from "../lib/auth.js";
+import type * as orgs from "../orgs.js";
+import type * as usage from "../usage.js";
+import type * as users from "../users.js";
+import type * as webhooks from "../webhooks.js";
+
+import type {
+  ApiFromModules,
+  FilterApi,
+  FunctionReference,
+} from "convex/server";
+
+/**
+ * A utility for referencing Convex functions in your app's API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
+declare const fullApi: ApiFromModules<{
+  crons: typeof crons;
+  deviceAuth: typeof deviceAuth;
+  http: typeof http;
+  ingest: typeof ingest;
+  "lib/auth": typeof lib_auth;
+  orgs: typeof orgs;
+  usage: typeof usage;
+  users: typeof users;
+  webhooks: typeof webhooks;
+}>;
+export declare const api: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, "public">
+>;
+export declare const internal: FilterApi<
+  typeof fullApi,
+  FunctionReference<any, "internal">
+>;
+
+export declare const components: {};

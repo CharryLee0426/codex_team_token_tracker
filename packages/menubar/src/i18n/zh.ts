@@ -1,0 +1,116 @@
+import type { MessageKey } from "./en";
+
+export const zh: Record<MessageKey, string> = {
+  appName: "Codex 用量",
+  today: "今日",
+  tokens: "Token",
+  cost: "API 等价费用",
+  cacheHit: "缓存命中",
+  requests: "请求数",
+  input: "输入",
+  output: "输出",
+  cached: "缓存",
+  reasoning: "推理",
+  liveSession: "实时会话",
+  noLiveSession: "当前没有活跃会话",
+  lastActivity: "最近活动 {time}",
+  tokensPerSec: "token/秒",
+  burst10s: "10 秒峰值",
+  context: "上下文",
+  contextUsage: "{used} / {window}（{percent}）",
+  rateLimits: "用量限额",
+  windowLabel: "{window} 窗口",
+  hours: "{n} 小时",
+  days: "{n} 天",
+  weekly: "每周",
+  resetsIn: "{time} 后重置",
+  plan: "套餐",
+  activity: "活跃度",
+  lastWeeks: "最近 {n} 周",
+  models: "模型分布",
+  thisMonth: "30 天",
+  estimated: "估算",
+  estimatedPricingHint: "价格为估算值：该模型不在价目表中",
+  other: "其他",
+  lastUpload: "上次上传 {time}",
+  neverUploaded: "尚未上传",
+  uploadError: "上传失败：{message}",
+  allDevicesToday: "所有设备今日",
+  signIn: "登录",
+  signOut: "退出登录",
+  signedInAs: "已登录：{name}",
+  signedOut: "未登录 — 仅本地统计",
+  pendingCode: "请在浏览器中批准代码 {code}",
+  copyUrl: "复制链接",
+  cancel: "取消",
+  openDashboard: "打开仪表盘",
+  language: "语言",
+  english: "English",
+  chinese: "中文",
+  system: "跟随系统",
+  launchAtLogin: "开机自启动",
+  refresh: "刷新",
+  quit: "退出",
+  sessions: "{n} 个会话",
+  files: "{n} 个文件",
+  noData: "还没有用量数据。运行 Codex 后这里会自动更新。",
+  version: "v{version}",
+  justNow: "刚刚",
+  never: "从未",
+  local: "本机",
+  remote: "其他设备",
+  cliUsage: `用法：codex-tracker [命令] [选项]
+
+命令：
+  (无)              启动菜单栏应用（无显示环境时自动切换为 agent 模式）
+  menubar           启动菜单栏 / 托盘应用
+  agent             无界面模式：定时统计并上传（适用于 WSL2、服务器）
+                    --interval <秒>  上传间隔（默认 60）   --once  只执行一轮后退出
+  login             将本设备连接到仪表盘（--dashboard <url>）
+  logout            断开本设备
+  status            打印今日用量、实时会话与限额
+  paths             显示检测到的 Codex 会话目录
+  config get|set    查看或修改设置（config get，config set uploadIntervalSec 30）
+  lang <en|zh|auto> 设置显示语言
+
+选项：
+  --dashboard <url> 仪表盘地址（自托管）
+  --background      以后台方式启动菜单栏应用并立即返回
+  --version, -v     显示版本
+  --help, -h        显示帮助`,
+  cliVersion: "codex-token-tracker {version}",
+  cliUnknownCommand: "未知命令：{command}",
+  cliNoDisplay: "未检测到显示环境 — 以 agent 模式启动（桌面环境请运行 `codex-tracker menubar`）。",
+  cliNoElectron: "未安装 Electron（可选依赖）— 以 agent 模式启动。",
+  cliStartingMenubar: "正在启动菜单栏应用…",
+  cliLoginStart: "正在将本设备连接到 {dashboard}",
+  cliLoginCode: "你的代码：{code}",
+  cliLoginOpen: "请在浏览器中打开以下链接并批准该设备：\n  {url}",
+  cliLoginWaiting: "等待批准…",
+  cliLoginSuccess: "已连接：{name}。上传已启用。",
+  cliLoginDenied: "请求被拒绝。",
+  cliLoginExpired: "代码已过期，请重新运行 `codex-tracker login`。",
+  cliLoginFailed: "登录失败：{message}",
+  cliLogoutDone: "已断开连接。本地统计仍然可用。",
+  cliNotSignedIn: "尚未登录。运行 `codex-tracker login` 以启用上传。",
+  cliAgentStarted: "Agent 已启动（每 {interval} 秒上传一次）。按 Ctrl+C 停止。",
+  cliAgentLine: "{time}  今日 {tokens} tok · {cost} · 缓存 {cache} · {tps} tok/s · {sessions} 个会话{upload}",
+  cliAgentUploaded: " · 已上传 {buckets} 个小时桶",
+  cliAgentUploadError: " · 上传失败：{message}",
+  cliStatusTitle: "Codex 用量 — {date}",
+  cliStatusToday: "今日",
+  cliStatusWeek: "最近 7 天",
+  cliStatusMonth: "最近 30 天",
+  cliStatusLive: "实时",
+  cliStatusNoLive: "当前没有活跃会话",
+  cliStatusLimits: "用量限额",
+  cliStatusModels: "模型（30 天）",
+  cliStatusAccount: "账号",
+  cliStatusDirs: "会话目录",
+  cliPathsTitle: "检测到的 Codex 会话目录：",
+  cliPathsNone: "未找到 Codex 会话目录。请设置 CODEX_HOME 或添加 extraSessionDirs。",
+  cliConfigSet: "已设置 {key} = {value}",
+  cliConfigUnknownKey: "未知配置项：{key}。可用：{keys}",
+  cliLangSet: "语言已设置为 {lang}",
+  cliConfigDir: "配置目录：{dir}",
+};

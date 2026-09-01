@@ -1,0 +1,118 @@
+export const en = {
+  appName: "Codex Tracker",
+  // popover
+  today: "Today",
+  tokens: "Tokens",
+  cost: "API-equivalent cost",
+  cacheHit: "Cache hit",
+  requests: "Requests",
+  input: "Input",
+  output: "Output",
+  cached: "Cached",
+  reasoning: "Reasoning",
+  liveSession: "Live session",
+  noLiveSession: "No active session",
+  lastActivity: "Last activity {time}",
+  tokensPerSec: "tokens/s",
+  burst10s: "10s burst",
+  context: "Context",
+  contextUsage: "{used} / {window} ({percent})",
+  rateLimits: "Rate limits",
+  windowLabel: "{window} window",
+  hours: "{n}h",
+  days: "{n}d",
+  weekly: "Weekly",
+  resetsIn: "resets in {time}",
+  plan: "Plan",
+  activity: "Activity",
+  lastWeeks: "last {n} weeks",
+  models: "Models",
+  thisMonth: "30 days",
+  estimated: "est.",
+  estimatedPricingHint: "Pricing estimated: model not in the price table",
+  other: "Other",
+  lastUpload: "Last upload {time}",
+  neverUploaded: "Not uploaded yet",
+  uploadError: "Upload error: {message}",
+  allDevicesToday: "All devices today",
+  signIn: "Sign in",
+  signOut: "Sign out",
+  signedInAs: "Signed in as {name}",
+  signedOut: "Not signed in — local tracking only",
+  pendingCode: "Approve code {code} in your browser",
+  copyUrl: "Copy link",
+  cancel: "Cancel",
+  openDashboard: "Open dashboard",
+  language: "Language",
+  english: "English",
+  chinese: "中文",
+  system: "System",
+  launchAtLogin: "Launch at login",
+  refresh: "Refresh",
+  quit: "Quit",
+  sessions: "{n} sessions",
+  files: "{n} files",
+  noData: "No usage found yet. Run Codex and this will fill in.",
+  version: "v{version}",
+  justNow: "just now",
+  never: "never",
+  local: "Local",
+  remote: "Other devices",
+  // CLI
+  cliUsage: `Usage: codex-tracker [command] [options]
+
+Commands:
+  (none)            Start the menu bar app (falls back to agent mode without a display)
+  menubar           Start the menu bar / tray app
+  agent             Headless mode: track + upload on a schedule (WSL2, servers)
+                    --interval <sec>  upload interval (default 60)   --once  run one cycle and exit
+  login             Connect this device to your dashboard (--dashboard <url>)
+  logout            Disconnect this device
+  status            Print today's usage, live session and rate limits
+  paths             Show detected Codex session directories
+  config get|set    Read or change settings (config get, config set uploadIntervalSec 30)
+  lang <en|zh|auto> Set the display language
+
+Options:
+  --dashboard <url> Dashboard URL (self-hosted)
+  --background      Start the menu bar app detached and return
+  --version, -v     Print version
+  --help, -h        Show this help`,
+  cliVersion: "codex-token-tracker {version}",
+  cliUnknownCommand: "Unknown command: {command}",
+  cliNoDisplay: "No display detected — starting agent mode (run `codex-tracker menubar` on a desktop).",
+  cliNoElectron: "Electron is not installed (optional dependency) — starting agent mode.",
+  cliStartingMenubar: "Starting menu bar app…",
+  cliLoginStart: "Connecting this device to {dashboard}",
+  cliLoginCode: "Your code: {code}",
+  cliLoginOpen: "Open this link in your browser and approve the device:\n  {url}",
+  cliLoginWaiting: "Waiting for approval…",
+  cliLoginSuccess: "Connected as {name}. Uploads are enabled.",
+  cliLoginDenied: "The request was denied.",
+  cliLoginExpired: "The code expired. Run `codex-tracker login` again.",
+  cliLoginFailed: "Login failed: {message}",
+  cliLogoutDone: "Disconnected. Local tracking keeps working.",
+  cliNotSignedIn: "Not signed in. Run `codex-tracker login` to enable uploads.",
+  cliAgentStarted: "Agent started (upload every {interval}s). Press Ctrl+C to stop.",
+  cliAgentLine: "{time}  today {tokens} tok · {cost} · cache {cache} · {tps} tok/s · {sessions} sessions{upload}",
+  cliAgentUploaded: " · uploaded {buckets} buckets",
+  cliAgentUploadError: " · upload error: {message}",
+  cliStatusTitle: "Codex usage — {date}",
+  cliStatusToday: "Today",
+  cliStatusWeek: "Last 7 days",
+  cliStatusMonth: "Last 30 days",
+  cliStatusLive: "Live",
+  cliStatusNoLive: "No active session",
+  cliStatusLimits: "Rate limits",
+  cliStatusModels: "Models (30 days)",
+  cliStatusAccount: "Account",
+  cliStatusDirs: "Session dirs",
+  cliPathsTitle: "Detected Codex session directories:",
+  cliPathsNone: "No Codex session directory found. Set CODEX_HOME or add extraSessionDirs.",
+  cliConfigSet: "Set {key} = {value}",
+  cliConfigUnknownKey: "Unknown config key: {key}. Keys: {keys}",
+  cliLangSet: "Language set to {lang}",
+  cliConfigDir: "Config: {dir}",
+} as const;
+
+export type MessageKey = keyof typeof en;

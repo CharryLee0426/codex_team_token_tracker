@@ -1,0 +1,258 @@
+import { ConvexHttpClient } from "convex/browser";
+import { ConvexError } from "convex/values";
+import { api } from "@codex-tracker/backend/convex/_generated/api";
+import {
+  expandCompactRows,
+  hourStartOf,
+  sha256Hex,
+  MAX_BUCKETS_PER_PUSH,
+  MAX_SESSIONS_PER_PUSH,
+  type DashboardConfigResponse,
+  type HourBucket,
+  type HourRow,
+  type LiveSnapshot,
+  type ParsedSession,
+  type UploadHourBucket,
+  type UploadSession,
+} from "@codex-tracker/shared";
+import { loadState, saveState, updateConfig, type TrackerConfig, type UploadState } from "./config";
+
+export class SignedOutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SignedOutError";
+  }
+}
+
+export async function fetchDashboardConfig(dashboardUrl: string): Promise<DashboardConfigResponse> {
+  const res = await fetch(`${dashboardUrl.replace(/\/+$/, "")}/api/config`, { headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error(`Dashboard config request failed (${res.status}) for ${dashboardUrl}`);
+  const json = (await res.json()) as Partial<DashboardConfigResponse>;
+  if (!json || typeof json.convexUrl !== "string" || !/^https?:\/\//.test(json.convexUrl)) {
+    throw new Error(`Dashboard at ${dashboardUrl} did not return a Convex URL`);
+  }
+  return {
+    convexUrl: json.convexUrl,
+    dashboardUrl: typeof json.dashboardUrl === "string" ? json.dashboardUrl : dashboardUrl,
+    appName: typeof json.appName === "string" ? json.appName : "Codex Tracker",
+    wireVersion: typeof json.wireVersion === "number" ? json.wireVersion : 1,
+  };
+}
+
+/** Resolve (and cache in config) the Convex deployment URL for the configured dashboard. */
+export async function resolveConvexUrl(cfg: TrackerConfig, force = false): Promise<string> {
+  if (cfg.convexUrl && !force) return cfg.convexUrl;
+  const remote = await fetchDashboardConfig(cfg.dashboardUrl);
+  updateConfig({ convexUrl: remote.convexUrl });
+  cfg.convexUrl = remote.convexUrl;
+  return remote.convexUrl;
+}
+
+export function errorMessage(err: unknown): string {
+  if (err instanceof ConvexError) {
+    const d = err.data as { message?: string; code?: string } | string;
+    if (typeof d === "string") return d;
+    return d?.message ?? d?.code ?? "Convex error";
+  }
+  if (err instanceof Error) return err.message;
+  return String(err);
+}
+
+function isBadToken(err: unknown): boolean {
+  if (!(err instanceof ConvexError)) return false;
+  const d = err.data as { code?: string } | undefined;
+  return d?.code === "BAD_TOKEN";
+}
+
+function isNetworkError(err: unknown): boolean {
+  return !(err instanceof ConvexError) && err instanceof Error && /fetch|network|ECONN|ENOTFOUND|timeout/i.test(err.message);
+}
+
+function bucketHash(b: HourBucket): string {
+  const u = b.usage;
+  return `${u.input}|${u.cached}|${u.cacheWrite}|${u.output}|${u.reasoning}|${u.total}|${u.requests}|${b.cost.toFixed(6)}`;
+}
+
+function sessionHash(s: ParsedSession, cost: number): string {
+  return `${s.model}|${s.lastActivityAt}|${s.cumulative.total}|${s.cumulative.requests}|${cost.toFixed(6)}|${s.projectName ?? ""}`;
+}
+
+export interface UploaderOptions {
+  getConfig: () => TrackerConfig;
+  onSignedOut: (reason: string) => void;
+  log?: (msg: string) => void;
+}
+
+/** Pushes local aggregates to Convex, remembers what was already pushed, and pulls other devices' data. */
+export class Uploader {
+  private client: ConvexHttpClient | null = null;
+  private clientUrl: string | null = null;
+  private state: UploadState;
+  lastError: string | null = null;
+  lastUploadAt: number | null;
+  lastRemoteFetchAt: number | null = null;
+  remoteRows: HourRow[] = [];
+  private inFlight = false;
+
+  constructor(private readonly opts: UploaderOptions) {
+    this.state = loadState();
+    this.lastUploadAt = this.state.lastUploadAt;
+  }
+
+  resetState() {
+    this.state = { pushedBuckets: {}, pushedSessions: {}, lastUploadAt: null };
+    saveState(this.state);
+    this.lastUploadAt = null;
+    this.remoteRows = [];
+    this.lastRemoteFetchAt = null;
+    this.client = null;
+  }
+
+  private token(): string {
+    const t = this.opts.getConfig().deviceToken;
+    if (!t) throw new SignedOutError("not signed in");
+    return t;
+  }
+
+  private async getClient(force = false): Promise<ConvexHttpClient> {
+    const cfg = this.opts.getConfig();
+    const url = await resolveConvexUrl(cfg, force);
+    if (!this.client || this.clientUrl !== url) {
+      this.client = new ConvexHttpClient(url);
+      this.clientUrl = url;
+    }
+    return this.client;
+  }
+
+  /** Run a Convex call with token/network error handling and a one-time URL refresh retry. */
+  private async call<T>(fn: (client: ConvexHttpClient, token: string) => Promise<T>): Promise<T> {
+    const token = this.token();
+    try {
+      const r = await fn(await this.getClient(), token);
+      this.lastError = null;
+      return r;
+    } catch (err) {
+      if (isBadToken(err)) {
+        this.opts.onSignedOut(errorMessage(err));
+        throw new SignedOutError(errorMessage(err));
+      }
+      if (isNetworkError(err)) {
+        try {
+          const r = await fn(await this.getClient(true), token);
+          this.lastError = null;
+          return r;
+        } catch (err2) {
+          this.lastError = errorMessage(err2);
+          throw err2;
+        }
+      }
+      this.lastError = errorMessage(err);
+      throw err;
+    }
+  }
+
+  /** Upload changed hour buckets and session summaries. Returns counts of pushed items. */
+  async pushAll(buckets: HourBucket[], sessions: ParsedSession[], sessionCosts: Map<string, number>): Promise<{ buckets: number; sessions: number }> {
+    if (this.inFlight) return { buckets: 0, sessions: 0 };
+    this.inFlight = true;
+    try {
+      const changed: UploadHourBucket[] = [];
+      const hashes = new Map<string, string>();
+      for (const b of buckets.sort((a, b) => a.hourStart - b.hourStart)) {
+        const key = `${b.hourStart}|${b.model}`;
+        const h = bucketHash(b);
+        if (this.state.pushedBuckets[key] === h) continue;
+        hashes.set(key, h);
+        changed.push({
+          hourStart: b.hourStart,
+          model: b.model,
+          input: b.usage.input,
+          cached: b.usage.cached,
+          cacheWrite: b.usage.cacheWrite,
+          output: b.usage.output,
+          reasoning: b.usage.reasoning,
+          total: b.usage.total,
+          requests: b.usage.requests,
+          cost: b.cost,
+        });
+      }
+      let pushedBuckets = 0;
+      for (let i = 0; i < changed.length; i += MAX_BUCKETS_PER_PUSH) {
+        const chunk = changed.slice(i, i + MAX_BUCKETS_PER_PUSH);
+        await this.call((c, token) => c.mutation(api.ingest.pushHourly, { token, buckets: chunk }));
+        for (const b of chunk) {
+          const key = `${b.hourStart}|${b.model}`;
+          this.state.pushedBuckets[key] = hashes.get(key)!;
+        }
+        pushedBuckets += chunk.length;
+        this.state.lastUploadAt = Date.now();
+        saveState(this.state);
+      }
+
+      const changedSessions: UploadSession[] = [];
+      const sHashes = new Map<string, string>();
+      for (const s of sessions) {
+        if (!s.events.length) continue;
+        const cost = sessionCosts.get(s.sessionId) ?? 0;
+        const h = sessionHash(s, cost);
+        if (this.state.pushedSessions[s.sessionId] === h) continue;
+        sHashes.set(s.sessionId, h);
+        changedSessions.push({
+          sessionId: s.sessionId,
+          model: s.model,
+          projectName: s.projectName,
+          cwdHash: s.cwd ? sha256Hex(s.cwd) : null,
+          startedAt: s.startedAt,
+          lastActivityAt: s.lastActivityAt,
+          input: s.cumulative.input,
+          cached: s.cumulative.cached,
+          cacheWrite: s.cumulative.cacheWrite,
+          output: s.cumulative.output,
+          reasoning: s.cumulative.reasoning,
+          total: s.cumulative.total,
+          requests: s.cumulative.requests,
+          cost,
+          source: s.source ?? s.originator ?? null,
+          cliVersion: s.cliVersion,
+        });
+      }
+      let pushedSessions = 0;
+      for (let i = 0; i < changedSessions.length; i += MAX_SESSIONS_PER_PUSH) {
+        const chunk = changedSessions.slice(i, i + MAX_SESSIONS_PER_PUSH);
+        await this.call((c, token) => c.mutation(api.ingest.pushSessions, { token, sessions: chunk }));
+        for (const s of chunk) this.state.pushedSessions[s.sessionId] = sHashes.get(s.sessionId)!;
+        pushedSessions += chunk.length;
+        this.state.lastUploadAt = Date.now();
+        saveState(this.state);
+      }
+      if (pushedBuckets || pushedSessions) this.lastUploadAt = this.state.lastUploadAt;
+      else if (!this.lastUploadAt) {
+        // nothing to push but confirm connectivity once
+        this.lastUploadAt = this.state.lastUploadAt;
+      }
+      this.opts.log?.(`pushed ${pushedBuckets} buckets, ${pushedSessions} sessions`);
+      return { buckets: pushedBuckets, sessions: pushedSessions };
+    } finally {
+      this.inFlight = false;
+    }
+  }
+
+  async heartbeat(input: { appVersion: string; platform: string; hostname: string | null; timezone: string; live: LiveSnapshot | null }) {
+    await this.call((c, token) => c.mutation(api.ingest.heartbeat, { token, ...input }));
+  }
+
+  /** Other devices' hourly rows for the last `weeks` weeks (merged into the heatmap and "all devices today"). */
+  async fetchRemote(weeks: number): Promise<HourRow[]> {
+    const now = Date.now();
+    const from = hourStartOf(now - weeks * 7 * 86_400_000);
+    const to = hourStartOf(now) + 3_600_000;
+    const rows = await this.call((c, token) => c.query(api.ingest.remoteHourly, { token, from, to, includeSelf: false }));
+    this.remoteRows = expandCompactRows(rows);
+    this.lastRemoteFetchAt = Date.now();
+    return this.remoteRows;
+  }
+
+  async whoami() {
+    return this.call((c, token) => c.query(api.ingest.whoami, { token }));
+  }
+}

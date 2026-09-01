@@ -1,0 +1,20 @@
+{
+  "name": "codex-token-tracker-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Team Codex subscription token tracker: macOS/Windows menu bar tool + Next.js dashboard on Convex + Clerk",
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter dashboard dev",
+    "dev:convex": "pnpm --filter dashboard dev:convex",
+    "dev:menubar": "pnpm --filter codex-token-tracker dev",
+    "build": "pnpm -r --filter './packages/**' build && pnpm --filter dashboard build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --if-present test",
+    "codegen": "pnpm --filter dashboard codegen",
+    "release:menubar": "pnpm --filter codex-token-tracker publish --access public"
+  }
+}
