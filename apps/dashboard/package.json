@@ -7,7 +7,7 @@
     "dev": "next dev",
     "dev:convex": "convex dev",
     "build": "next build",
-    "build:vercel": "convex deploy --cmd 'next build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL",
+    "build:vercel": "node scripts/build-vercel.mjs",
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "codegen": "convex codegen"

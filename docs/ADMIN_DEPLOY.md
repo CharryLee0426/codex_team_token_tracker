@@ -22,57 +22,74 @@ Do the sections in order; each one needs values from the previous one.
 
 ## 1. Convex — production deployment
 
-1. https://dashboard.convex.dev → your project (dev deployment `majestic-lynx-360` already exists) → **Settings → Deploy keys → Generate production deploy key**. Copy it: this is `CONVEX_DEPLOY_KEY` for Vercel. The production deployment is created on the first deploy.
-2. Note the production URLs after the first Vercel build (Convex dashboard → Production): `https://<prod-name>.convex.cloud` (API) and `https://<prod-name>.convex.site` (webhook host).
-3. Production environment variables are set in **section 3.6** once Clerk production exists:
+Current state: project **codex-token-tracker**, dev deployment `majestic-lynx-360`, production deployment **`grandiose-seal-712`** → API `https://grandiose-seal-712.convex.cloud`, HTTP/webhook host `https://grandiose-seal-712.convex.site` (`/health` returns `{"ok":true}`).
+
+1. **Deploy key** for Vercel (already created as `vercel-production`; recreate if rotated):
    ```bash
    cd apps/dashboard
-   npx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk.chenli.dev --prod
-   npx convex env set CLERK_WEBHOOK_SECRET whsec_xxx --prod
+   npx convex deployment token create vercel-production --deployment prod   # prints prod:… → CONVEX_DEPLOY_KEY on Vercel
    ```
-   (or Convex dashboard → Production → Settings → Environment Variables).
+   (or Convex dashboard → Settings → Deploy keys → *Generate production deploy key*).
+2. **Environment variables** on the production deployment (`CLERK_JWT_ISSUER_DOMAIN` is set; the webhook secret is optional, see 3.6):
+   ```bash
+   npx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk.codex.chenli.dev --prod
+   npx convex env set CLERK_WEBHOOK_SECRET whsec_xxx --prod
+   npx convex env list --prod --names-only
+   ```
+3. **Manual deploy** (Vercel does this on every build, so this is only for emergencies): `CONVEX_DEPLOY_KEY=prod:… npx convex deploy --yes`.
 
 ## 2. Vercel — dashboard
 
-1. **Add New Project → Import** `CharryLee0426/codex_team_token_tracker`.
-2. **Root Directory**: `apps/dashboard` (keep *Include source files outside of the Root Directory* enabled — it is a pnpm workspace). Framework: Next.js. Build command is read from `apps/dashboard/vercel.json` (`pnpm build:vercel` = `convex deploy --cmd 'next build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`).
-3. **Environment variables** (Production):
+Current state: project **`codex-token-tracker`** in team *CharryLee's projects*, linked to GitHub `CharryLee0426/codex_team_token_tracker` (production branch `main`), Root Directory `apps/dashboard`, *Include source files outside of the Root Directory* on, Node 24, domain `codex.chenli.dev` attached.
 
-   | Name | Value |
-   |---|---|
-   | `CONVEX_DEPLOY_KEY` | production deploy key from step 1 |
-   | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_…` (section 3.5) |
-   | `CLERK_SECRET_KEY` | `sk_live_…` (section 3.5) |
-   | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` |
-   | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/sign-up` |
-   | `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/dashboard` |
-   | `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/dashboard` |
-   | `NEXT_PUBLIC_APP_URL` | `https://codex.chenli.dev` |
-   | `ENABLE_EXPERIMENTAL_COREPACK` | `1` — makes Vercel honour `packageManager: pnpm@11` (the lockfile needs pnpm ≥ 10 settings) |
-   | `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` — skips the 100 MB Electron download of the menubar workspace during install |
+1. If recreating: **Add New Project → Import** the repo, Root Directory `apps/dashboard`, keep *Include source files outside of the Root Directory* (pnpm workspace). Framework Next.js; the build command comes from `apps/dashboard/vercel.json` → `pnpm build:vercel` (`scripts/build-vercel.mjs`: with `CONVEX_DEPLOY_KEY` it runs `convex deploy --cmd 'next build'`, without it a plain `next build`).
+2. **Environment variables** (all set):
 
-   `NEXT_PUBLIC_CONVEX_URL` is **not** set by hand — `convex deploy` injects it at build time.
-4. **Domains** → add `codex.chenli.dev`. In your DNS add `CNAME codex → cname.vercel-dns.com` (Vercel shows the exact record). Wait for the certificate.
-5. Deploy (first build can run before Clerk production exists; sign-in will work once section 3 is done and you redeploy).
-6. Verify: `https://codex.chenli.dev/api/config` returns `{ "convexUrl": "https://<prod>.convex.cloud", "dashboardUrl": "https://codex.chenli.dev", … }`.
+   | Name | Production | Preview / Development |
+   |---|---|---|
+   | `CONVEX_DEPLOY_KEY` | prod deploy key (section 1) | — (previews do not touch production) |
+   | `NEXT_PUBLIC_CONVEX_URL` | *not set* — injected by `convex deploy` | `https://majestic-lynx-360.convex.cloud` (dev) |
+   | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | `pk_live_…` / `sk_live_…` | `pk_test_…` / `sk_test_…` (dev instance) |
+   | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` / `…_SIGN_UP_URL` | `/sign-in` / `/sign-up` | same |
+   | `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` / `…_SIGN_UP_…` | `/dashboard` | same |
+   | `NEXT_PUBLIC_APP_URL` | `https://codex.chenli.dev` | — |
+   | `ENABLE_EXPERIMENTAL_COREPACK` | `1` — Vercel honours `packageManager: pnpm@11` | same |
+   | `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` — skips the Electron download during install | same |
+
+   CLI equivalent: `vercel env add NAME production --value '…'` (Clerk keys come from `clerk env pull --instance prod --file <tmp>`).
+3. **Domain**: `codex.chenli.dev` is attached to the project. In Cloudflare (DNS for `chenli.dev`) add **`CNAME codex → f5cb3d497ca8d963.vercel-dns-017.com`** (Vercel's recommended target for this domain; `cname.vercel-dns.com` also works), **Proxy status = DNS only** (grey cloud). Vercel issues the certificate automatically once the record resolves.
+4. **Deploy**: every push to `main` builds and deploys; `vercel --prod` from the repo root does the same from a machine that ran `vercel login`.
+5. Verify: `https://codex.chenli.dev/api/config` returns `{ "convexUrl": "https://grandiose-seal-712.convex.cloud", "dashboardUrl": "https://codex.chenli.dev", … }`.
 
 ## 3. Clerk — production instance
 
-Development keys (`pk_test_`) must not be used in production; Clerk requires a production instance on your own domain.
+Development keys (`pk_test_`) cannot be used in production. The production instance was created with the Clerk CLI (`cd apps/dashboard && clerk deploy`), which clones the development settings (Organizations, JWT template `convex`) into a new instance on the domain **`codex.chenli.dev`**:
 
-1. **Create production instance**: Clerk Dashboard → instance switcher (top) → **Create production instance** → *Clone development settings*. Home URL: `https://codex.chenli.dev`.
-2. **DNS**: Clerk lists records to add on `chenli.dev` — typically `CNAME clerk → frontend-api.clerk.services`, `CNAME accounts → accounts.clerk.services`, plus `clkmail`, `clk._domainkey`, `clk2._domainkey` for e-mails. Add them and click **Verify**. The Frontend API becomes `https://clerk.chenli.dev` — this is also the **JWT issuer** used below.
-3. **Social connections (production needs your own OAuth apps)**:
-   - Google: Google Cloud Console → *APIs & Services → Credentials → OAuth client (Web)*; authorized redirect URI = the one Clerk shows (`https://clerk.chenli.dev/v1/oauth_callback`). Paste client id/secret into Clerk → *User & Authentication → Social connections → Google → Use custom credentials*.
-   - GitHub: GitHub → *Settings → Developer settings → OAuth Apps → New*; callback URL = the same Clerk callback. Paste into Clerk → GitHub → custom credentials.
-4. **Organizations**: *Organizations → Enable* (or `clerk enable orgs --instance prod`). Optionally raise *max members* and turn on *verified domains* so `@yourcompany` e-mails auto-join.
-5. **API keys** (production instance): copy `pk_live_…` and `sk_live_…` into Vercel (section 2.3) and **redeploy**.
-6. **JWT template** named exactly `convex` — Clerk Dashboard → *Configure → JWT templates → New → Convex*, then replace the claims with `docs/clerk-jwt-template.json`; or with the CLI:
-   ```bash
-   clerk api /jwt_templates --instance prod -X POST --file docs/clerk-jwt-template.json --yes
-   ```
-   Then set the issuer on Convex production (section 1.3): `CLERK_JWT_ISSUER_DOMAIN=https://clerk.chenli.dev` (the *Issuer* shown on the template page).
-7. **Webhook** (keeps the team roster in sync even for members who never open the dashboard): *Webhooks → Add endpoint* → `https://<prod-name>.convex.site/clerk-webhook`, events `user.*`, `organization.*`, `organizationMembership.*` → copy the signing secret → `npx convex env set CLERK_WEBHOOK_SECRET whsec_… --prod`.
+| Purpose | Host |
+|---|---|
+| Frontend API / **JWT issuer** | `https://clerk.codex.chenli.dev` |
+| Account portal | `https://accounts.codex.chenli.dev` |
+| E-mail | `clkmail.codex.chenli.dev` + DKIM |
+
+1. **DNS** (Cloudflare, zone `chenli.dev`, all **DNS only** — proxied records fail verification):
+
+   | Type | Name | Target |
+   |---|---|---|
+   | CNAME | `clerk.codex` | `frontend-api.clerk.services` |
+   | CNAME | `accounts.codex` | `accounts.clerk.services` |
+   | CNAME | `clkmail.codex` | `mail.waptkkq0u2cr.clerk.services` |
+   | CNAME | `clk._domainkey.codex` | `dkim1.waptkkq0u2cr.clerk.services` |
+   | CNAME | `clk2._domainkey.codex` | `dkim2.waptkkq0u2cr.clerk.services` |
+
+   `clerk deploy` can export these as a BIND zone file (Cloudflare → DNS → *Import and Export*). Check status with `clerk deploy status --wait` or Clerk Dashboard → Domains.
+2. **Social connections — production needs your own OAuth apps** (the shared dev credentials are refused). Create both, then run `clerk deploy` again and paste the client id/secret when asked (or Clerk Dashboard → *User & Authentication → Social connections → provider → Use custom credentials*):
+   - **GitHub**: github.com → *Settings → Developer settings → OAuth Apps → New OAuth App*. Homepage `https://codex.chenli.dev`, Authorization callback URL **`https://clerk.codex.chenli.dev/v1/oauth_callback`**. Generate a client secret.
+   - **Google**: Google Cloud Console → *APIs & Services → OAuth consent screen* (External, add the app name/support e-mail; publish it so any Google account can sign in) → *Credentials → Create credentials → OAuth client ID → Web application*. Authorized JavaScript origins `https://codex.chenli.dev`; Authorized redirect URI **`https://clerk.codex.chenli.dev/v1/oauth_callback`**.
+3. **Organizations**: enabled (cloned from dev). Free Clerk plans cap an organization at 5 members — raise the limit in Clerk → *Organizations → Settings* (paid plan) if the team is larger. Optional: *verified domains* so `@yourcompany` e-mails auto-join.
+4. **API keys**: `pk_live_…` / `sk_live_…` are already in Vercel's Production environment (`clerk env pull --instance prod --file <tmp>` shows them again). Redeploy after changing them.
+5. **JWT template** `convex` exists on production (cloned); claims must match `docs/clerk-jwt-template.json`. Check: `clerk api /jwt_templates --instance prod`. The issuer `https://clerk.codex.chenli.dev` is already set on Convex production (section 1.2).
+6. **Webhook** (optional — keeps the roster in sync for members who never open the dashboard): Clerk Dashboard → *Webhooks → Add endpoint* → `https://grandiose-seal-712.convex.site/clerk-webhook`, events `user.*`, `organization.*`, `organizationMembership.*` → copy the signing secret → `npx convex env set CLERK_WEBHOOK_SECRET whsec_… --prod`.
+7. **Finish**: once DNS resolves and the OAuth apps are entered, `clerk deploy status` reports `complete: true`; the Clerk Dashboard shows the SSL certificate for `clerk.codex.chenli.dev` as issued. Sign-in at `https://codex.chenli.dev/sign-in` then works.
 
 ## 4. Post-deploy checklist
 
@@ -97,7 +114,7 @@ Users upgrade with `npm i -g codex-token-tracker@latest`. Electron is an *option
 ## 6. Operations
 
 - **Updating the dashboard/backend**: push to `main` → Vercel builds → `convex deploy` pushes functions and schema to production in the same build. Schema changes are validated against existing data; keep new fields optional (as done for `agent`).
-- **Preview deployments**: they run `convex deploy` against production too. Either disable previews on Vercel or set `CONVEX_DEPLOY_KEY` only for the Production environment.
+- **Preview deployments** (any non-`main` branch / PR): `CONVEX_DEPLOY_KEY` is only set for Production, so previews run a plain `next build` against the **dev** Convex deployment and the **dev** Clerk instance (Preview env vars) — a safe staging environment that never touches production data.
 - **Pricing table**: `packages/shared/src/pricing.ts` (USD per 1M tokens). Unknown models fall back to their family and are flagged *est.*; users can override locally in `~/.codex-tracker/pricing.json`.
 - **Revoking a device**: the user does it in Dashboard → Devices; admins can set `revokedAt` on the `devices` row in the Convex dashboard.
 - **Removing a member**: remove them from the Clerk organization; the webhook deletes the membership and the team view stops including them (their rows stay attached to their user).
@@ -111,9 +128,10 @@ Users upgrade with `npm i -g codex-token-tracker@latest`. Electron is an *option
 |---|---|
 | Vercel build: `Unknown option allowBuilds` or lockfile errors | pnpm < 10 used; set `ENABLE_EXPERIMENTAL_COREPACK=1` |
 | Build hangs downloading Electron | set `ELECTRON_SKIP_BINARY_DOWNLOAD=1` |
-| Dashboard banner about `org_id` claim | JWT template not named `convex` or missing the org claims (section 3.6) |
+| Dashboard banner about `org_id` claim | JWT template not named `convex` or missing the org claims (section 3.5) |
 | `Unauthenticated` in Convex logs | `CLERK_JWT_ISSUER_DOMAIN` wrong/missing on production, or set after the last deploy — redeploy once |
-| Sign-in loops / cookies | Clerk DNS not verified, or dev keys used on the production domain |
+| Sign-in loops / cookies / `clerk.codex.chenli.dev` unreachable | Clerk DNS records missing, proxied (orange cloud) or not yet verified; or dev keys used on the production domain |
+| Google/GitHub button errors in production | OAuth app credentials not entered yet — finish `clerk deploy` (section 3.2) |
 | Webhook 400 | wrong `CLERK_WEBHOOK_SECRET`; 500 → variable missing |
 | Members missing on Team | they have not opened the dashboard yet and the webhook is not configured |
 | `/api/config` has `convexUrl: null` | the build did not run through `convex deploy` (check the build command / deploy key) |

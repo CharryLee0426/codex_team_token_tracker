@@ -16,63 +16,80 @@ npm: codex-token-tracker (menu bar app; default dashboard = https://codex.chenli
 
 ## 0. 前置条件
 
-- 账号：GitHub（仓库 `CharryLee0426/codex_team_token_tracker`）、Vercel、Convex、Clerk、npm；对 `chenli.dev` 的 DNS 管理权限。
+- 账号：GitHub（仓库 `CharryLee0426/codex_team_token_tracker`）、Vercel、Convex、Clerk、npm；对 `chenli.dev` 的 DNS 管理权限（Cloudflare）。
 - 本地环境：Node ≥ 20、pnpm 11（`corepack enable`）、Clerk CLI（`npm i -g clerk`）、Convex CLI（`npx convex`）。
 - 仓库已包含全部内容：Convex 函数位于 `packages/backend/convex`，仪表盘位于 `apps/dashboard`（`vercel.json` 已设置构建命令），菜单栏应用位于 `packages/menubar`。
 
 ## 1. Convex —— 生产部署
 
-1. https://dashboard.convex.dev → 你的项目（开发部署 `majestic-lynx-360` 已存在）→ **Settings → Deploy keys → Generate production deploy key**。复制它：这就是 Vercel 中要用的 `CONVEX_DEPLOY_KEY`。生产部署会在第一次部署时自动创建。
-2. 第一次 Vercel 构建完成后，记录生产环境的 URL（Convex 控制台 → Production）：`https://<prod-name>.convex.cloud`（API）和 `https://<prod-name>.convex.site`（Webhook 主机）。
-3. 生产环境变量在 Clerk 生产实例就绪后于 **第 3.6 节** 设置：
+当前状态：项目 **codex-token-tracker**，开发部署 `majestic-lynx-360`，生产部署 **`grandiose-seal-712`** → API `https://grandiose-seal-712.convex.cloud`，HTTP/Webhook 主机 `https://grandiose-seal-712.convex.site`（`/health` 返回 `{"ok":true}`）。
+
+1. **部署密钥**（供 Vercel 使用；已创建，名称 `vercel-production`，轮换时重新生成）：
    ```bash
    cd apps/dashboard
-   npx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk.chenli.dev --prod
-   npx convex env set CLERK_WEBHOOK_SECRET whsec_xxx --prod
+   npx convex deployment token create vercel-production --deployment prod   # 输出 prod:… → 填入 Vercel 的 CONVEX_DEPLOY_KEY
    ```
-   （或在 Convex 控制台 → Production → Settings → Environment Variables 中设置）。
+   （或 Convex 控制台 → Settings → Deploy keys → *Generate production deploy key*）。
+2. **生产部署的环境变量**（`CLERK_JWT_ISSUER_DOMAIN` 已设置；Webhook 密钥可选，见 3.6）：
+   ```bash
+   npx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk.codex.chenli.dev --prod
+   npx convex env set CLERK_WEBHOOK_SECRET whsec_xxx --prod
+   npx convex env list --prod --names-only
+   ```
+3. **手动部署**（Vercel 每次构建都会自动执行，仅在紧急情况下需要）：`CONVEX_DEPLOY_KEY=prod:… npx convex deploy --yes`。
 
 ## 2. Vercel —— 仪表盘
 
-1. **Add New Project → Import** `CharryLee0426/codex_team_token_tracker`。
-2. **Root Directory**：`apps/dashboard`（保持 *Include source files outside of the Root Directory* 开启 —— 这是一个 pnpm workspace）。Framework：Next.js。构建命令从 `apps/dashboard/vercel.json` 读取（`pnpm build:vercel` = `convex deploy --cmd 'next build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL`）。
-3. **环境变量**（Production）：
+当前状态：团队 *CharryLee's projects* 下的项目 **`codex-token-tracker`**，已关联 GitHub 仓库 `CharryLee0426/codex_team_token_tracker`（生产分支 `main`），Root Directory 为 `apps/dashboard`，已开启 *Include source files outside of the Root Directory*，Node 24，域名 `codex.chenli.dev` 已绑定。
 
-   | 名称 | 值 |
-   |---|---|
-   | `CONVEX_DEPLOY_KEY` | 第 1 步得到的生产部署密钥 |
-   | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_live_…`（第 3.5 节） |
-   | `CLERK_SECRET_KEY` | `sk_live_…`（第 3.5 节） |
-   | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/sign-in` |
-   | `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/sign-up` |
-   | `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/dashboard` |
-   | `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/dashboard` |
-   | `NEXT_PUBLIC_APP_URL` | `https://codex.chenli.dev` |
-   | `ENABLE_EXPERIMENTAL_COREPACK` | `1` —— 让 Vercel 遵循 `packageManager: pnpm@11`（lockfile 依赖 pnpm ≥ 10 的设置） |
-   | `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` —— 安装时跳过 menubar workspace 约 100 MB 的 Electron 下载 |
+1. 如需重建：**Add New Project → Import** 该仓库，Root Directory 填 `apps/dashboard`，保持 *Include source files outside of the Root Directory* 开启（pnpm workspace）。Framework 为 Next.js；构建命令来自 `apps/dashboard/vercel.json` → `pnpm build:vercel`（`scripts/build-vercel.mjs`：设置了 `CONVEX_DEPLOY_KEY` 时执行 `convex deploy --cmd 'next build'`，否则只执行 `next build`）。
+2. **环境变量**（均已设置）：
 
-   `NEXT_PUBLIC_CONVEX_URL` **不需要**手动设置 —— `convex deploy` 会在构建时自动注入。
-4. **Domains** → 添加 `codex.chenli.dev`。在你的 DNS 中添加 `CNAME codex → cname.vercel-dns.com`（Vercel 会显示准确的记录）。等待证书签发。
-5. 部署（第一次构建可以在 Clerk 生产实例就绪之前进行；完成第 3 节并重新部署后，登录功能即可正常使用）。
-6. 验证：`https://codex.chenli.dev/api/config` 返回 `{ "convexUrl": "https://<prod>.convex.cloud", "dashboardUrl": "https://codex.chenli.dev", … }`。
+   | 名称 | Production | Preview / Development |
+   |---|---|---|
+   | `CONVEX_DEPLOY_KEY` | 生产部署密钥（第 1 节） | —（预览环境不会碰生产） |
+   | `NEXT_PUBLIC_CONVEX_URL` | *不设置* —— 由 `convex deploy` 注入 | `https://majestic-lynx-360.convex.cloud`（开发部署） |
+   | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` | `pk_live_…` / `sk_live_…` | `pk_test_…` / `sk_test_…`（开发实例） |
+   | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` / `…_SIGN_UP_URL` | `/sign-in` / `/sign-up` | 相同 |
+   | `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` / `…_SIGN_UP_…` | `/dashboard` | 相同 |
+   | `NEXT_PUBLIC_APP_URL` | `https://codex.chenli.dev` | — |
+   | `ENABLE_EXPERIMENTAL_COREPACK` | `1` —— 让 Vercel 遵循 `packageManager: pnpm@11` | 相同 |
+   | `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` —— 安装时跳过 Electron 下载 | 相同 |
+
+   CLI 等价命令：`vercel env add NAME production --value '…'`（Clerk 密钥可用 `clerk env pull --instance prod --file <tmp>` 取得）。
+3. **域名**：`codex.chenli.dev` 已绑定到项目。在 Cloudflare（`chenli.dev` 的 DNS）添加 **`CNAME codex → f5cb3d497ca8d963.vercel-dns-017.com`**（Vercel 为该域名推荐的目标；`cname.vercel-dns.com` 同样可用），**Proxy status = DNS only**（灰色云朵）。记录生效后 Vercel 会自动签发证书。
+4. **部署**：每次推送到 `main` 都会自动构建并部署；在执行过 `vercel login` 的机器上，于仓库根目录运行 `vercel --prod` 效果相同。
+5. 验证：`https://codex.chenli.dev/api/config` 返回 `{ "convexUrl": "https://grandiose-seal-712.convex.cloud", "dashboardUrl": "https://codex.chenli.dev", … }`。
 
 ## 3. Clerk —— 生产实例
 
-开发密钥（`pk_test_`）不能用于生产环境；Clerk 要求在你自己的域名上创建生产实例。
+开发密钥（`pk_test_`）不能用于生产。生产实例已通过 Clerk CLI 创建（`cd apps/dashboard && clerk deploy`），它会把开发实例的设置（Organizations、JWT 模板 `convex`）克隆到域名 **`codex.chenli.dev`** 上的新实例：
 
-1. **创建生产实例**：Clerk 控制台 → 顶部的实例切换器 → **Create production instance** → *Clone development settings*。Home URL：`https://codex.chenli.dev`。
-2. **DNS**：Clerk 会列出需要在 `chenli.dev` 上添加的记录 —— 通常是 `CNAME clerk → frontend-api.clerk.services`、`CNAME accounts → accounts.clerk.services`，以及用于邮件的 `clkmail`、`clk._domainkey`、`clk2._domainkey`。添加后点击 **Verify**。Frontend API 将变为 `https://clerk.chenli.dev` —— 这也是下文使用的 **JWT issuer**。
-3. **社交登录（生产环境需要你自己的 OAuth 应用）**：
-   - Google：Google Cloud Console → *APIs & Services → Credentials → OAuth client (Web)*；授权重定向 URI 填 Clerk 显示的地址（`https://clerk.chenli.dev/v1/oauth_callback`）。把 client id/secret 粘贴到 Clerk → *User & Authentication → Social connections → Google → Use custom credentials*。
-   - GitHub：GitHub → *Settings → Developer settings → OAuth Apps → New*；callback URL 填同一个 Clerk 回调地址。粘贴到 Clerk → GitHub → custom credentials。
-4. **组织（团队）**：*Organizations → Enable*（或执行 `clerk enable orgs --instance prod`）。可选：调高 *max members*，并开启 *verified domains*，让 `@yourcompany` 邮箱自动加入。
-5. **API keys**（生产实例）：把 `pk_live_…` 和 `sk_live_…` 复制到 Vercel（第 2.3 节）并**重新部署**。
-6. **JWT 模板**，名称必须为 `convex` —— Clerk 控制台 → *Configure → JWT templates → New → Convex*，然后用 `docs/clerk-jwt-template.json` 中的内容替换 claims；或使用 CLI：
-   ```bash
-   clerk api /jwt_templates --instance prod -X POST --file docs/clerk-jwt-template.json --yes
-   ```
-   然后在 Convex 生产环境设置 issuer（第 1.3 节）：`CLERK_JWT_ISSUER_DOMAIN=https://clerk.chenli.dev`（即模板页面上显示的 *Issuer*）。
-7. **Webhook**（即使成员从未打开仪表盘，也能保持团队名单同步）：*Webhooks → Add endpoint* → `https://<prod-name>.convex.site/clerk-webhook`，事件选择 `user.*`、`organization.*`、`organizationMembership.*` → 复制签名密钥 → `npx convex env set CLERK_WEBHOOK_SECRET whsec_… --prod`。
+| 用途 | 主机 |
+|---|---|
+| Frontend API / **JWT issuer** | `https://clerk.codex.chenli.dev` |
+| 账户门户 | `https://accounts.codex.chenli.dev` |
+| 邮件 | `clkmail.codex.chenli.dev` + DKIM |
+
+1. **DNS**（Cloudflare，zone `chenli.dev`，全部 **DNS only** —— 开启代理的记录无法通过验证）：
+
+   | 类型 | 名称 | 目标 |
+   |---|---|---|
+   | CNAME | `clerk.codex` | `frontend-api.clerk.services` |
+   | CNAME | `accounts.codex` | `accounts.clerk.services` |
+   | CNAME | `clkmail.codex` | `mail.waptkkq0u2cr.clerk.services` |
+   | CNAME | `clk._domainkey.codex` | `dkim1.waptkkq0u2cr.clerk.services` |
+   | CNAME | `clk2._domainkey.codex` | `dkim2.waptkkq0u2cr.clerk.services` |
+
+   `clerk deploy` 可以把这些记录导出为 BIND zone 文件（Cloudflare → DNS → *Import and Export*）。用 `clerk deploy status --wait` 或 Clerk 控制台 → Domains 查看状态。
+2. **社交登录 —— 生产环境必须使用你自己的 OAuth 应用**（共享的开发凭据会被拒绝）。创建好两个应用后，再次运行 `clerk deploy`，按提示粘贴 client id/secret（或在 Clerk 控制台 → *User & Authentication → Social connections → 对应提供商 → Use custom credentials* 填写）：
+   - **GitHub**：github.com → *Settings → Developer settings → OAuth Apps → New OAuth App*。Homepage 填 `https://codex.chenli.dev`，Authorization callback URL 填 **`https://clerk.codex.chenli.dev/v1/oauth_callback`**。生成 client secret。
+   - **Google**：Google Cloud Console → *APIs & Services → OAuth consent screen*（External，填写应用名称/支持邮箱；发布后任何 Google 账号都能登录）→ *Credentials → Create credentials → OAuth client ID → Web application*。Authorized JavaScript origins 填 `https://codex.chenli.dev`；Authorized redirect URI 填 **`https://clerk.codex.chenli.dev/v1/oauth_callback`**。
+3. **组织（团队）**：已启用（从开发实例克隆）。Clerk 免费套餐每个组织最多 5 名成员 —— 团队更大时需在 Clerk → *Organizations → Settings* 中提高上限（付费套餐）。可选：开启 *verified domains*，让 `@yourcompany` 邮箱自动加入。
+4. **API keys**：`pk_live_…` / `sk_live_…` 已写入 Vercel 的 Production 环境（`clerk env pull --instance prod --file <tmp>` 可再次取得）。更换后需重新部署。
+5. **JWT 模板** `convex` 已存在于生产实例（克隆而来）；claims 需与 `docs/clerk-jwt-template.json` 一致。检查：`clerk api /jwt_templates --instance prod`。issuer `https://clerk.codex.chenli.dev` 已设置到 Convex 生产环境（第 1.2 节）。
+6. **Webhook**（可选 —— 即使成员从未打开仪表盘也能同步团队名单）：Clerk 控制台 → *Webhooks → Add endpoint* → `https://grandiose-seal-712.convex.site/clerk-webhook`，事件选择 `user.*`、`organization.*`、`organizationMembership.*` → 复制签名密钥 → `npx convex env set CLERK_WEBHOOK_SECRET whsec_… --prod`。
+7. **收尾**：DNS 生效且 OAuth 应用填好后，`clerk deploy status` 会显示 `complete: true`；Clerk 控制台中 `clerk.codex.chenli.dev` 的 SSL 证书显示已签发。此时 `https://codex.chenli.dev/sign-in` 即可登录。
 
 ## 4. 部署后检查清单
 
@@ -97,7 +114,7 @@ git push origin main --tags
 ## 6. 运维
 
 - **更新仪表盘 / 后端**：推送到 `main` → Vercel 构建 → 同一次构建中 `convex deploy` 会把函数和 schema 推送到生产环境。Schema 变更会针对现有数据做校验；新增字段请保持可选（如 `agent` 字段的做法）。
-- **预览部署（Preview）**：预览部署同样会对生产环境执行 `convex deploy`。请在 Vercel 上关闭预览部署，或仅为 Production 环境设置 `CONVEX_DEPLOY_KEY`。
+- **预览部署（Preview）**（任何非 `main` 分支 / PR）：`CONVEX_DEPLOY_KEY` 只在 Production 环境设置，因此预览构建只执行 `next build`，并使用 **开发** Convex 部署和 **开发** Clerk 实例（Preview 环境变量）—— 这是一个不会触碰生产数据的安全预发布环境。
 - **定价表**：`packages/shared/src/pricing.ts`（每 100 万 token 的美元价格）。未知模型会回退到同系列价格并标记为 *est.*；用户可在本地 `~/.codex-tracker/pricing.json` 中覆盖。
 - **撤销设备**：用户在 Dashboard → Devices 中操作；管理员可以在 Convex 控制台中为 `devices` 表对应行设置 `revokedAt`。
 - **移除成员**：从 Clerk 组织中移除该成员；Webhook 会删除成员关系，团队视图不再包含此人（其数据行仍然关联到该用户）。
@@ -111,9 +128,10 @@ git push origin main --tags
 |---|---|
 | Vercel 构建报 `Unknown option allowBuilds` 或 lockfile 错误 | 使用了 pnpm < 10；设置 `ENABLE_EXPERIMENTAL_COREPACK=1` |
 | 构建卡在下载 Electron | 设置 `ELECTRON_SKIP_BINARY_DOWNLOAD=1` |
-| 仪表盘出现关于 `org_id` claim 的横幅提示 | JWT 模板未命名为 `convex`，或缺少组织相关 claims（第 3.6 节） |
+| 仪表盘出现关于 `org_id` claim 的横幅提示 | JWT 模板未命名为 `convex`，或缺少组织相关 claims（第 3.5 节） |
 | Convex 日志中出现 `Unauthenticated` | 生产环境的 `CLERK_JWT_ISSUER_DOMAIN` 错误 / 缺失，或是在最近一次部署之后才设置 —— 重新部署一次 |
-| 登录反复跳转 / Cookie 问题 | Clerk DNS 未验证，或在生产域名上使用了开发密钥 |
+| 登录反复跳转 / Cookie 问题 / `clerk.codex.chenli.dev` 无法访问 | Clerk DNS 记录缺失、开启了代理（橙色云朵）或尚未验证；或在生产域名上使用了开发密钥 |
+| 生产环境 Google/GitHub 登录按钮报错 | 尚未填入 OAuth 应用凭据 —— 完成 `clerk deploy`（第 3.2 节） |
 | Webhook 返回 400 | `CLERK_WEBHOOK_SECRET` 错误；返回 500 → 环境变量缺失 |
 | Team 视图缺少成员 | 该成员尚未打开过仪表盘，且未配置 Webhook |
 | `/api/config` 中 `convexUrl: null` | 构建没有经过 `convex deploy`（检查构建命令 / 部署密钥） |
