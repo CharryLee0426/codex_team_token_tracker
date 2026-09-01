@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { configDir } from "./config";
-import { APP_VERSION } from "../version";
+import { APP_VERSION, IS_DEV_BUILD } from "../version";
 
 /** npm package this app is published as. */
 export const NPM_PACKAGE = "codex-token-tracker";
@@ -53,9 +53,13 @@ export function compareVersions(a: string, b: string): number {
   return A.pre < B.pre ? -1 : 1;
 }
 
-/** A local `pnpm build` run reports 0.0.0-dev; never nag those into "updating" to a release. */
+/**
+ * Never nag a local build into "updating" to a release: doing so would install the published
+ * package over the checkout the developer is working in. Any non-`--release` build counts, as does
+ * the 0.0.0-dev version an unstamped bundle reports.
+ */
 function isDevBuild(version: string): boolean {
-  return version.startsWith("0.0.0");
+  return IS_DEV_BUILD || version.startsWith("0.0.0");
 }
 
 function registryBase(): string {

@@ -173,6 +173,11 @@ export function App() {
           <Logo />
           {t("appName")}
         </div>
+        {snap.channel === "dev" ? (
+          <span className="badge-dev" title={t("devBuildTitle", { url: auth.dashboardUrl, dir: snap.configDir })}>
+            {t("devBuild")}
+          </span>
+        ) : null}
         <div className="spacer" />
         {live ? (
           <span className="pill live" title={live.projectName ?? ""}>

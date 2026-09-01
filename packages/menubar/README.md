@@ -225,7 +225,42 @@ CODEX_TRACKER_DEVTOOLS=1 ...                                                # op
 pnpm --filter codex-token-tracker build:icons                               # regenerate tray icons
 ```
 
-Publishing (from the repo root): `pnpm release:menubar` — `prepublishOnly` rebuilds and typechecks first.
+### Dev builds vs published builds
+
+A build knows which environment it belongs to, so a local test run can never write into production.
+`scripts/build.mjs` stamps the channel at bundle time: **only `--release` produces a prod build**, which
+is what `prepack` runs — so every tarball and every `npm publish` is prod, and every `pnpm build`,
+`pnpm dev` and watch-mode rebuild is dev.
+
+| | dev build (`pnpm build`) | published build (`npm i -g codex-token-tracker`) |
+| --- | --- | --- |
+| Dashboard default | `http://localhost:3000` | `https://codex.chenli.dev` |
+| Convex deployment | whatever the local dashboard's `/api/config` advertises — the **dev** one | production |
+| Config, device token, upload state | `~/.codex-tracker-dev` | `~/.codex-tracker` |
+| `checkUpdates` default | `false` (`update` refuses to run) | `true` |
+| App name / Electron userData | `Codex Tracker (dev)` | `Codex Tracker` |
+| macOS LaunchAgent | `dev.codex-tracker.menubar.dev` | `dev.codex-tracker.menubar` |
+| Popover | orange **DEV** badge in the header | — |
+
+Because the two differ in app name and config directory, **a dev build and an installed one can run at
+the same time**, each with its own tray icon, device token and upload state.
+
+To test against a dev environment, start the dashboard and Convex, then run the local build:
+
+```bash
+cd apps/dashboard && npx convex dev            # terminal 1
+pnpm dev                                        # terminal 2 — http://localhost:3000
+pnpm --filter codex-token-tracker build         # terminal 3
+node packages/menubar/bin/codex-tracker.js login   # → localhost:3000, no --dashboard needed
+node packages/menubar/bin/codex-tracker.js menubar
+```
+
+Both defaults are only *defaults*: `--dashboard <url>` and `config set dashboardUrl <url>` still point
+either build anywhere, and `CODEX_TRACKER_HOME` still overrides the config directory.
+
+Publishing (from the repo root): `pnpm release:menubar` — `prepublishOnly` typechecks and `prepack`
+makes the release build, so a published tarball is never accidentally a dev build. `postpack` restores
+the dev build in `dist/` afterwards, so your working copy keeps pointing at localhost.
 
 ## License
 

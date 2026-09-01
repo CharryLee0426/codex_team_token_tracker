@@ -27,11 +27,32 @@ A manual **Sync** button that recalibrates this device's numbers on the dashboar
   75 sessions · 70 hours re-uploaded`. Signed out, the rescan still runs and nothing leaves the machine.
 - `codex-token-tracker sync` prints the same summary and exits non-zero if the sync failed.
 
+- **Dev builds target the dev environment.** A build now carries its channel, stamped by
+  `scripts/build.mjs`: only `--release` (what `prepack` runs) produces a production build, so every
+  published tarball is prod and every local `pnpm build` / `pnpm dev` is dev. A dev build
+  - defaults to the local dashboard `http://localhost:3000` instead of `https://codex.chenli.dev`, and
+    therefore uploads to whatever Convex deployment that dashboard advertises — the dev one;
+  - keeps its config, device token and upload state in `~/.codex-tracker-dev`, so a local run can
+    never overwrite the production token or the record of what was already pushed to production;
+  - defaults `checkUpdates` to `false` and refuses `codex-token-tracker update`, which would otherwise
+    install the published package over the checkout;
+  - runs as `Codex Tracker (dev)` with its own Electron userData directory and macOS LaunchAgent, so it
+    can run **beside** an installed copy instead of fighting it for the single-instance lock;
+  - shows an orange **DEV** badge in the popover header and names its dashboard and config directory in
+    `--version`, `status` and `paths`.
+
+  `--dashboard <url>`, `config set dashboardUrl` and `CODEX_TRACKER_HOME` still override all of it.
+
 ### Changed
 
 - `Uploader.pushAll()` takes a `{ full }` option that clears the pushed-buckets/pushed-sessions record
   before building the payload, and waits for an in-flight incremental push instead of skipping the call.
 - `SessionStore.reset()` drops the parsed-file index so a following deep refresh re-reads everything.
+- Packaging scripts: `build:release` builds with the prod channel; `prepack` runs it (so `npm pack` and
+  `npm publish` always ship a prod build) and `postpack` restores the dev build in `dist/`.
+  `prepublishOnly` now only typechecks.
+- `app.setName()` moved ahead of `requestSingleInstanceLock()` — the lock is keyed on the userData
+  directory, which is derived from the name.
 
 ## 0.2.0 — 2026-09-01
 

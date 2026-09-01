@@ -49,10 +49,13 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:release": "node scripts/build.mjs --release",
     "dev": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "start": "node bin/codex-tracker.js",
-    "prepublishOnly": "pnpm build && pnpm typecheck",
+    "prepublishOnly": "pnpm typecheck",
+    "prepack": "node scripts/build.mjs --release",
+    "postpack": "node scripts/build.mjs",
     "build:icons": "node scripts/gen-icons.mjs",
     "test": "node scripts/test.mjs"
   },

@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { fromLogRateLimits, machineTimeZone, type LiveRateLimits, type LiveSnapshot } from "@codex-tracker/shared";
-import { loadConfig, loadPricingOverrides, updateConfig, type TrackerConfig } from "./config";
+import { configDir, loadConfig, loadPricingOverrides, updateConfig, type TrackerConfig } from "./config";
 import { SessionStore } from "./store";
 import { computeStats, type Stats } from "./stats";
 import { Uploader, SignedOutError, errorMessage } from "./uploader";
@@ -10,7 +10,7 @@ import { fetchLiveRateLimits } from "./usage-api";
 import { resolveLanguage, type Language, type LanguageSetting } from "../i18n";
 import { checkForUpdate, runUpdate, type UpdateInfo } from "./update";
 import type { Snapshot, AuthState, UpdateState, SyncPhase, SyncResult, SyncState } from "./snapshot";
-import { APP_VERSION } from "../version";
+import { APP_CHANNEL, APP_VERSION } from "../version";
 
 export interface EngineOptions {
   /** Push data to the dashboard backend (requires a device token). */
@@ -482,6 +482,7 @@ export class Engine extends EventEmitter {
     const sessions = this.store.sessions();
     return {
       version: APP_VERSION,
+      channel: APP_CHANNEL,
       generatedAt: Date.now(),
       language: this.language(),
       languageSetting: this.config.language,
@@ -517,6 +518,7 @@ export class Engine extends EventEmitter {
       },
       sessionDirs: SessionStore.rootDirs(this.store.roots),
       sessionRoots: this.store.roots.map((r) => ({ dir: r.dir, agent: r.agent, format: r.format, origin: r.origin })),
+      configDir: configDir(),
       launchAtLogin: this.config.launchAtLogin,
       trayTitle: this.config.trayTitle,
     };

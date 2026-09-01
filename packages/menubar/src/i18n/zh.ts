@@ -79,6 +79,10 @@ export const zh: Record<MessageKey, string> = {
   files: "{n} 个文件",
   noData: "还没有用量数据。运行 Codex 后这里会自动更新。",
   version: "v{version}",
+  // 开发版
+  devBuild: "开发版",
+  devBuildTitle: "本地构建 —— 数据上传至 {url}（开发环境）。配置目录：{dir}",
+  devBuildMenu: "开发版 → {url}",
   justNow: "刚刚",
   never: "从未",
   local: "本机",
@@ -166,4 +170,6 @@ export const zh: Record<MessageKey, string> = {
   cliSyncLocal: "  未登录 — 没有上传任何数据（请先运行 `codex-tracker login`）",
   cliSyncDone: "同步完成，用时 {seconds} 秒 — {sessions} 个会话，今日 {tokens} tok · {cost}",
   cliSyncFailed: "同步失败：{message}",
+  cliChannelDev: "开发版 —— 仪表盘 {url} · 配置目录 {dir}",
+  cliUpdateDevBuild: "这是本地开发版；`update` 会用已发布的包覆盖它。请改为在仓库中运行 `pnpm build`。",
 };

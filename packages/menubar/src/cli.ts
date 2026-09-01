@@ -19,7 +19,7 @@ import { SOURCE_IDS, normalizeSources, type SourcesConfig } from "./core/config"
 import { errorMessage } from "./core/uploader";
 import { checkForUpdate, runUpdate as installUpdate } from "./core/update";
 import { durationShort, localeTag, makeT, relativeTime, resolveLanguage, windowLabel, type LanguageSetting } from "./i18n";
-import { APP_VERSION } from "./version";
+import { APP_VERSION, IS_DEV_BUILD } from "./version";
 
 interface Args {
   command: string | null;
@@ -210,6 +210,7 @@ async function runStatus(json: boolean): Promise<number> {
       : t("cliNotSignedIn"),
   );
   line(t("cliStatusDirs"), s.sessionDirs.join("\n" + " ".repeat(15)) || "-");
+  if (IS_DEV_BUILD) console.log(t("cliChannelDev", { url: s.auth.dashboardUrl, dir: configDir() }));
   const byAgent = Object.entries(s.counts.byAgent)
     .sort((a, b) => b[1].sessions - a[1].sessions)
     .map(([agent, c]) => `${agent} ${c.sessions}`)
@@ -363,6 +364,7 @@ function runPaths(): number {
   const off = SOURCE_IDS.filter((id) => !cfg.sources[id]);
   if (off.length) console.log(`  (disabled: ${off.join(", ")})`);
   console.log(t("cliConfigDir", { dir: configDir() }));
+  if (IS_DEV_BUILD) console.log(t("cliChannelDev", { url: cfg.dashboardUrl, dir: configDir() }));
   return 0;
 }
 
@@ -416,6 +418,10 @@ function runConfig(positional: string[]): number {
  */
 async function runUpdateCommand(flags: Args["flags"]): Promise<number> {
   const t = makeT(lang());
+  if (IS_DEV_BUILD) {
+    console.error(t("cliUpdateDevBuild"));
+    return 1;
+  }
   const info = await checkForUpdate({ force: true });
   if (info.error && !info.latest) {
     console.error(t("cliUpdateCheckFailed", { message: info.error }));
@@ -456,6 +462,7 @@ async function main(): Promise<number> {
   const t = makeT(lang());
   if (args.flags.version) {
     console.log(t("cliVersion", { version: APP_VERSION }));
+    if (IS_DEV_BUILD) console.log(t("cliChannelDev", { url: loadConfig().dashboardUrl, dir: configDir() }));
     return 0;
   }
   if (args.flags.help || args.command === "help") {

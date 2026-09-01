@@ -1,5 +1,6 @@
 import type { TokenUsage, HeatmapGrid, LiveRateLimits } from "@codex-tracker/shared";
 import type { Language, LanguageSetting } from "../i18n";
+import type { AppChannel } from "../version";
 import type { PlatformKind } from "./platform";
 import type { UpdateInfo } from "./update";
 
@@ -106,6 +107,8 @@ export interface SessionRootInfo {
 
 export interface Snapshot {
   version: string;
+  /** "dev" for a local build (local dashboard, separate config dir), "prod" for a published one. */
+  channel: AppChannel;
   generatedAt: number;
   language: Language;
   languageSetting: LanguageSetting;
@@ -140,6 +143,8 @@ export interface Snapshot {
   };
   sessionDirs: string[];
   sessionRoots: SessionRootInfo[];
+  /** Where config, device token and upload state live — differs between dev and prod builds. */
+  configDir: string;
   launchAtLogin: boolean;
   trayTitle: "tokens" | "cost" | "none";
 }

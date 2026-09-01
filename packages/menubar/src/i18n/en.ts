@@ -78,6 +78,10 @@ export const en = {
   files: "{n} files",
   noData: "No usage found yet. Run Codex and this will fill in.",
   version: "v{version}",
+  // dev builds
+  devBuild: "DEV",
+  devBuildTitle: "Local build — uploading to {url} (dev environment). Config: {dir}",
+  devBuildMenu: "Dev build → {url}",
   justNow: "just now",
   never: "never",
   local: "Local",
@@ -167,6 +171,8 @@ Options:
   cliSyncLocal: "  not signed in — nothing uploaded (run `codex-tracker login` first)",
   cliSyncDone: "Sync complete in {seconds}s — {sessions} sessions, today {tokens} tok · {cost}",
   cliSyncFailed: "Sync failed: {message}",
+  cliChannelDev: "Dev build — dashboard {url} · config {dir}",
+  cliUpdateDevBuild: "This is a local dev build; `update` would install the published package over it. Run `pnpm build` in the repo instead.",
 } as const;
 
 export type MessageKey = keyof typeof en;

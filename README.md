@@ -59,17 +59,23 @@ cd apps/dashboard && npx convex dev            # dev deployment; writes .env.loc
 # Clerk dev keys → apps/dashboard/.env.local (see .env.example); `clerk init` can do it
 pnpm dev                                        # http://localhost:3000
 
-pnpm --filter codex-token-tracker build
-node packages/menubar/bin/codex-tracker.js login --dashboard http://localhost:3000
+pnpm --filter codex-token-tracker build          # a local build is a *dev* build
+node packages/menubar/bin/codex-tracker.js login   # → localhost:3000 by default, no flag needed
 node packages/menubar/bin/codex-tracker.js      # tray app, or `agent` / `status`
 ```
+
+A local `pnpm build` targets the **dev** environment: the dashboard at `http://localhost:3000` (and so
+the dev Convex deployment), state in `~/.codex-tracker-dev`, no self-update, an orange **DEV** badge in
+the popover. Only `--release` — which `prepack` runs on `npm pack` / `npm publish` — produces a build
+that talks to production. The two can run side by side; see
+[`packages/menubar/README.md`](packages/menubar/README.md#dev-builds-vs-published-builds).
 
 | Command | What |
 |---|---|
 | `pnpm test` | unit tests (shared parsers/pricing/aggregation, menubar sources) |
 | `pnpm -r typecheck` | all workspaces |
 | `pnpm build` | packages, then the dashboard |
-| `pnpm release:menubar` | publish `codex-token-tracker` (see the admin guide) |
+| `pnpm release:menubar` | publish `codex-token-tracker` — `prepack` makes the production build (see the admin guide) |
 
 Pricing lives in `packages/shared/src/pricing.ts`, mirroring <https://developers.openai.com/api/docs/pricing> (including the 272K long-context tiers); unknown models fall back to their family and are flagged *estimated*. Only OpenAI models are counted — usage other agents produced on Anthropic/Google/local models is dropped, since this tracker reports Codex consumption. Versions are pinned to stable major lines (Next 15, Clerk 6, Convex 1.x, TypeScript 5.9, Electron 38, recharts 2); pnpm ≥ 10 needs the `allowBuilds` list in `pnpm-workspace.yaml`.
 
