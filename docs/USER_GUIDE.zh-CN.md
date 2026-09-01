@@ -28,6 +28,8 @@ codex-tracker login        # opens the dashboard; sign in and click "Approve"
 codex-tracker              # starts the menu bar app
 ```
 
+> **npm 11+ / pnpm 10+ 默认会拦截 Electron 的安装脚本。** 不用担心：第一次运行 `codex-tracker` 时会自动下载 Electron 运行时（约 100 MB，仅一次）。如果想在安装时就下载：`npm install -g codex-token-tracker --allow-scripts=electron`。
+
 `codex-tracker login` 会打印一个类似 `RHF7-DWW8` 的代码，并打开 `https://codex.chenli.dev/cli-auth?code=…`。在浏览器中点击批准后，终端会显示 *Connected as <你的名字>*。此时这台设备拥有了自己的 token（可在 **Dashboard → Devices** 中撤销）。
 
 小提示

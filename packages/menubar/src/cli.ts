@@ -1,5 +1,7 @@
 import path from "node:path";
-import { spawn } from "node:child_process";
+import fs from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { installElectronBinary } from "./core/electron-install";
 import { formatPercent, formatTokens, formatUSD, machineTimeZone } from "@codex-tracker/shared";
 import {
   EDITABLE_KEYS,
@@ -59,15 +61,61 @@ function electronBinary(): string | null {
   try {
     // Under plain Node, require("electron") resolves to the binary path (string).
     const p = require("electron") as unknown;
-    return typeof p === "string" && p ? p : null;
+    return typeof p === "string" && p && fs.existsSync(p) ? p : null;
   } catch {
     return null;
   }
 }
 
-function startMenubar(background: boolean): number {
+function electronPackageDir(): string | null {
+  try {
+    return path.dirname(require.resolve("electron/package.json"));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The `electron` npm package is installed but its binary was never downloaded — npm ≥ 11 and pnpm ≥ 10
+ * block dependency install scripts by default (`npm warn allow-scripts electron`). Install it now with our
+ * own downloader/extractor (≈100 MB once; honours ELECTRON_MIRROR / HTTPS_PROXY), falling back to Electron's
+ * install.js.
+ */
+async function ensureElectron(): Promise<string | null> {
+  const existing = electronBinary();
+  if (existing) return existing;
+  const dir = electronPackageDir();
+  if (!dir) return null; // package itself is missing (optional dependency skipped)
   const t = makeT(lang());
-  const bin = electronBinary();
+  console.log(t("cliDownloadingElectron"));
+  const log = { info: (m: string) => console.log(m), error: (m: string) => console.error(m) };
+  let bin: string | null = null;
+  try {
+    bin = await installElectronBinary(dir, log);
+  } catch (err) {
+    log.error(`  ${(err as Error).message}`);
+  }
+  if (!bin) {
+    const installer = path.join(dir, "install.js");
+    if (fs.existsSync(installer)) {
+      const env = { ...process.env };
+      delete env.ELECTRON_SKIP_BINARY_DOWNLOAD;
+      spawnSync(process.execPath, [installer], { stdio: "inherit", cwd: dir, env });
+    }
+  }
+  try {
+    delete require.cache[require.resolve("electron")];
+  } catch {
+    /* ignore */
+  }
+  const found = electronBinary();
+  if (!found) console.error(t("cliElectronDownloadFailed"));
+  return found;
+}
+
+async function startMenubar(background: boolean): Promise<number> {
+  const t = makeT(lang());
+  const bin = await ensureElectron();
   if (!bin) {
     console.error(t("cliNoElectron"));
     return 2;
@@ -349,7 +397,7 @@ async function main(): Promise<number> {
         console.log(t("cliNoDisplay"));
         return runAgent(args.flags);
       }
-      if (!electronBinary()) {
+      if (!(await ensureElectron())) {
         console.log(t("cliNoElectron"));
         return runAgent(args.flags);
       }

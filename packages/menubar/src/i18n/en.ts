@@ -93,6 +93,8 @@ Options:
   cliUnknownCommand: "Unknown command: {command}",
   cliNoDisplay: "No display detected — starting agent mode (run `codex-tracker menubar` on a desktop).",
   cliNoElectron: "Electron is not installed (optional dependency) — starting agent mode.",
+  cliDownloadingElectron: "Electron runtime not found — downloading it now (about 100 MB, one time)…",
+  cliElectronDownloadFailed: "Electron download failed. Retry with `npm install -g codex-token-tracker --allow-scripts=electron` or `npm rebuild -g electron`; the headless `codex-tracker agent` works without it.",
   cliStartingMenubar: "Starting menu bar app…",
   cliLoginStart: "Connecting this device to {dashboard}",
   cliLoginCode: "Your code: {code}",

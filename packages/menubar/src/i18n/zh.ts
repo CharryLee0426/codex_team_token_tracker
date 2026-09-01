@@ -93,6 +93,8 @@ export const zh: Record<MessageKey, string> = {
   cliUnknownCommand: "未知命令：{command}",
   cliNoDisplay: "未检测到显示环境 — 以 agent 模式启动（桌面环境请运行 `codex-tracker menubar`）。",
   cliNoElectron: "未安装 Electron（可选依赖）— 以 agent 模式启动。",
+  cliDownloadingElectron: "未找到 Electron 运行时，正在下载（约 100 MB，仅需一次）…",
+  cliElectronDownloadFailed: "Electron 下载失败。可重试 `npm install -g codex-token-tracker --allow-scripts=electron` 或 `npm rebuild -g electron`；无界面的 `codex-tracker agent` 无需 Electron。",
   cliStartingMenubar: "正在启动菜单栏应用…",
   cliLoginStart: "正在将本设备连接到 {dashboard}",
   cliLoginCode: "你的代码：{code}",

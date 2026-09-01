@@ -30,6 +30,8 @@ codex-tracker              # starts the menu bar app
 
 `codex-tracker login` prints a code such as `RHF7-DWW8` and opens `https://codex.chenli.dev/cli-auth?code=…`. Approve it in the browser and the terminal shows *Connected as <your name>*. The device now has its own token (revocable from **Dashboard → Devices**).
 
+> **npm 11+ / pnpm 10+ block Electron's install script by default.** That's fine: the first `codex-tracker` run downloads the Electron runtime itself (~100 MB, once). To do it during install instead: `npm install -g codex-token-tracker --allow-scripts=electron`.
+
 Tips
 - Right-click the tray icon → **Launch at login** so it starts with your computer.
 - The tray title shows today's tokens (e.g. `12.4k`); `codex-tracker config set trayTitle cost` shows dollars instead, `none` hides it.

@@ -20,6 +20,8 @@ npm install -g codex-token-tracker
 npx codex-token-tracker
 ```
 
+> **npm 11+ / pnpm 10+ block Electron's install script by default.** That's fine: the first `codex-tracker` run downloads the Electron runtime itself (~100 MB, once). To do it during install instead: `npm install -g codex-token-tracker --allow-scripts=electron`.
+
 Node.js 20+ is required. Electron is an *optional* dependency: if its binary cannot be downloaded (locked-down servers, WSL without a desktop), the package still installs and runs in agent mode.
 
 ## Quick start

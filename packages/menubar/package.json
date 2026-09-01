@@ -1,6 +1,6 @@
 {
   "name": "codex-token-tracker",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Menu bar / system tray app and headless agent that tracks OpenAI Codex token usage, cache hits, model mix and API-equivalent cost \u2014 and syncs it to your team dashboard.",
   "license": "MIT",
   "author": "Chen Li",
