@@ -21,8 +21,8 @@ export function compactRow(r: Doc<"hourlyUsage">) {
     h: r.hourStart,
     u: r.userId as string,
     d: r.deviceId as string,
-    i: r.input, c: r.cached, w: r.cacheWrite, o: r.output, r: r.reasoning, t: r.total, q: r.requests, $: r.cost,
-    m: r.models.map((m) => ({ model: m.model, i: m.input, c: m.cached, w: m.cacheWrite, o: m.output, r: m.reasoning, t: m.total, q: m.requests, $: m.cost })),
+    i: r.input, c: r.cached, w: r.cacheWrite, o: r.output, r: r.reasoning, t: r.total, q: r.requests, usd: r.cost,
+    m: r.models.map((m) => ({ model: m.model, i: m.input, c: m.cached, w: m.cacheWrite, o: m.output, r: m.reasoning, t: m.total, q: m.requests, usd: m.cost })),
   };
 }
 

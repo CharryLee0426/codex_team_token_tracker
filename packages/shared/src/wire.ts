@@ -74,7 +74,7 @@ export interface CompactModelUsage {
   r: number; // reasoning
   t: number; // total
   q: number; // requests
-  $: number; // cost USD
+  usd: number; // cost USD (key must not start with "$": reserved by Convex)
 }
 export interface CompactHourRow extends Omit<CompactModelUsage, "model"> {
   h: number; // hourStart UTC ms
@@ -90,10 +90,10 @@ export function expandCompactRows(rows: CompactHourRow[]): Array<{
 }> {
   const out: ReturnType<typeof expandCompactRows> = [];
   for (const r of rows) {
-    const models = r.m.length ? r.m : [{ model: "unknown", i: r.i, c: r.c, w: r.w, o: r.o, r: r.r, t: r.t, q: r.q, $: r.$ }];
+    const models = r.m.length ? r.m : [{ model: "unknown", i: r.i, c: r.c, w: r.w, o: r.o, r: r.r, t: r.t, q: r.q, usd: r.usd }];
     for (const m of models) {
       out.push({
-        hourStart: r.h, model: m.model, userId: r.u, deviceId: r.d, cost: m.$,
+        hourStart: r.h, model: m.model, userId: r.u, deviceId: r.d, cost: m.usd,
         usage: { input: m.i, cached: m.c, cacheWrite: m.w, output: m.o, reasoning: m.r, total: m.t, requests: m.q },
       });
     }
