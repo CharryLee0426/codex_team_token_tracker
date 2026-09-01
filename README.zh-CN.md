@@ -71,6 +71,6 @@ node packages/menubar/bin/codex-tracker.js      # tray app, or `agent` / `status
 | `pnpm build` | 先构建各 package，再构建仪表盘 |
 | `pnpm release:menubar` | 发布 `codex-token-tracker`（见管理员指南） |
 
-定价表位于 `packages/shared/src/pricing.ts`；未知模型会回退到同系列价格并标记为 *estimated*（估算）。依赖版本固定在稳定的主版本线（Next 15、Clerk 6、Convex 1.x、TypeScript 5.9、Electron 38、recharts 2）；pnpm ≥ 10 需要 `pnpm-workspace.yaml` 中的 `allowBuilds` 列表。
+定价表位于 `packages/shared/src/pricing.ts`，与 <https://developers.openai.com/api/docs/pricing> 保持一致（含 272K 长上下文档位）；未知模型会回退到同系列价格并标记为 *estimated*（估算）。仅统计 OpenAI 模型 —— 其他 agent 在 Anthropic/Google/本地模型上的用量会被忽略，因为本工具统计的是 Codex 消耗。依赖版本固定在稳定的主版本线（Next 15、Clerk 6、Convex 1.x、TypeScript 5.9、Electron 38、recharts 2）；pnpm ≥ 10 需要 `pnpm-workspace.yaml` 中的 `allowBuilds` 列表。
 
 许可证：MIT。

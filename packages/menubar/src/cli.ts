@@ -17,6 +17,7 @@ import { hasDisplay, platformKind, systemLocale } from "./core/platform";
 import { describeRoot, discoverSessionRoots } from "./core/sources";
 import { SOURCE_IDS, normalizeSources, type SourcesConfig } from "./core/config";
 import { errorMessage } from "./core/uploader";
+import { checkForUpdate, runUpdate as installUpdate } from "./core/update";
 import { durationShort, localeTag, makeT, relativeTime, resolveLanguage, windowLabel, type LanguageSetting } from "./i18n";
 import { APP_VERSION } from "./version";
 
@@ -214,6 +215,10 @@ async function runStatus(json: boolean): Promise<number> {
     .map(([agent, c]) => `${agent} ${c.sessions}`)
     .join(", ");
   console.log(t("sessions", { n: s.counts.sessions }) + " · " + t("files", { n: s.counts.files }) + (byAgent ? ` (${byAgent})` : ""));
+  if (cfg.checkUpdates) {
+    const u = await checkForUpdate();
+    if (u.available) console.log("\n" + t("cliUpdateAvailable", { current: u.current, latest: u.latest ?? "?" }) + ` — ${u.command}`);
+  }
   return 0;
 }
 
@@ -368,6 +373,37 @@ function runConfig(positional: string[]): number {
   return 0;
 }
 
+/**
+ * `update` — report the newest published version and, unless `--check`, install it globally with
+ * the package manager this copy came from. The installer's output is streamed through so a failure
+ * (root-owned prefix, proxy, offline) is visible rather than swallowed.
+ */
+async function runUpdateCommand(flags: Args["flags"]): Promise<number> {
+  const t = makeT(lang());
+  const info = await checkForUpdate({ force: true });
+  if (info.error && !info.latest) {
+    console.error(t("cliUpdateCheckFailed", { message: info.error }));
+    return 1;
+  }
+  if (!info.available) {
+    console.log(t("cliUpdateLatest", { version: info.current }));
+    return 0;
+  }
+  console.log(t("cliUpdateAvailable", { current: info.current, latest: info.latest ?? "?" }));
+  if (flags.check === true) {
+    console.log(`  ${info.command}`);
+    return 0;
+  }
+  console.log(t("cliUpdateRunning", { command: info.command }));
+  const r = await installUpdate({ version: info.latest ?? undefined, onOutput: (c) => process.stdout.write(c) });
+  if (!r.ok) {
+    console.error(t("cliUpdateFailed", { code: r.code ?? "?", command: r.command }));
+    return 1;
+  }
+  console.log(t("cliUpdateDone", { version: info.latest ?? "?" }));
+  return 0;
+}
+
 function runLang(positional: string[]): number {
   const value = positional[0];
   if (!value || !["en", "zh", "auto"].includes(value)) {
@@ -426,6 +462,9 @@ async function main(): Promise<number> {
       return runConfig(args.positional);
     case "lang":
       return runLang(args.positional);
+    case "update":
+    case "upgrade":
+      return runUpdateCommand(args.flags);
     default:
       console.error(t("cliUnknownCommand", { command: args.command }));
       console.log(t("cliUsage"));

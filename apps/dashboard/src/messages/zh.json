@@ -257,7 +257,7 @@
     "connectStep2": "登录（会打开本仪表盘以授权设备）",
     "connectStep3": "在后台运行——托盘图标显示今日用量；在 WSL2 中请使用无界面代理",
     "pricingTitle": "价格",
-    "pricingBody": "费用在每台设备上按 OpenAI 标准 API 价格计算。较新的模型会回退到最接近的已知系列并标记为估算。"
+    "pricingBody": "费用在每台设备上按 OpenAI 标准 API 价格计算，并包含输入超过 272K token 时的长上下文档位。仅统计 Codex（OpenAI）用量 —— 其他提供商的用量不计入。较新的模型会回退到最接近的已知系列并标记为估算。"
   },
   "auth": {
     "signInTitle": "登录 Codex Tracker",

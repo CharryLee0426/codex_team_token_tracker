@@ -9,6 +9,7 @@ import { api } from "@codex-tracker/backend/convex/_generated/api";
 import type { Id } from "@codex-tracker/backend/convex/_generated/dataModel";
 import { buildHeatmap, groupByLocalDay } from "@codex-tracker/shared/aggregate";
 import { addLocalDays, dayKeyToLocalStart, hourStartOf } from "@codex-tracker/shared/time";
+import { isOpenAIModel } from "@codex-tracker/shared/pricing";
 import { activeHoursRows, dailyStack, memberStats, agentBreakdown, modelBreakdown, orderModels, summarize, weekdaySeries } from "@/lib/analytics";
 import { rangeBounds, type RangeKey } from "@/lib/ranges";
 import { useHourlyRange, type Scope } from "@/hooks/use-hourly-range";
@@ -78,6 +79,8 @@ export function UsageDashboard({ scope, orgId, orgName }: Props) {
   const liveNow = useQuery(api.usage.liveNow, ready && (scope === "personal" || orgId) ? (scope === "team" ? { scope, orgId } : { scope }) : "skip");
   const sessions = useQuery(api.usage.recentSessions, ready && (scope === "personal" || orgId) ? (scope === "team" ? { scope, orgId, limit: 12 } : { scope, limit: 12 }) : "skip");
   const devices = useQuery(api.usage.myDevices, ready && scope === "personal" ? {} : "skip");
+  // Codex-only: hide sessions an older client uploaded for a non-OpenAI model.
+  const codexSessions = useMemo(() => sessions?.filter((s) => isOpenAIModel(s.model)), [sessions]);
 
   const rangeRows = useMemo(() => data.rows.filter((r) => r.hourStart >= bounds.fromMs), [data.rows, bounds.fromMs]);
   const summary = useMemo(() => summarize(rangeRows), [rangeRows]);
@@ -218,7 +221,7 @@ export function UsageDashboard({ scope, orgId, orgName }: Props) {
 
       <Card>
         <CardHeader title={t("sessions.title")} hint={t("sessions.subtitle")} />
-        <RecentSessions sessions={ready ? sessions : undefined} scope={scope} now={now} />
+        <RecentSessions sessions={ready ? codexSessions : undefined} scope={scope} now={now} />
       </Card>
     </div>
   );

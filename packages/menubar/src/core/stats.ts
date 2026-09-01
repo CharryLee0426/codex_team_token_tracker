@@ -6,6 +6,7 @@ import {
   emptyUsage,
   addUsageInPlace,
   groupByLocalDay,
+  isOpenAIModel,
   localDayKey,
   resolvePrice,
   startOfLocalDay,
@@ -30,6 +31,8 @@ export interface StatsInput {
 
 export interface Stats {
   buckets: HourBucket[];
+  /** Sessions that produced OpenAI usage — what gets uploaded (see `computeStats`). */
+  sessions: ParsedSession[];
   today: PeriodStat;
   week: PeriodStat;
   month: PeriodStat;
@@ -47,7 +50,31 @@ export interface Stats {
 }
 
 const LIVE_WINDOW_MS = 5 * 60 * 1000;
+const RATE_WINDOW_MS = 60_000;
+const BURST_WINDOW_MS = 10_000;
 const DAY = 86_400_000;
+
+/**
+ * Generation speed over the trailing `windowMs`.
+ *
+ * Only *output* tokens count: an event's `input` is the whole prompt re-sent for that request
+ * (tens to hundreds of thousands of tokens of context), so summing `usage.total` reported
+ * throughput in the thousands of tok/s instead of the tens the model actually generates.
+ *
+ * The divisor is the part of the window the session has actually existed for, so a session that
+ * started seconds ago is not diluted by time that never happened.
+ */
+function outputRate(events: UsageEvent[], now: number, windowMs: number, sessionStart: number): number {
+  const from = now - windowMs;
+  let output = 0;
+  for (const e of events) {
+    if (e.ts <= from) continue;
+    output += e.usage.output;
+  }
+  if (output <= 0) return 0;
+  const elapsedSec = Math.max(1, (now - Math.max(from, sessionStart)) / 1000);
+  return output / elapsedSec;
+}
 
 class PriceCache {
   private cache = new Map<string, ReturnType<typeof resolvePrice>>();
@@ -126,7 +153,11 @@ function agentStats(sessions: ParsedSession[], since: number, prices: PriceCache
 export function computeStats(input: StatsInput): Stats {
   const now = input.now ?? Date.now();
   const prices = new PriceCache(input.pricing);
-  const sessions = input.sessions;
+  // Codex-only dashboard: drop usage on non-OpenAI models (Cline/Roo/OpenCode can drive Claude,
+  // Gemini, local models…) so totals, costs and the model mix stay comparable to OpenAI billing.
+  const sessions = input.sessions.map((s) =>
+    s.events.every((e) => isOpenAIModel(e.model)) ? s : { ...s, events: s.events.filter((e) => isOpenAIModel(e.model)) },
+  );
   const allEvents: UsageEvent[] = [];
   const sessionCosts = new Map<string, number>();
   let lastActivityAt: number | null = null;
@@ -158,14 +189,8 @@ export function computeStats(input: StatsInput): Stats {
     .filter((s) => s.events.length && now - s.lastActivityAt <= LIVE_WINDOW_MS)
     .sort((a, b) => b.lastActivityAt - a.lastActivityAt)[0];
   if (liveSession) {
-    let t60 = 0;
-    let t10 = 0;
-    for (const e of liveSession.events) {
-      const age = now - e.ts;
-      if (age <= 60_000) t60 += e.usage.total;
-      if (age <= 10_000) t10 += e.usage.total;
-    }
     const last = liveSession.events[liveSession.events.length - 1];
+    const start = liveSession.startedAt || liveSession.events[0].ts;
     live = {
       sessionId: liveSession.sessionId,
       agent: liveSession.agent,
@@ -173,8 +198,8 @@ export function computeStats(input: StatsInput): Stats {
       model: liveSession.model,
       startedAt: liveSession.startedAt,
       lastEventAt: last.ts,
-      tokensPerSecond: t60 / 60,
-      tokensPerSecond10s: t10 / 10,
+      tokensPerSecond: outputRate(liveSession.events, now, RATE_WINDOW_MS, start),
+      tokensPerSecond10s: outputRate(liveSession.events, now, BURST_WINDOW_MS, start),
       contextUsed: last.usage.input + last.usage.output,
       contextWindow: liveSession.contextWindow,
       sessionUsage: { ...liveSession.cumulative },
@@ -205,6 +230,7 @@ export function computeStats(input: StatsInput): Stats {
 
   return {
     buckets,
+    sessions: sessions.filter((s) => s.events.length),
     today,
     week,
     month,

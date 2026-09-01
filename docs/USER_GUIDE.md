@@ -24,9 +24,12 @@ Requirements: **Node.js 20 or newer** (`node -v`). Install Node from https://nod
 
 ```bash
 npm install -g codex-token-tracker
-codex-tracker login        # opens the dashboard; sign in and click "Approve"
-codex-tracker              # starts the menu bar app
+codex-token-tracker login  # opens the dashboard; sign in and click "Approve"
+codex-token-tracker        # starts the menu bar app
 ```
+
+This gives you two interchangeable commands: **`codex-token-tracker`** and the shorter alias
+`codex-tracker`. The rest of this guide uses the short one.
 
 `codex-tracker login` prints a code such as `RHF7-DWW8` and opens `https://codex.chenli.dev/cli-auth?code=…`. Approve it in the browser and the terminal shows *Connected as <your name>*. The device now has its own token (revocable from **Dashboard → Devices**).
 
@@ -35,7 +38,7 @@ codex-tracker              # starts the menu bar app
 Tips
 - Right-click the tray icon → **Launch at login** so it starts with your computer.
 - The tray title shows today's tokens (e.g. `12.4k`); `codex-tracker config set trayTitle cost` shows dollars instead, `none` hides it.
-- Upgrade later with `npm install -g codex-token-tracker@latest`.
+- Upgrade later with `codex-token-tracker update` (or `npm install -g codex-token-tracker@latest`). The tray menu and the popover also offer an **Update** button when a new version is out.
 
 ### Windows
 
@@ -58,7 +61,7 @@ Keep the agent running (tmux, `nohup`, or a `systemd --user` service).
 |---|---|
 | **Today** | Tokens, API-equivalent cost, cache-hit %, requests — local day, this machine |
 | **Sources** | Which tools consumed your Codex subscription (Codex, pi, …) |
-| **Live** | Current session's project, model, tokens/second, context window use |
+| **Live** | Current session's project, model, generation speed (output tokens/second), context window use |
 | **Rate limits** | **Live** weekly / 5-hour limits from your Codex account (same numbers as the Codex app), extra per-model limits, plan, "resets in …". Amber *From logs* means the live query failed (offline / expired Codex login) and the last logged value is shown |
 | **Heatmap** | Last 16 weeks, this machine plus your other devices |
 | **Models** | Tokens, share and cost per model; *est.* = model newer than the price table |
@@ -94,6 +97,7 @@ codex-tracker paths           detected session folders per agent
 codex-tracker lang en|zh|auto display language
 codex-tracker config get      all settings (uploadIntervalSec, trayTitle, sources.*, …)
 codex-tracker config set <key> <value>
+codex-tracker update [--check]  install the newest published version
 ```
 
 Settings live in `~/.codex-tracker/config.json`; `~/.codex-tracker/pricing.json` overrides model prices.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatPercent, formatTokens, formatUSD } from "@codex-tracker/shared";
-import type { Snapshot } from "../core/snapshot";
+import type { Snapshot, UpdateState } from "../core/snapshot";
 import { durationShort, localeTag, relativeTime, t as tr, windowLabel, type Language, type MessageKey } from "../i18n";
 import { Heatmap } from "./components/Heatmap";
 import { Models } from "./components/Models";
@@ -32,6 +32,46 @@ function Logo() {
 
 function levelClass(pct: number): string {
   return pct >= 85 ? "critical" : pct >= 60 ? "warning" : "";
+}
+
+/**
+ * Shown only when there is something to act on: a newer version, an install in flight, or the
+ * result of one. A failed install keeps the exact command on screen so it can be run by hand.
+ */
+function UpdateBar({ update, t }: { update: UpdateState; t: (key: MessageKey, params?: Record<string, string | number>) => string }) {
+  if (update.status === "installed") {
+    return (
+      <div className="update-bar done">
+        <span className="msg">{t("updateInstalled", { version: update.latest ?? "?" })}</span>
+      </div>
+    );
+  }
+  if (update.status === "failed") {
+    return (
+      <div className="update-bar failed">
+        <span className="msg" title={update.log ?? ""}>
+          {t("updateFailed")}
+        </span>
+        <span className="cmd">{update.command}</span>
+      </div>
+    );
+  }
+  if (update.status === "installing") {
+    return (
+      <div className="update-bar">
+        <span className="msg">{t("updateInstalling")}</span>
+      </div>
+    );
+  }
+  if (!update.available) return null;
+  return (
+    <div className="update-bar">
+      <span className="msg">{t("updateNewVersion", { version: update.latest ?? "?", current: update.current })}</span>
+      <button className="primary" onClick={() => void bridge().installUpdate()}>
+        {t("update")}
+      </button>
+    </div>
+  );
 }
 
 export function App() {
@@ -92,6 +132,8 @@ export function App() {
       </header>
 
       <div className="scroll">
+        {snap.update ? <UpdateBar update={snap.update} t={t} /> : null}
+
         {/* Today */}
         <section className="card">
           <div className="card-title">

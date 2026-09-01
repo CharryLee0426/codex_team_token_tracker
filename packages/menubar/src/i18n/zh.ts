@@ -70,7 +70,18 @@ export const zh: Record<MessageKey, string> = {
   never: "从未",
   local: "本机",
   remote: "其他设备",
-  cliUsage: `用法：codex-tracker [命令] [选项]
+  update: "更新",
+  updateAvailable: "更新到 v{version}",
+  updateNewVersion: "有新版本 {version}（当前 v{current}）",
+  updateUpToDate: "已是最新版本",
+  updateChecking: "检查中…",
+  updateInstalling: "安装中…",
+  updateInstalled: "已更新到 v{version} — 重启后生效",
+  updateFailed: "更新失败 — 请手动执行：",
+  updateCheckFailed: "检查更新失败：{message}",
+  checkForUpdates: "检查更新",
+  releaseNotes: "更新日志",
+  cliUsage: `用法：codex-token-tracker [命令] [选项]      （别名：codex-tracker）
 
 命令：
   (无)              启动菜单栏应用（无显示环境时自动切换为 agent 模式）
@@ -81,10 +92,12 @@ export const zh: Record<MessageKey, string> = {
   logout            断开本设备
   status            打印今日用量、实时会话与限额
   paths             显示检测到的会话目录（Codex、pi、OpenCode、Cline/Roo/Kilo、Hermes、自定义）
+  update            安装最新发布版本（--check 只检查不安装）
   config get|set    读取或修改设置（config set uploadIntervalSec 30，config set sources.pi false）
   lang <en|zh|auto> 设置显示语言
 
 选项：
+  --check           update：只报告最新版本，不执行安装
   --dashboard <url> 仪表盘地址（自托管）
   --background      以后台方式启动菜单栏应用并立即返回
   --version, -v     显示版本
@@ -127,4 +140,10 @@ export const zh: Record<MessageKey, string> = {
   cliConfigUnknownKey: "未知配置项：{key}。可用：{keys}",
   cliLangSet: "语言已设置为 {lang}",
   cliConfigDir: "配置目录：{dir}",
+  cliUpdateLatest: "codex-token-tracker {version} 已是最新版本。",
+  cliUpdateAvailable: "发现新版本：{current} → {latest}",
+  cliUpdateRunning: "正在执行：{command}",
+  cliUpdateDone: "已更新到 {version}。请重启菜单栏应用（或重新运行 CLI）以生效。",
+  cliUpdateFailed: "更新失败（退出码 {code}）。请手动执行：{command}",
+  cliUpdateCheckFailed: "无法访问 npm registry：{message}",
 };

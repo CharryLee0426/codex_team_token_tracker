@@ -24,9 +24,11 @@
 
 ```bash
 npm install -g codex-token-tracker
-codex-tracker login        # opens the dashboard; sign in and click "Approve"
-codex-tracker              # starts the menu bar app
+codex-token-tracker login  # opens the dashboard; sign in and click "Approve"
+codex-token-tracker        # starts the menu bar app
 ```
+
+安装后会得到两个等价命令：**`codex-token-tracker`** 与更短的别名 `codex-tracker`。本文档使用短的那个。
 
 > **npm 11+ / pnpm 10+ 默认会拦截 Electron 的安装脚本。** 不用担心：第一次运行 `codex-tracker` 时会自动下载 Electron 运行时（约 100 MB，仅一次）。如果想在安装时就下载：`npm install -g codex-token-tracker --allow-scripts=electron`。
 
@@ -35,7 +37,7 @@ codex-tracker              # starts the menu bar app
 小提示
 - 右键点击托盘图标 → **Launch at login**（开机自启），让它随电脑一起启动。
 - 托盘标题显示今日 token 数（例如 `12.4k`）；`codex-tracker config set trayTitle cost` 改为显示美元，`none` 则隐藏。
-- 之后可通过 `npm install -g codex-token-tracker@latest` 升级。
+- 之后可通过 `codex-token-tracker update` 升级（也可以用 `npm install -g codex-token-tracker@latest`）。有新版本时，托盘菜单和弹窗顶部也会出现 **更新** 按钮。
 
 ### Windows
 
@@ -94,6 +96,7 @@ codex-tracker paths           detected session folders per agent
 codex-tracker lang en|zh|auto display language
 codex-tracker config get      all settings (uploadIntervalSec, trayTitle, sources.*, …)
 codex-tracker config set <key> <value>
+codex-tracker update [--check]  安装最新发布版本
 ```
 
 设置保存在 `~/.codex-tracker/config.json`；`~/.codex-tracker/pricing.json` 可覆盖模型价格。

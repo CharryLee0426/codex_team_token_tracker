@@ -135,6 +135,13 @@ function buildMenu(s: Snapshot): Menu {
         ]
       : []),
     { label: t(L, "refresh"), click: () => void engine?.refresh(true) },
+    ...(s.update
+      ? [
+          s.update.available
+            ? { label: t(L, "updateAvailable", { version: s.update.latest ?? "?" }), click: () => void engine?.installUpdate() }
+            : { label: t(L, "checkForUpdates"), click: () => void engine?.checkUpdate(true) },
+        ]
+      : []),
     { type: "separator" },
     { label: t(L, "quit"), click: () => app.quit() },
   ];
@@ -197,6 +204,8 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.handle("auth:cancel", () => engine?.cancelLogin());
   ipcMain.handle("auth:logout", () => engine?.logout());
   ipcMain.handle("refresh", () => engine?.refresh(true).then(() => undefined));
+  ipcMain.handle("update:check", () => engine?.checkUpdate(true).then(() => undefined));
+  ipcMain.handle("update:install", () => engine?.installUpdate().then(() => undefined));
   ipcMain.handle("quit", () => app.quit());
 
   mb.on("ready", async () => {

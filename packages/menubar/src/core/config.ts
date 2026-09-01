@@ -51,6 +51,8 @@ export interface TrackerConfig {
   liveRateLimits: boolean;
   /** Seconds between live rate-limit refreshes. */
   usageRefreshSec: number;
+  /** Ask the npm registry whether a newer version has been published. */
+  checkUpdates: boolean;
 }
 
 export const DEFAULT_CONFIG: TrackerConfig = {
@@ -69,6 +71,7 @@ export const DEFAULT_CONFIG: TrackerConfig = {
   trackAllProviders: false,
   liveRateLimits: true,
   usageRefreshSec: 60,
+  checkUpdates: true,
 };
 
 /** Keys users may change through `codex-tracker config set` (plus dotted `sources.<name>`). */
@@ -84,6 +87,7 @@ export const EDITABLE_KEYS: Array<keyof TrackerConfig> = [
   "trackAllProviders",
   "liveRateLimits",
   "usageRefreshSec",
+  "checkUpdates",
 ];
 
 export interface UploadState {
@@ -158,6 +162,7 @@ export function loadConfig(): TrackerConfig {
   cfg.sources = normalizeSources(stored.sources);
   cfg.trackAllProviders = stored.trackAllProviders === true;
   cfg.liveRateLimits = stored.liveRateLimits !== false;
+  cfg.checkUpdates = stored.checkUpdates !== false;
   if (!(cfg.usageRefreshSec >= 15)) cfg.usageRefreshSec = DEFAULT_CONFIG.usageRefreshSec;
   if (!["auto", "en", "zh"].includes(cfg.language)) cfg.language = "auto";
   if (!(cfg.uploadIntervalSec >= 10)) cfg.uploadIntervalSec = DEFAULT_CONFIG.uploadIntervalSec;
@@ -191,6 +196,7 @@ export function coerceConfigValue(key: keyof TrackerConfig, raw: string): Tracke
     case "launchAtLogin":
     case "trackAllProviders":
     case "liveRateLimits":
+    case "checkUpdates":
       return parseBool(raw);
     case "extraSessionDirs": {
       const trimmed = raw.trim();

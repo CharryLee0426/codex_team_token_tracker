@@ -6,7 +6,7 @@ import { api } from "@codex-tracker/backend/convex/_generated/api";
 import type { Id } from "@codex-tracker/backend/convex/_generated/dataModel";
 import { expandCompactRows, type CompactHourRow } from "@codex-tracker/shared/wire";
 import { splitRange } from "@/lib/ranges";
-import type { UsageRow } from "@/lib/analytics";
+import { codexRows, type UsageRow } from "@/lib/analytics";
 
 export type Scope = "personal" | "team";
 
@@ -66,6 +66,6 @@ export function useHourlyRange(scope: Scope, orgId: Id<"orgs"> | undefined, from
         for (const u of r.users) users.set(u.id, u);
       }
     }
-    return { rows, users, loading: keys.length > 0 && loading, error, active: keys.length > 0 };
+    return { rows: codexRows(rows), users, loading: keys.length > 0 && loading, error, active: keys.length > 0 };
   }, [results, queries]);
 }

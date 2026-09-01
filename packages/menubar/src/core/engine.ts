@@ -8,7 +8,8 @@ import { deviceLogin, logoutDevice, type LoginResult } from "./auth";
 import { deviceName, hostname, platformKind, systemLocale } from "./platform";
 import { fetchLiveRateLimits } from "./usage-api";
 import { resolveLanguage, type Language, type LanguageSetting } from "../i18n";
-import type { Snapshot, AuthState } from "./snapshot";
+import { checkForUpdate, runUpdate, type UpdateInfo } from "./update";
+import type { Snapshot, AuthState, UpdateState } from "./snapshot";
 import { APP_VERSION } from "../version";
 
 export interface EngineOptions {
@@ -27,6 +28,7 @@ const TICK_MS = 2_000;
 const REMOTE_MS = 60_000;
 const LIVE_LIMITS_DEBOUNCE_MS = 10_000;
 const LIVE_LIMITS_MIN_GAP_MS = 20_000;
+const UPDATE_CHECK_MS = 6 * 60 * 60 * 1000;
 
 /** Composes the file store, statistics, live rate limits and uploader; emits `snapshot` whenever the picture changes. */
 export class Engine extends EventEmitter {
@@ -45,6 +47,9 @@ export class Engine extends EventEmitter {
   private liveLimitsInFlight = false;
   private liveLimitsTimer: NodeJS.Timeout | null = null;
   private lastLiveLimitsAttempt = 0;
+  private update: UpdateInfo | null = null;
+  private updateStatus: UpdateState["status"] = "idle";
+  private updateLog: string | null = null;
 
   constructor(private readonly opts: EngineOptions) {
     super();
@@ -91,6 +96,8 @@ export class Engine extends EventEmitter {
       return;
     }
     void this.refreshLiveLimits(true);
+    void this.checkUpdate(false);
+    this.timers.push(setInterval(() => void this.checkUpdate(false), UPDATE_CHECK_MS));
     this.store.startWatching(() => void this.refresh(false));
     this.timers.push(setInterval(() => void this.refresh(false), SHALLOW_MS));
     this.timers.push(setInterval(() => void this.refresh(true), DEEP_MS));
@@ -201,7 +208,7 @@ export class Engine extends EventEmitter {
     if (!this.signedIn) return { buckets: 0, sessions: 0 };
     if (!this.stats) this.recompute();
     try {
-      const r = await this.uploader.pushAll(this.stats!.buckets, this.store.sessions(), this.stats!.sessionCosts);
+      const r = await this.uploader.pushAll(this.stats!.buckets, this.stats!.sessions, this.stats!.sessionCosts);
       this.emitSnapshot();
       return r;
     } catch (err) {
@@ -226,6 +233,50 @@ export class Engine extends EventEmitter {
     if (!this.signedIn) return;
     await this.uploader.fetchRemote(this.heatmapWeeks);
     this.recompute();
+  }
+
+  /**
+   * Ask the npm registry for the newest published version (cached for 6 h unless `force`).
+   * Best-effort: a failure is recorded on the snapshot, never thrown.
+   */
+  async checkUpdate(force: boolean): Promise<UpdateInfo | null> {
+    if (!this.config.checkUpdates) {
+      this.update = null;
+      return null;
+    }
+    if (this.updateStatus === "checking" || this.updateStatus === "installing") return this.update;
+    this.updateStatus = "checking";
+    this.emitSnapshot();
+    this.update = await checkForUpdate({ force });
+    this.updateStatus = "idle";
+    if (this.update.error) this.opts.log?.(`update check failed: ${this.update.error}`);
+    this.emitSnapshot();
+    return this.update;
+  }
+
+  /**
+   * Install the newest version globally with the package manager this copy came from.
+   * The new code only takes effect once the app is restarted, so the UI says so rather than
+   * pretending to hot-swap itself.
+   */
+  async installUpdate(): Promise<boolean> {
+    if (this.updateStatus === "installing") return false;
+    if (!this.update?.available) await this.checkUpdate(true);
+    if (!this.update?.available) return false;
+    this.updateStatus = "installing";
+    this.updateLog = null;
+    this.emitSnapshot();
+    const r = await runUpdate({ version: this.update.latest ?? undefined });
+    this.updateStatus = r.ok ? "installed" : "failed";
+    this.updateLog = r.ok ? null : `${r.command}\n${r.output}`.trim();
+    if (!r.ok) this.opts.log?.(`update install failed (${r.code}): ${r.output}`);
+    this.emitSnapshot();
+    return r.ok;
+  }
+
+  private updateState(): UpdateState | null {
+    if (!this.config.checkUpdates || !this.update) return null;
+    return { ...this.update, status: this.updateStatus, log: this.updateLog };
   }
 
   /** Start the device-code login flow (resolves when approved / denied / expired / cancelled). */
@@ -324,6 +375,7 @@ export class Engine extends EventEmitter {
       rateLimits: this.liveLimits ?? fromLogRateLimits(s.logRateLimits),
       rateLimitsError: this.config.liveRateLimits ? this.liveLimitsError : null,
       rateLimitsUpdatedAt: this.liveLimits ? this.liveLimitsAt : (s.logRateLimits?.observedAt ?? null),
+      update: this.updateState(),
       modelsToday: s.modelsToday,
       modelsMonth: s.modelsMonth,
       byAgentToday: s.byAgentToday,

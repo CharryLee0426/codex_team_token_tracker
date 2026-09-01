@@ -1,12 +1,21 @@
 import { expandCompactRows } from "@codex-tracker/shared/wire";
 import { addUsageInPlace, cacheHitRate, emptyUsage, type TokenUsage } from "@codex-tracker/shared/usage";
-import { resolvePrice } from "@codex-tracker/shared/pricing";
+import { isOpenAIModel, resolvePrice } from "@codex-tracker/shared/pricing";
 import { groupByAgent, groupByLocalDay, groupByModel, weekdayHourMatrix, weekdayTotals } from "@codex-tracker/shared/aggregate";
 import { dayKeyRange, localParts, dayKeyToLocalStart } from "@codex-tracker/shared/time";
 
 export type UsageRow = ReturnType<typeof expandCompactRows>[number];
 export const OTHER_KEY = "__other__";
 export const MAX_SERIES = 8;
+
+/**
+ * Keep only Codex (OpenAI) consumption. Devices running ≥ 0.2.0 already filter locally, but rows
+ * uploaded by older clients from multi-provider agents (Cline/Roo/Kilo, OpenCode) can carry
+ * Anthropic/Google/local models — this dashboard does not report those.
+ */
+export function codexRows(rows: UsageRow[]): UsageRow[] {
+  return rows.filter((r) => isOpenAIModel(r.model ?? "unknown"));
+}
 
 export interface Summary {
   usage: TokenUsage;

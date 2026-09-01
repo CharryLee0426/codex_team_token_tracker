@@ -543,3 +543,33 @@ button.ghost:hover {
 .source-line .dot { width: 6px; height: 6px; border-radius: 50%; background: #0ca30c; flex: none; }
 .source-line.stale .dot { background: #fab219; }
 .source-line .err-hint { color: #d03b3b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+/* --- update banner --- */
+.update-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.09);
+  font-size: 11px;
+  color: var(--text);
+}
+.update-bar .msg {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.update-bar.failed { background: rgba(208, 59, 59, 0.1); }
+.update-bar.done { background: rgba(12, 163, 12, 0.1); }
+.update-bar button { flex: none; }
+.update-bar .cmd {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  user-select: text;
+}

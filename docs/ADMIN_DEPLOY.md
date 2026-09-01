@@ -115,7 +115,7 @@ Users upgrade with `npm i -g codex-token-tracker@latest`. Electron is an *option
 
 - **Updating the dashboard/backend**: push to `main` → Vercel builds → `convex deploy` pushes functions and schema to production in the same build. Schema changes are validated against existing data; keep new fields optional (as done for `agent`).
 - **Preview deployments** (any non-`main` branch / PR): `CONVEX_DEPLOY_KEY` is only set for Production, so previews run a plain `next build` against the **dev** Convex deployment and the **dev** Clerk instance (Preview env vars) — a safe staging environment that never touches production data.
-- **Pricing table**: `packages/shared/src/pricing.ts` (USD per 1M tokens). Unknown models fall back to their family and are flagged *est.*; users can override locally in `~/.codex-tracker/pricing.json`.
+- **Pricing table**: `packages/shared/src/pricing.ts` (USD per 1M tokens), mirroring <https://developers.openai.com/api/docs/pricing>, including the long-context tiers billed above 272K input tokens. Unknown models fall back to their family and are flagged *est.*; users can override locally in `~/.codex-tracker/pricing.json`. Only OpenAI models are counted — usage other agents produced on non-OpenAI models is dropped on the device and filtered again in the dashboard.
 - **Revoking a device**: the user does it in Dashboard → Devices; admins can set `revokedAt` on the `devices` row in the Convex dashboard.
 - **Removing a member**: remove them from the Clerk organization; the webhook deletes the membership and the team view stops including them (their rows stay attached to their user).
 - **Backups / export**: Convex dashboard → Settings → Export, or `npx convex export --prod`.

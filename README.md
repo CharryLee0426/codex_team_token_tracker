@@ -47,7 +47,7 @@ Tech stack: Node ≥ 20, TypeScript, pnpm workspaces, Next.js, Clerk, Convex, El
 
 1. Every Codex-OAuth agent keeps a local transcript with per-request usage. The tracker's source registry (`packages/menubar/src/core/sources`) discovers and parses them: Codex rollouts (`~/.codex/sessions`, cumulative `token_count` counters turned into per-request deltas), pi (`~/.pi/agent/sessions`), OpenCode storage, Cline-family task folders, Hermes sessions, custom directories.
 2. Usage is bucketed by **UTC hour × model × agent**, priced, and upserted to Convex (idempotent — rescans never double count). Sessions are summarized (project folder name + path hash only).
-3. A heartbeat every 15 s carries the live snapshot (current session, tokens/sec) for the dashboard's "live now".
+3. A heartbeat every 15 s carries the live snapshot (current session, output tokens/sec) for the dashboard's "live now".
 4. The dashboard subscribes to Convex queries and converts UTC buckets to the viewer's local time for every day / hour / weekday view.
 5. Teams are Clerk Organizations; the team view aggregates all members' devices.
 
@@ -71,6 +71,6 @@ node packages/menubar/bin/codex-tracker.js      # tray app, or `agent` / `status
 | `pnpm build` | packages, then the dashboard |
 | `pnpm release:menubar` | publish `codex-token-tracker` (see the admin guide) |
 
-Pricing lives in `packages/shared/src/pricing.ts`; unknown models fall back to their family and are flagged *estimated*. Versions are pinned to stable major lines (Next 15, Clerk 6, Convex 1.x, TypeScript 5.9, Electron 38, recharts 2); pnpm ≥ 10 needs the `allowBuilds` list in `pnpm-workspace.yaml`.
+Pricing lives in `packages/shared/src/pricing.ts`, mirroring <https://developers.openai.com/api/docs/pricing> (including the 272K long-context tiers); unknown models fall back to their family and are flagged *estimated*. Only OpenAI models are counted — usage other agents produced on Anthropic/Google/local models is dropped, since this tracker reports Codex consumption. Versions are pinned to stable major lines (Next 15, Clerk 6, Convex 1.x, TypeScript 5.9, Electron 38, recharts 2); pnpm ≥ 10 needs the `allowBuilds` list in `pnpm-workspace.yaml`.
 
 License: MIT.

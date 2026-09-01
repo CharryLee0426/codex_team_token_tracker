@@ -1,6 +1,7 @@
 import type { TokenUsage, HeatmapGrid, LiveRateLimits } from "@codex-tracker/shared";
 import type { Language, LanguageSetting } from "../i18n";
 import type { PlatformKind } from "./platform";
+import type { UpdateInfo } from "./update";
 
 export interface ModelStat {
   model: string;
@@ -29,12 +30,21 @@ export interface LiveState {
   model: string;
   startedAt: number;
   lastEventAt: number;
-  tokensPerSecond: number; // 60 s window
-  tokensPerSecond10s: number; // 10 s window
+  /** Generated (output) tokens per second over the last 60 s. */
+  tokensPerSecond: number;
+  /** Generated (output) tokens per second over the last 10 s — the burst rate. */
+  tokensPerSecond10s: number;
   contextUsed: number; // last request's context size (input + output)
   contextWindow: number | null;
   sessionUsage: TokenUsage;
   sessionCost: number;
+}
+
+/** Self-update state: what the registry says, plus how the last in-app install attempt went. */
+export interface UpdateState extends UpdateInfo {
+  status: "idle" | "checking" | "installing" | "installed" | "failed";
+  /** Tail of the installer output — only kept when `status` is "failed". */
+  log: string | null;
 }
 
 export type AuthStatus = "signedOut" | "pending" | "signedIn";
@@ -78,6 +88,8 @@ export interface Snapshot {
   rateLimits: LiveRateLimits | null;
   rateLimitsError: string | null;
   rateLimitsUpdatedAt: number | null;
+  /** Null when update checks are disabled (`config set checkUpdates false`). */
+  update: UpdateState | null;
   modelsToday: ModelStat[];
   modelsMonth: ModelStat[];
   byAgentToday: AgentStat[];
@@ -110,5 +122,9 @@ export interface TrackerBridge {
   cancelLogin(): Promise<void>;
   logout(): Promise<void>;
   refresh(): Promise<void>;
+  /** Force a registry check now. */
+  checkUpdate(): Promise<void>;
+  /** Run the global install; resolves once the package manager has exited. */
+  installUpdate(): Promise<void>;
   quit(): Promise<void>;
 }

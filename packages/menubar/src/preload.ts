@@ -16,6 +16,8 @@ const bridge: TrackerBridge = {
   cancelLogin: () => ipcRenderer.invoke("auth:cancel"),
   logout: () => ipcRenderer.invoke("auth:logout"),
   refresh: () => ipcRenderer.invoke("refresh"),
+  checkUpdate: () => ipcRenderer.invoke("update:check"),
+  installUpdate: () => ipcRenderer.invoke("update:install"),
   quit: () => ipcRenderer.invoke("quit"),
 };
 

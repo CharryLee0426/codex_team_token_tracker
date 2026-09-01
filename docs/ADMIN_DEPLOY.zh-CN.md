@@ -115,7 +115,7 @@ git push origin main --tags
 
 - **更新仪表盘 / 后端**：推送到 `main` → Vercel 构建 → 同一次构建中 `convex deploy` 会把函数和 schema 推送到生产环境。Schema 变更会针对现有数据做校验；新增字段请保持可选（如 `agent` 字段的做法）。
 - **预览部署（Preview）**（任何非 `main` 分支 / PR）：`CONVEX_DEPLOY_KEY` 只在 Production 环境设置，因此预览构建只执行 `next build`，并使用 **开发** Convex 部署和 **开发** Clerk 实例（Preview 环境变量）—— 这是一个不会触碰生产数据的安全预发布环境。
-- **定价表**：`packages/shared/src/pricing.ts`（每 100 万 token 的美元价格）。未知模型会回退到同系列价格并标记为 *est.*；用户可在本地 `~/.codex-tracker/pricing.json` 中覆盖。
+- **定价表**：`packages/shared/src/pricing.ts`（每 100 万 token 的美元价格），与 <https://developers.openai.com/api/docs/pricing> 保持一致，并包含输入超过 272K token 时的长上下文档位。未知模型会回退到同系列价格并标记为 *est.*；用户可在本地 `~/.codex-tracker/pricing.json` 中覆盖。仅统计 OpenAI 模型 —— 其他 agent 在非 OpenAI 模型上的用量会在设备端丢弃，并在仪表盘再过滤一次。
 - **撤销设备**：用户在 Dashboard → Devices 中操作；管理员可以在 Convex 控制台中为 `devices` 表对应行设置 `revokedAt`。
 - **移除成员**：从 Clerk 组织中移除该成员；Webhook 会删除成员关系，团队视图不再包含此人（其数据行仍然关联到该用户）。
 - **备份 / 导出**：Convex 控制台 → Settings → Export，或执行 `npx convex export --prod`。

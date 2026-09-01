@@ -69,8 +69,20 @@ export const en = {
   never: "never",
   local: "Local",
   remote: "Other devices",
+  // updates
+  update: "Update",
+  updateAvailable: "Update to v{version}",
+  updateNewVersion: "Version {version} is available (you have v{current})",
+  updateUpToDate: "Up to date",
+  updateChecking: "Checking…",
+  updateInstalling: "Installing…",
+  updateInstalled: "Updated to v{version} — restart to apply",
+  updateFailed: "Update failed — run this yourself:",
+  updateCheckFailed: "Update check failed: {message}",
+  checkForUpdates: "Check for updates",
+  releaseNotes: "Release notes",
   // CLI
-  cliUsage: `Usage: codex-tracker [command] [options]
+  cliUsage: `Usage: codex-token-tracker [command] [options]      (alias: codex-tracker)
 
 Commands:
   (none)            Start the menu bar app (falls back to agent mode without a display)
@@ -81,10 +93,12 @@ Commands:
   logout            Disconnect this device
   status            Print today's usage, live session and rate limits
   paths             Show detected session directories (Codex, pi, OpenCode, Cline/Roo/Kilo, Hermes, custom)
+  update            Install the newest published version (--check only reports)
   config get|set    Read or change settings (config set uploadIntervalSec 30, config set sources.pi false)
   lang <en|zh|auto> Set the display language
 
 Options:
+  --check           update: report the newest version without installing it
   --dashboard <url> Dashboard URL (self-hosted)
   --background      Start the menu bar app detached and return
   --version, -v     Print version
@@ -127,6 +141,12 @@ Options:
   cliConfigUnknownKey: "Unknown config key: {key}. Keys: {keys}",
   cliLangSet: "Language set to {lang}",
   cliConfigDir: "Config: {dir}",
+  cliUpdateLatest: "codex-token-tracker {version} is the latest version.",
+  cliUpdateAvailable: "Update available: {current} → {latest}",
+  cliUpdateRunning: "Running: {command}",
+  cliUpdateDone: "Updated to {version}. Restart the menu bar app (or rerun the CLI) to use it.",
+  cliUpdateFailed: "Update failed (exit {code}). Run it yourself: {command}",
+  cliUpdateCheckFailed: "Could not reach the npm registry: {message}",
 } as const;
 
 export type MessageKey = keyof typeof en;

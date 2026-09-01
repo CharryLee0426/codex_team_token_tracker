@@ -257,7 +257,7 @@
     "connectStep2": "Sign in (opens this dashboard to approve the device)",
     "connectStep3": "Run in the background — the tray icon shows today's usage; on WSL2 use the headless agent",
     "pricingTitle": "Pricing",
-    "pricingBody": "Costs are computed on each device from standard OpenAI API list prices. Newer models fall back to the closest known family and are marked as estimated."
+    "pricingBody": "Costs are computed on each device from standard OpenAI API list prices, including the long-context tier above 272K input tokens. Only Codex (OpenAI) usage is reported — other providers your agents may use are not counted. Newer models fall back to the closest known family and are marked as estimated."
   },
   "auth": {
     "signInTitle": "Sign in to Codex Tracker",
