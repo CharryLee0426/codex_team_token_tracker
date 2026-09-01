@@ -94,6 +94,7 @@ codex-tracker agent [--once]  headless tracker/uploader
 codex-tracker login|logout    connect / disconnect this device
 codex-tracker status          today's usage, live limits, sources, account
 codex-tracker paths           detected session folders per agent
+codex-tracker sync            rescan every agent + re-upload this device's full history
 codex-tracker lang en|zh|auto display language
 codex-tracker config get      all settings (uploadIntervalSec, trayTitle, sources.*, …)
 codex-tracker config set <key> <value>
@@ -109,6 +110,7 @@ Only these leave your machine: token counts, model names, the agent name (codex 
 ## 9. FAQ
 
 - **Dashboard shows nothing** — is the tray app / agent running and signed in (`codex-tracker status` → *Signed in as …*)? Data appears within a minute.
+- **This machine's numbers look wrong / incomplete** — press **⟳ Sync** in the popover header (or run `codex-tracker sync`). It rescans every agent from scratch and re-uploads this device's whole history, replacing the dashboard's totals for it. Do this after installing a new coding agent too.
 - **"Electron is not installed"** — run `npm rebuild electron` (or use `codex-tracker agent`). On Linux/WSL the tray needs a display; agent mode does not.
 - **Numbers differ from the Codex app's limits** — the Rate limits card should be within a minute of the Codex app; if it says *From logs*, your Codex login expired: open Codex once to refresh it.
 - **I use two computers** — connect both; the dashboard sums all your devices. Don't run two trackers that read the *same* logs (e.g. Windows tray + WSL agent on one PC).

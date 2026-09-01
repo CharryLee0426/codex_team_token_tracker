@@ -44,6 +44,7 @@ export const zh: Record<MessageKey, string> = {
   estimatedPricingHint: "价格为估算值：该模型不在价目表中",
   other: "其他",
   lastUpload: "上次上传 {time}",
+  lastSync: "上次完整同步 {time}",
   neverUploaded: "尚未上传",
   uploadError: "上传失败：{message}",
   allDevicesToday: "所有设备今日",
@@ -62,6 +63,18 @@ export const zh: Record<MessageKey, string> = {
   launchAtLogin: "开机自启动",
   refresh: "刷新",
   quit: "退出",
+  // 完整同步
+  syncNow: "立即同步",
+  syncing: "同步中…",
+  syncTitle: "重新扫描本设备上的所有智能体，并重新上传完整用量历史",
+  syncScanning: "正在重新扫描所有智能体的会话记录…",
+  syncComputing: "正在重新计算 token 用量…",
+  syncUploading: "正在重新上传本设备的历史数据…",
+  syncDownloading: "正在拉取其他设备的数据…",
+  syncLimits: "正在刷新限额…",
+  syncDone: "已同步 {agents} · {files} 个文件 · {sessions} 个会话 · 重新上传 {buckets} 个小时段",
+  syncDoneLocal: "已重新扫描 {agents} · {files} 个文件 · {sessions} 个会话 — 登录后可上传",
+  syncFailed: "同步失败：{message}",
   sessions: "{n} 个会话",
   files: "{n} 个文件",
   noData: "还没有用量数据。运行 Codex 后这里会自动更新。",
@@ -91,6 +104,7 @@ export const zh: Record<MessageKey, string> = {
   login             将本设备连接到仪表盘（--dashboard <url>）
   logout            断开本设备
   status            打印今日用量、实时会话与限额
+  sync              重新扫描所有智能体并重新上传本设备完整历史（校准）
   paths             显示检测到的会话目录（Codex、pi、OpenCode、Cline/Roo/Kilo、Hermes、自定义）
   update            安装最新发布版本（--check 只检查不安装）
   config get|set    读取或修改设置（config set uploadIntervalSec 30，config set sources.pi false）
@@ -146,4 +160,10 @@ export const zh: Record<MessageKey, string> = {
   cliUpdateDone: "已更新到 {version}。请重启菜单栏应用（或重新运行 CLI）以生效。",
   cliUpdateFailed: "更新失败（退出码 {code}）。请手动执行：{command}",
   cliUpdateCheckFailed: "无法访问 npm registry：{message}",
+  cliSyncStart: "完整同步：正在重新扫描本设备上的所有智能体…",
+  cliSyncScanned: "  已扫描 {roots} 个目录中的 {files} 个文件（{agents}）",
+  cliSyncUploaded: "  已重新上传 {buckets} 个小时段与 {sessions} 个会话",
+  cliSyncLocal: "  未登录 — 没有上传任何数据（请先运行 `codex-tracker login`）",
+  cliSyncDone: "同步完成，用时 {seconds} 秒 — {sessions} 个会话，今日 {tokens} tok · {cost}",
+  cliSyncFailed: "同步失败：{message}",
 };

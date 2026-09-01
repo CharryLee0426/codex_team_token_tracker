@@ -47,6 +47,38 @@ export interface UpdateState extends UpdateInfo {
   log: string | null;
 }
 
+/** Stages of a full sync, in the order they run. */
+export type SyncPhase = "scanning" | "computing" | "uploading" | "downloading" | "limits";
+
+/** What one completed full sync found and sent. */
+export interface SyncResult {
+  startedAt: number;
+  finishedAt: number;
+  durationMs: number;
+  /** Transcript files re-read across every discovered source. */
+  files: number;
+  sessions: number;
+  /** Session roots that were discovered (Codex, pi, OpenCode, Cline/Roo/Kilo, Hermes, custom dirs). */
+  roots: number;
+  /** Agent names found on disk, e.g. ["codex", "opencode", "pi"]. */
+  agents: string[];
+  /** Hour buckets re-uploaded (0 when signed out). */
+  uploadedBuckets: number;
+  uploadedSessions: number;
+  /** False when the device is signed out — the rescan still ran, nothing left the machine. */
+  uploaded: boolean;
+}
+
+export interface SyncState {
+  status: "idle" | "running" | "done" | "error";
+  phase: SyncPhase | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  error: string | null;
+  /** The most recent successful sync, kept after the banner clears. */
+  last: SyncResult | null;
+}
+
 export type AuthStatus = "signedOut" | "pending" | "signedIn";
 
 export interface AuthState {
@@ -90,6 +122,8 @@ export interface Snapshot {
   rateLimitsUpdatedAt: number | null;
   /** Null when update checks are disabled (`config set checkUpdates false`). */
   update: UpdateState | null;
+  /** Full-sync progress and the result of the last one. */
+  sync: SyncState;
   modelsToday: ModelStat[];
   modelsMonth: ModelStat[];
   byAgentToday: AgentStat[];
@@ -122,6 +156,8 @@ export interface TrackerBridge {
   cancelLogin(): Promise<void>;
   logout(): Promise<void>;
   refresh(): Promise<void>;
+  /** Rescan every agent source from scratch and re-upload this device's whole history. */
+  syncNow(): Promise<void>;
   /** Force a registry check now. */
   checkUpdate(): Promise<void>;
   /** Run the global install; resolves once the package manager has exited. */

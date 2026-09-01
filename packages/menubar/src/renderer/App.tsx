@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatPercent, formatTokens, formatUSD } from "@codex-tracker/shared";
-import type { Snapshot, UpdateState } from "../core/snapshot";
+import type { Snapshot, SyncState, UpdateState } from "../core/snapshot";
 import { durationShort, localeTag, relativeTime, t as tr, windowLabel, type Language, type MessageKey } from "../i18n";
 import { Heatmap } from "./components/Heatmap";
 import { Models } from "./components/Models";
@@ -74,6 +74,63 @@ function UpdateBar({ update, t }: { update: UpdateState; t: (key: MessageKey, pa
   );
 }
 
+function SyncIcon({ spinning }: { spinning: boolean }) {
+  return (
+    <svg className={`sync-icon${spinning ? " spinning" : ""}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+      <path d="M13.5 8a5.5 5.5 0 1 1-1.61-3.89" />
+      <path d="M13.6 2.2v2.9h-2.9" />
+    </svg>
+  );
+}
+
+const PHASE_KEY: Record<NonNullable<SyncState["phase"]>, MessageKey> = {
+  scanning: "syncScanning",
+  computing: "syncComputing",
+  uploading: "syncUploading",
+  downloading: "syncDownloading",
+  limits: "syncLimits",
+};
+
+/**
+ * Progress while a full sync runs, then what it found. Hidden when idle: the engine flips the state
+ * back to "idle" ~25 s after it finishes so the banner doesn't linger forever.
+ */
+function SyncBar({ sync, t }: { sync: SyncState; t: (key: MessageKey, params?: Record<string, string | number>) => string }) {
+  if (sync.status === "idle") return null;
+  if (sync.status === "running") {
+    return (
+      <div className="sync-bar">
+        <SyncIcon spinning />
+        <span className="msg">{t(sync.phase ? PHASE_KEY[sync.phase] : "syncing")}</span>
+      </div>
+    );
+  }
+  if (sync.status === "error") {
+    return (
+      <div className="sync-bar failed">
+        <span className="msg" title={sync.error ?? ""}>
+          {t("syncFailed", { message: sync.error ?? "?" })}
+        </span>
+      </div>
+    );
+  }
+  const r = sync.last;
+  if (!r) return null;
+  const params = {
+    agents: r.agents.length ? r.agents.join(", ") : "—",
+    files: r.files,
+    sessions: r.sessions,
+    buckets: r.uploadedBuckets,
+  };
+  return (
+    <div className="sync-bar done">
+      <span className="msg" title={`${r.roots} dirs · ${(r.durationMs / 1000).toFixed(1)}s`}>
+        {t(r.uploaded ? "syncDone" : "syncDoneLocal", params)}
+      </span>
+    </div>
+  );
+}
+
 export function App() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [, setClock] = useState(0);
@@ -107,6 +164,7 @@ export function App() {
   const agents = agentsPeriod === "today" ? snap.byAgentToday : snap.byAgentMonth;
   const auth = snap.auth;
   const rl = snap.rateLimits;
+  const syncing = snap.sync.status === "running";
 
   return (
     <div className="app">
@@ -121,6 +179,15 @@ export function App() {
             {live.tokensPerSecond.toFixed(1)} {t("tokensPerSec")}
           </span>
         ) : null}
+        <button
+          className="ghost icon-btn"
+          onClick={() => void bridge().syncNow()}
+          disabled={syncing}
+          title={`${t("syncTitle")}${snap.sync.last ? ` · ${t("lastSync", { time: relativeTime(L, snap.sync.last.finishedAt, now) })}` : ""}`}
+          aria-label={t("syncNow")}
+        >
+          <SyncIcon spinning={syncing} />
+        </button>
         <div className="seg" role="group" aria-label={t("language")}>
           <button className={L === "en" ? "active" : ""} onClick={() => void bridge().setLanguage("en")}>
             EN
@@ -133,6 +200,7 @@ export function App() {
 
       <div className="scroll">
         {snap.update ? <UpdateBar update={snap.update} t={t} /> : null}
+        <SyncBar sync={snap.sync} t={t} />
 
         {/* Today */}
         <section className="card">
@@ -387,6 +455,19 @@ export function App() {
             </div>
           )}
           {auth.error ? <div className="error">{auth.error}</div> : null}
+          <div className="row sync-row">
+            <button className="ghost sync-btn" onClick={() => void bridge().syncNow()} disabled={syncing} title={t("syncTitle")}>
+              <SyncIcon spinning={syncing} />
+              {syncing ? t("syncing") : t("syncNow")}
+            </button>
+            <span className="hint">
+              {snap.sync.last
+                ? t("lastSync", { time: relativeTime(L, snap.sync.last.finishedAt, now) })
+                : snap.upload.lastUploadAt
+                  ? t("lastUpload", { time: relativeTime(L, snap.upload.lastUploadAt, now) })
+                  : t("neverUploaded")}
+            </span>
+          </div>
         </section>
       </div>
 

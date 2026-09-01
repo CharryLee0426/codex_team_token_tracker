@@ -573,3 +573,88 @@ button.ghost:hover {
   color: var(--muted);
   user-select: text;
 }
+
+/* --- full sync --- */
+button.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+button.icon-btn:hover:not(:disabled) {
+  color: var(--text);
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.sync-icon {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+.sync-icon.spinning {
+  animation: sync-spin 0.9s linear infinite;
+  color: var(--accent);
+}
+@keyframes sync-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sync-icon.spinning {
+    animation-duration: 2.4s;
+  }
+}
+.sync-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  font-size: 11px;
+  color: var(--text);
+}
+.sync-bar .msg {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sync-bar.done { background: rgba(12, 163, 12, 0.1); }
+.sync-bar.failed { background: rgba(208, 59, 59, 0.1); color: var(--critical); }
+/* the result lists every agent it found — let it wrap onto a second line rather than truncate */
+.sync-bar.done .msg,
+.sync-bar.failed .msg {
+  white-space: normal;
+  overflow: visible;
+}
+.sync-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+button.sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-color: var(--border);
+}
+.sync-row .hint {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: 10.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

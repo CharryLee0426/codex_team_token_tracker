@@ -43,6 +43,7 @@ export const en = {
   estimatedPricingHint: "Pricing estimated: model not in the price table",
   other: "Other",
   lastUpload: "Last upload {time}",
+  lastSync: "Last full sync {time}",
   neverUploaded: "Not uploaded yet",
   uploadError: "Upload error: {message}",
   allDevicesToday: "All devices today",
@@ -61,6 +62,18 @@ export const en = {
   launchAtLogin: "Launch at login",
   refresh: "Refresh",
   quit: "Quit",
+  // full sync
+  syncNow: "Sync now",
+  syncing: "Syncing…",
+  syncTitle: "Rescan every agent on this device and re-upload its full usage history",
+  syncScanning: "Rescanning every agent's transcripts…",
+  syncComputing: "Recomputing token usage…",
+  syncUploading: "Re-uploading this device's history…",
+  syncDownloading: "Fetching other devices…",
+  syncLimits: "Refreshing rate limits…",
+  syncDone: "Synced {agents} · {files} files · {sessions} sessions · {buckets} hours re-uploaded",
+  syncDoneLocal: "Rescanned {agents} · {files} files · {sessions} sessions — sign in to upload",
+  syncFailed: "Sync failed: {message}",
   sessions: "{n} sessions",
   files: "{n} files",
   noData: "No usage found yet. Run Codex and this will fill in.",
@@ -92,6 +105,7 @@ Commands:
   login             Connect this device to your dashboard (--dashboard <url>)
   logout            Disconnect this device
   status            Print today's usage, live session and rate limits
+  sync              Rescan every agent and re-upload this device's full history (calibrate)
   paths             Show detected session directories (Codex, pi, OpenCode, Cline/Roo/Kilo, Hermes, custom)
   update            Install the newest published version (--check only reports)
   config get|set    Read or change settings (config set uploadIntervalSec 30, config set sources.pi false)
@@ -147,6 +161,12 @@ Options:
   cliUpdateDone: "Updated to {version}. Restart the menu bar app (or rerun the CLI) to use it.",
   cliUpdateFailed: "Update failed (exit {code}). Run it yourself: {command}",
   cliUpdateCheckFailed: "Could not reach the npm registry: {message}",
+  cliSyncStart: "Full sync: rescanning every agent on this device…",
+  cliSyncScanned: "  scanned {files} files in {roots} directories ({agents})",
+  cliSyncUploaded: "  re-uploaded {buckets} hour buckets and {sessions} sessions",
+  cliSyncLocal: "  not signed in — nothing uploaded (run `codex-tracker login` first)",
+  cliSyncDone: "Sync complete in {seconds}s — {sessions} sessions, today {tokens} tok · {cost}",
+  cliSyncFailed: "Sync failed: {message}",
 } as const;
 
 export type MessageKey = keyof typeof en;

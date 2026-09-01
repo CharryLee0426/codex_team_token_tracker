@@ -135,6 +135,11 @@ function buildMenu(s: Snapshot): Menu {
         ]
       : []),
     { label: t(L, "refresh"), click: () => void engine?.refresh(true) },
+    {
+      label: s.sync.status === "running" ? t(L, "syncing") : t(L, "syncNow"),
+      enabled: s.sync.status !== "running",
+      click: () => void engine?.syncNow(),
+    },
     ...(s.update
       ? [
           s.update.available
@@ -204,6 +209,7 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.handle("auth:cancel", () => engine?.cancelLogin());
   ipcMain.handle("auth:logout", () => engine?.logout());
   ipcMain.handle("refresh", () => engine?.refresh(true).then(() => undefined));
+  ipcMain.handle("sync:now", () => engine?.syncNow().then(() => undefined));
   ipcMain.handle("update:check", () => engine?.checkUpdate(true).then(() => undefined));
   ipcMain.handle("update:install", () => engine?.installUpdate().then(() => undefined));
   ipcMain.handle("quit", () => app.quit());

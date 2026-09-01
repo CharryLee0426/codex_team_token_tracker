@@ -155,11 +155,31 @@ export class Uploader {
     }
   }
 
-  /** Upload changed hour buckets and session summaries. Returns counts of pushed items. */
-  async pushAll(buckets: HourBucket[], sessions: ParsedSession[], sessionCosts: Map<string, number>): Promise<{ buckets: number; sessions: number }> {
+  /** Wait for an in-flight incremental push to finish so a full sync isn't skipped by the guard. */
+  private async awaitIdle(timeoutMs = 15_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (this.inFlight && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
+  }
+
+  /**
+   * Upload changed hour buckets and session summaries. Returns counts of pushed items.
+   * With `full`, the record of what was already pushed is dropped first so *everything* is re-sent —
+   * that is what recalibrates this device's totals on the dashboard after a parser or pricing change.
+   */
+  async pushAll(
+    buckets: HourBucket[],
+    sessions: ParsedSession[],
+    sessionCosts: Map<string, number>,
+    opts: { full?: boolean } = {},
+  ): Promise<{ buckets: number; sessions: number }> {
+    if (opts.full) await this.awaitIdle();
     if (this.inFlight) return { buckets: 0, sessions: 0 };
     this.inFlight = true;
     try {
+      if (opts.full) {
+        this.state.pushedBuckets = {};
+        this.state.pushedSessions = {};
+      }
       const changed: UploadHourBucket[] = [];
       const hashes = new Map<string, string>();
       for (const b of buckets.sort((a, b) => a.hourStart - b.hourStart)) {

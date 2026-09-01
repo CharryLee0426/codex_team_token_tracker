@@ -2,6 +2,37 @@
 
 All notable changes to `codex-token-tracker`. This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.2.1 — 2026-09-01
+
+A manual **Sync** button that recalibrates this device's numbers on the dashboard.
+
+### Added
+
+- **Full sync.** The popover header gets a **⟳** button (also *Sync now* in the Account card and the tray
+  menu, and `codex-token-tracker sync` on the CLI). Unlike the background upload — which every 60 s pushes
+  only the hour buckets and sessions that changed — a full sync throws away every cache on the way:
+  1. re-reads the config, so agents enabled since start-up are picked up;
+  2. re-discovers every session directory and re-parses every transcript from scratch — Codex plus the
+     coding agents running on your Codex subscription (pi, OpenCode, Cline / Roo / Kilo, Hermes) and any
+     configured `extraSessionDirs` — instead of skipping files whose size and mtime are unchanged;
+  3. recomputes the aggregates with the current pricing table;
+  4. re-uploads **everything**, so the dashboard's totals for this device are replaced by the freshly
+     computed ones;
+  5. pulls the other devices' rows and the live rate limits back down.
+
+  Use it when a machine's numbers look wrong, after installing a new agent, or after an update that
+  changes the pricing table. It is manual only — never on a timer — because it re-sends the whole history.
+- A banner in the popover reports the phase while a sync runs (*Rescanning every agent's transcripts…*,
+  *Re-uploading this device's history…*) and then the result, e.g. `Synced codex, pi · 75 files ·
+  75 sessions · 70 hours re-uploaded`. Signed out, the rescan still runs and nothing leaves the machine.
+- `codex-token-tracker sync` prints the same summary and exits non-zero if the sync failed.
+
+### Changed
+
+- `Uploader.pushAll()` takes a `{ full }` option that clears the pushed-buckets/pushed-sessions record
+  before building the payload, and waits for an in-flight incremental push instead of skipping the call.
+- `SessionStore.reset()` drops the parsed-file index so a following deep refresh re-reads everything.
+
 ## 0.2.0 — 2026-09-01
 
 Pricing accuracy, an honest tokens/s number, and self-update.

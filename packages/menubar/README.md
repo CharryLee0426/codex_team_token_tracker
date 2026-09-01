@@ -61,6 +61,7 @@ The tracker discovers the Convex deployment through `<dashboard>/api/config`.
 | `codex-tracker login [--dashboard <url>]` | Device-code login |
 | `codex-tracker logout` | Forget the device token (local data stays) |
 | `codex-tracker status [--json]` | Today / 7d / 30d usage, live session, rate limits, models |
+| `codex-tracker sync` | Full sync: rescan every agent and re-upload this device's whole history |
 | `codex-tracker paths` | Detected Codex session directories |
 | `codex-tracker config get [key]` / `config set <key> <value>` | Settings (see below) |
 | `codex-tracker lang <en\|zh\|auto>` | Display language |
@@ -71,9 +72,34 @@ The tracker discovers the Convex deployment through `<dashboard>/api/config`.
 
 - Tray title shows today's tokens (`12.4k`) — `config set trayTitle tokens|cost|none`
 - Click: popover with Today, Live session (tokens/s, context window, rate limits), Activity heatmap, Models, Account
-- Right-click: Open dashboard, Sign in/out, Language, Launch at login, Refresh, Check for updates, Quit
+- Right-click: Open dashboard, Sign in/out, Language, Launch at login, Refresh, **Sync now**, Check for updates, Quit
 - A banner appears at the top of the popover when a newer version is published; **Update** installs it and the app asks you to restart
 - Launch at login uses a LaunchAgent on macOS and the registry run key on Windows
+
+## Sync
+
+The tracker uploads continuously in the background: every 60 s it sends the hour buckets and sessions
+that *changed* since the last push. **Sync** does the full version instead — use it when the dashboard's
+numbers for this machine look wrong, after you install a new agent, or after an update that changes the
+pricing table.
+
+Press the **⟳** button in the popover header (or *Sync now* in the Account card and the tray menu, or run
+`codex-tracker sync`). It:
+
+1. re-reads the config, so agents enabled since the app started are picked up;
+2. re-discovers **every** session directory and re-parses **every** transcript from scratch — Codex plus
+   the coding agents running on your Codex subscription (pi, OpenCode, Cline / Roo / Kilo, Hermes) and any
+   `extraSessionDirs` you configured — instead of skipping files whose size and mtime are unchanged;
+3. recomputes all aggregates with the current pricing table;
+4. re-uploads **everything**, not just what changed, so the dashboard's totals for this device are
+   replaced by the freshly computed ones — this is the calibration step;
+5. pulls the other devices' rows and the live rate limits back down.
+
+A banner reports the phase while it runs and then what it found (`Synced codex, pi · 75 files ·
+75 sessions · 70 hours re-uploaded`). Signed out, steps 1-3 still run and nothing leaves the machine.
+
+A full sync re-sends your whole history, so it costs more bandwidth than a normal push — it is a manual
+action, never on a timer.
 
 ## Windows and WSL2
 

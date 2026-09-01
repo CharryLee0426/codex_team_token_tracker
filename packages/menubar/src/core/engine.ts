@@ -9,7 +9,7 @@ import { deviceName, hostname, platformKind, systemLocale } from "./platform";
 import { fetchLiveRateLimits } from "./usage-api";
 import { resolveLanguage, type Language, type LanguageSetting } from "../i18n";
 import { checkForUpdate, runUpdate, type UpdateInfo } from "./update";
-import type { Snapshot, AuthState, UpdateState } from "./snapshot";
+import type { Snapshot, AuthState, UpdateState, SyncPhase, SyncResult, SyncState } from "./snapshot";
 import { APP_VERSION } from "../version";
 
 export interface EngineOptions {
@@ -29,6 +29,8 @@ const REMOTE_MS = 60_000;
 const LIVE_LIMITS_DEBOUNCE_MS = 10_000;
 const LIVE_LIMITS_MIN_GAP_MS = 20_000;
 const UPDATE_CHECK_MS = 6 * 60 * 60 * 1000;
+/** How long a finished sync keeps reporting "done"/"error" before the banner returns to idle. */
+const SYNC_BANNER_MS = 25_000;
 
 /** Composes the file store, statistics, live rate limits and uploader; emits `snapshot` whenever the picture changes. */
 export class Engine extends EventEmitter {
@@ -50,6 +52,13 @@ export class Engine extends EventEmitter {
   private update: UpdateInfo | null = null;
   private updateStatus: UpdateState["status"] = "idle";
   private updateLog: string | null = null;
+  private syncStatus: SyncState["status"] = "idle";
+  private syncPhase: SyncPhase | null = null;
+  private syncStartedAt: number | null = null;
+  private syncFinishedAt: number | null = null;
+  private syncError: string | null = null;
+  private syncResult: SyncResult | null = null;
+  private syncBannerTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly opts: EngineOptions) {
     super();
@@ -122,6 +131,8 @@ export class Engine extends EventEmitter {
     this.timers = [];
     if (this.liveLimitsTimer) clearTimeout(this.liveLimitsTimer);
     this.liveLimitsTimer = null;
+    if (this.syncBannerTimer) clearTimeout(this.syncBannerTimer);
+    this.syncBannerTimer = null;
     this.store.stopWatching();
     this.pending?.abort.abort();
   }
@@ -233,6 +244,119 @@ export class Engine extends EventEmitter {
     if (!this.signedIn) return;
     await this.uploader.fetchRemote(this.heatmapWeeks);
     this.recompute();
+  }
+
+  /**
+   * Full sync ("calibrate this device"). Unlike the periodic incremental upload this deliberately
+   * throws away every cache on the way:
+   *  1. re-read the config so sources enabled since start-up are picked up,
+   *  2. drop the parsed-file index and re-discover + re-parse every transcript of every agent
+   *     (Codex plus the agents running on the Codex subscription: pi, OpenCode, Cline/Roo/Kilo,
+   *     Hermes and any custom `extraSessionDirs`),
+   *  3. recompute the aggregates with the current pricing table,
+   *  4. re-upload *everything* — not just what changed — so the dashboard's totals for this device
+   *     are replaced by the freshly computed ones,
+   *  5. pull the other devices' rows and the live rate limits back down.
+   *
+   * Returns null when a sync is already running. Never throws: failures land in the returned state.
+   */
+  async syncNow(): Promise<SyncResult | null> {
+    if (this.syncStatus === "running") return null;
+    if (this.syncBannerTimer) {
+      clearTimeout(this.syncBannerTimer);
+      this.syncBannerTimer = null;
+    }
+    const startedAt = Date.now();
+    this.syncStatus = "running";
+    this.syncPhase = null;
+    this.syncStartedAt = startedAt;
+    this.syncFinishedAt = null;
+    this.syncError = null;
+    const phase = (p: SyncPhase) => {
+      this.syncPhase = p;
+      this.emitSnapshot();
+    };
+    try {
+      phase("scanning");
+      this.reloadConfig();
+      this.store.reset();
+      await this.store.refreshDeep();
+
+      phase("computing");
+      this.recompute();
+
+      let uploadedBuckets = 0;
+      let uploadedSessions = 0;
+      const uploaded = this.opts.upload && this.signedIn;
+      if (uploaded) {
+        phase("uploading");
+        const r = await this.uploader.pushAll(this.stats!.buckets, this.stats!.sessions, this.stats!.sessionCosts, { full: true });
+        uploadedBuckets = r.buckets;
+        uploadedSessions = r.sessions;
+        await this.heartbeatNow().catch(() => {}); // cosmetic; never fail the sync over it
+        phase("downloading");
+        await this.fetchRemoteNow();
+      }
+
+      phase("limits");
+      await this.refreshLiveLimits(true);
+
+      const finishedAt = Date.now();
+      this.syncResult = {
+        startedAt,
+        finishedAt,
+        durationMs: finishedAt - startedAt,
+        files: this.store.fileCount,
+        sessions: this.store.sessions().length,
+        roots: this.store.roots.length,
+        agents: [...new Set(this.store.roots.map((r) => r.agent))].sort(),
+        uploadedBuckets,
+        uploadedSessions,
+        uploaded,
+      };
+      this.syncStatus = "done";
+      this.syncFinishedAt = finishedAt;
+      this.opts.log?.(
+        `sync: ${this.syncResult.files} files, ${this.syncResult.sessions} sessions, ` +
+          `${uploadedBuckets} buckets / ${uploadedSessions} sessions uploaded in ${this.syncResult.durationMs} ms`,
+      );
+      return this.syncResult;
+    } catch (err) {
+      this.syncStatus = "error";
+      this.syncFinishedAt = Date.now();
+      this.syncError = err instanceof SignedOutError ? "not signed in" : errorMessage(err);
+      this.opts.log?.(`sync failed: ${this.syncError}`);
+      return null;
+    } finally {
+      this.syncPhase = null;
+      this.emitSnapshot();
+      this.scheduleSyncBannerClear();
+    }
+  }
+
+  /** Return the sync banner to "idle" a little after it finished, keeping `last` for the footer. */
+  private scheduleSyncBannerClear() {
+    if (this.opts.watch === false) return;
+    if (this.syncBannerTimer) clearTimeout(this.syncBannerTimer);
+    this.syncBannerTimer = setTimeout(() => {
+      this.syncBannerTimer = null;
+      if (this.syncStatus === "done" || this.syncStatus === "error") {
+        this.syncStatus = "idle";
+        this.emitSnapshot();
+      }
+    }, SYNC_BANNER_MS);
+    this.syncBannerTimer.unref?.();
+  }
+
+  private syncState(): SyncState {
+    return {
+      status: this.syncStatus,
+      phase: this.syncPhase,
+      startedAt: this.syncStartedAt,
+      finishedAt: this.syncFinishedAt,
+      error: this.syncError,
+      last: this.syncResult,
+    };
   }
 
   /**
@@ -376,6 +500,7 @@ export class Engine extends EventEmitter {
       rateLimitsError: this.config.liveRateLimits ? this.liveLimitsError : null,
       rateLimitsUpdatedAt: this.liveLimits ? this.liveLimitsAt : (s.logRateLimits?.observedAt ?? null),
       update: this.updateState(),
+      sync: this.syncState(),
       modelsToday: s.modelsToday,
       modelsMonth: s.modelsMonth,
       byAgentToday: s.byAgentToday,

@@ -222,6 +222,42 @@ async function runStatus(json: boolean): Promise<number> {
   return 0;
 }
 
+/**
+ * `codex-tracker sync` — the CLI twin of the popover's Sync button: re-discover every agent on this
+ * device, re-parse every transcript and re-upload the whole history so the dashboard's numbers for
+ * this device are recalibrated.
+ */
+async function runSync(flags: Args["flags"]): Promise<number> {
+  const cfg = applyDashboardFlag(flags);
+  const L = lang(cfg);
+  const t = makeT(L);
+  const engine = new Engine({
+    upload: true,
+    watch: false,
+    systemLocale: systemLocale(),
+    log: process.env.CODEX_TRACKER_DEBUG ? (m) => console.error("[sync]", m) : undefined,
+  });
+  console.log(t("cliSyncStart"));
+  const result = await engine.syncNow();
+  if (!result) {
+    console.error(t("cliSyncFailed", { message: engine.snapshot().sync.error ?? "?" }));
+    return 1;
+  }
+  console.log(t("cliSyncScanned", { files: result.files, roots: result.roots, agents: result.agents.join(", ") || "-" }));
+  if (result.uploaded) console.log(t("cliSyncUploaded", { buckets: result.uploadedBuckets, sessions: result.uploadedSessions }));
+  else console.log(t("cliSyncLocal"));
+  const s = engine.snapshot();
+  console.log(
+    t("cliSyncDone", {
+      seconds: (result.durationMs / 1000).toFixed(1),
+      sessions: result.sessions,
+      tokens: formatTokens(s.today.usage.total),
+      cost: formatUSD(s.today.cost),
+    }),
+  );
+  return 0;
+}
+
 async function runLogin(flags: Args["flags"]): Promise<number> {
   const cfg = applyDashboardFlag(flags);
   const L = lang(cfg);
@@ -456,6 +492,8 @@ async function main(): Promise<number> {
     }
     case "status":
       return runStatus(args.flags.json === true);
+    case "sync":
+      return runSync(args.flags);
     case "paths":
       return runPaths();
     case "config":

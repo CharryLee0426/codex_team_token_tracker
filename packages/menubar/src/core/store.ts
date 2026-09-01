@@ -36,6 +36,16 @@ export class SessionStore {
 
   constructor(private readonly getOptions: () => StoreOptions) {}
 
+  /**
+   * Forget the parsed-file index so the next deep refresh re-reads and re-parses every transcript.
+   * Used by the full sync: files are otherwise skipped while their size and mtime are unchanged, which
+   * would keep stale numbers around after a parser or pricing change.
+   */
+  reset() {
+    this.files.clear();
+    this.sessionCache = null;
+  }
+
   async refreshDeep(): Promise<boolean> {
     const o = this.getOptions();
     this.roots = discoverSessionRoots({ extraSessionDirs: o.extraSessionDirs, sources: o.sources });
