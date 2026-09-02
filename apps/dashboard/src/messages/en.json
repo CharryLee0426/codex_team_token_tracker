@@ -292,7 +292,90 @@
   },
   "auth": {
     "signInTitle": "Sign in to Codex Tracker",
-    "signUpTitle": "Create your account"
+    "signUpTitle": "Create your account",
+    "signInHeadline": "Welcome back to mission control",
+    "signUpHeadline": "Put your team's Codex usage on one screen",
+    "signInLead": "Pick up where the telemetry left off: live sessions, cache hits and API-equivalent cost across every device.",
+    "signUpLead": "Create an account, connect the menu bar app, and watch tokens, cost and model mix stream in within a minute.",
+    "trust": "Auth by Clerk · usage stays in your own Convex deployment",
+    "highlights": {
+      "live": {
+        "title": "Live to the second",
+        "body": "Sessions, tokens per second and today's spend as they happen."
+      },
+      "team": {
+        "title": "One roster, every device",
+        "body": "Personal and team usage roll up on their own — no chasing screenshots."
+      },
+      "privacy": {
+        "title": "Only counters leave the machine",
+        "body": "Prompts and code stay local; the tracker uploads token totals."
+      }
+    }
+  },
+  "join": {
+    "eyebrow": "Invitation",
+    "metaTitle": "Join {org}",
+    "headline": "Join {org} on Codex Tracker",
+    "lead": "This link adds you to the team's shared dashboard. Sign in with any account — the invite is not tied to an email address.",
+    "invalidTitle": "This link can't be used",
+    "invalidLead": "Invite links stop working once they expire, get revoked, or run out of seats. Ask a team admin to send a fresh one.",
+    "cta": "Join the organization",
+    "joining": "Joining…",
+    "joined": "You're in — welcome to {org}.",
+    "alreadyMember": "You were already a member.",
+    "openTeam": "Open the team dashboard",
+    "signInCta": "Sign in to join",
+    "signUpCta": "Create an account to join",
+    "signedOutHint": "You'll come straight back here after signing in.",
+    "backHome": "Back to the homepage",
+    "memberCount": "{count, plural, =0 {No members yet} one {# member} other {# members}}",
+    "seatsLeft": "{count, plural, =0 {No seats left} one {# seat left} other {# seats left}}",
+    "unlimitedSeats": "No seat limit",
+    "expiresIn": "{days, plural, =0 {Expires today} one {Expires in # day} other {Expires in # days}}",
+    "roleMember": "Member",
+    "roleAdmin": "Admin",
+    "roleMemberHint": "You'll join as a member",
+    "roleAdminHint": "You'll join as an admin",
+    "errors": {
+      "not_found": "This invite link doesn't exist. Ask an admin for a fresh one.",
+      "expired": "This invite link has expired. Ask an admin for a fresh one.",
+      "revoked": "This invite link was revoked by an admin.",
+      "exhausted": "This invite link has run out of seats.",
+      "generic": "Something went wrong joining. Try again in a moment."
+    }
+  },
+  "invites": {
+    "title": "Invite links",
+    "hint": "One link anyone can open to join, until it expires or runs out of seats.",
+    "expiry": "Expires after",
+    "seats": "Seats",
+    "role": "Joins as",
+    "roleMember": "Member",
+    "roleAdmin": "Admin",
+    "dayShort": "{count}d",
+    "unlimitedShort": "Any",
+    "create": "Create link",
+    "creating": "Creating…",
+    "ready": "Copy this",
+    "link": "Link",
+    "status": "Status",
+    "uses": "Used",
+    "expires": "Expires",
+    "revoke": "Revoke",
+    "empty": "No invite links yet",
+    "emptyBody": "Create one and paste it into your team chat — anyone who opens it can join.",
+    "footnote": "Anyone holding an active link can join this organization. Revoke a link to cut it off immediately.",
+    "statuses": {
+      "valid": "Active",
+      "expired": "Expired",
+      "revoked": "Revoked",
+      "exhausted": "Full"
+    },
+    "errors": {
+      "forbidden": "Only organization admins can manage invite links. Switch to this organization and try again.",
+      "generic": "Could not create the link. Try again."
+    }
   },
   "sources": {
     "title": "Sources",

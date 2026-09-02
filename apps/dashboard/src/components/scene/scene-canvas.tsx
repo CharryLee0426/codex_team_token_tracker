@@ -12,7 +12,7 @@ import { useScene } from "./scene-provider";
 
 export function sceneModeForPath(pathname: string | null): SceneMode {
   if (!pathname || pathname === "/") return "landing";
-  if (pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up")) return "auth";
+  if (pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up") || pathname.startsWith("/j/")) return "auth";
   return "app";
 }
 
@@ -45,7 +45,10 @@ export function SceneCanvas() {
 
     const onResize = () => engine.resize();
     const onPointerMove = (e: PointerEvent) => engine.setPointer(e.clientX, e.clientY);
-    const onPointerDown = (e: PointerEvent) => engine.setPointer(e.clientX, e.clientY, e.pointerType === "touch" ? 900 : 0);
+    const onPointerDown = (e: PointerEvent) => {
+      engine.setPointer(e.clientX, e.clientY, e.pointerType === "touch" ? 900 : 0);
+      engine.press();
+    };
     const onPointerLeave = () => engine.setPointer(null, null);
     const onScroll = () => engine.setScroll(window.scrollY);
     const onVisibility = () => {

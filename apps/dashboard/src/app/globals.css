@@ -328,6 +328,78 @@
   font-weight: 600;
 }
 
+/* ------------------------------------------------------------------------------------------------
+   Auth aperture: the frame around the Clerk card on /sign-in, /sign-up and /j/<code>. The canvas
+   scene orbits particles around this exact rectangle, so the border, halo and rings read as one
+   instrument. `--px/--py` are the pointer parallax, `--mx/--my` the glare position.
+   ------------------------------------------------------------------------------------------------ */
+@property --aperture-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.auth-aperture {
+  position: relative;
+  border-radius: 22px;
+  padding: 1px;
+  background:
+    conic-gradient(
+      from var(--aperture-angle),
+      transparent 0deg,
+      var(--accent-glow) 55deg,
+      transparent 130deg,
+      transparent 230deg,
+      var(--accent-glow) 305deg,
+      transparent 360deg
+    ),
+    linear-gradient(var(--border-strong), var(--border-strong));
+  animation: aperture-spin 11s linear infinite;
+  transform: translate3d(var(--px, 0px), var(--py, 0px), 0);
+  transition: transform 0.6s var(--ease-out);
+}
+
+@keyframes aperture-spin {
+  to {
+    --aperture-angle: 360deg;
+  }
+}
+
+.auth-aperture-inner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 21px;
+  background: color-mix(in srgb, var(--card) 84%, transparent);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  box-shadow:
+    0 30px 80px -34px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+/* Glare that tracks the pointer. Content sits in a `relative z-1` wrapper so it stays on top. */
+.auth-aperture-inner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), var(--accent-soft), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.5s var(--ease-out);
+  pointer-events: none;
+}
+.auth-aperture:hover .auth-aperture-inner::before {
+  opacity: 1;
+}
+
+/* HUD corner brackets. */
+.hud-corner {
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  border-color: var(--accent);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 /* Feature cards: pointer-driven tilt with a soft glare that follows the cursor. */
 .tilt-card {
   transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
@@ -377,6 +449,10 @@
   .tilt-frame {
     --tilt: 0deg;
     --lift: 0px;
+  }
+  .auth-aperture {
+    animation: none;
+    transform: none;
   }
 }
 

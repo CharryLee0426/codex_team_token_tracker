@@ -3,13 +3,14 @@
 import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { hourStartOf } from "@codex-tracker/shared/time";
-import { DEMO_LIVE_USER_IDS, DEMO_ME_ID, DEMO_ORG_NAME, DEMO_USERS, demoDevices, demoMembers, demoRows, demoSessions } from "@/lib/demo-data";
+import { DEMO_LIVE_USER_IDS, DEMO_ME_ID, DEMO_ORG_NAME, DEMO_USERS, demoDevices, demoInvites, demoMembers, demoRows, demoSessions } from "@/lib/demo-data";
 import { rangeBounds, type RangeKey } from "@/lib/ranges";
 import { deriveUsageModel, heatmapWeeksFor } from "@/lib/usage-model";
 import { AppShell } from "@/components/shell/app-shell";
 import { UsageDashboardView } from "@/components/dashboard/usage-dashboard-view";
 import { DevicesList } from "@/components/dashboard/devices-list";
 import { MembersTable } from "@/components/dashboard/members-table";
+import { InviteLinksPanel } from "@/components/dashboard/invite-links";
 import { SettingsPanel } from "@/components/settings/settings-panel";
 import { Card } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ui/code-block";
@@ -37,6 +38,7 @@ export function PreviewApp({ view }: { view: PreviewView }) {
   const sessions = useMemo(() => demoSessions(now), [now]);
   const devices = useMemo(() => demoDevices(now), [now]);
   const members = useMemo(() => demoMembers(now), [now]);
+  const invites = useMemo(() => demoInvites(now), [now]);
 
   let content: React.ReactNode;
   switch (view) {
@@ -68,6 +70,9 @@ export function PreviewApp({ view }: { view: PreviewView }) {
       content = (
         <div className="space-y-5">
           <PageHeader eyebrow={DEMO_ORG_NAME} title={t("members.title")} subtitle={t("members.subtitle")} />
+          <Card>
+            <InviteLinksPanel invites={invites} onCreate={async () => ({ code: "DEMOLINK2468" })} onRevoke={() => {}} />
+          </Card>
           <Card>
             <MembersTable members={members} meId={DEMO_ME_ID} now={now} />
           </Card>

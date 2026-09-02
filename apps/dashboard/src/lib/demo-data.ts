@@ -5,6 +5,7 @@ import type { UsageRow } from "./analytics";
 import type { SessionItem } from "@/components/dashboard/recent-sessions";
 import type { DeviceItem } from "@/components/dashboard/devices-list";
 import type { MemberItem } from "@/components/dashboard/members-table";
+import type { InviteRow } from "@/components/dashboard/invite-links";
 
 /**
  * Deterministic sample data for the landing-page product preview and the design-preview harness.
@@ -160,6 +161,16 @@ export function demoMembers(nowMs: number): MemberItem[] {
     lastSeenAt: nowMs - [12_000, 35 * 60_000, 4 * HOUR, 2 * DAY][i],
     live: i === 0 ? { sessionId: "0193f0a2-demo-session-0", model: "gpt-5.5-codex", tokensPerSecond: 41.6, lastEventAt: nowMs - 4_000, todayTotal: 1_842_000, todayCost: 4.12, updatedAt: nowMs - 12_000 } : null,
   }));
+}
+
+/** Sample invite links covering every status the panel renders. */
+export function demoInvites(nowMs: number): InviteRow[] {
+  return [
+    { id: "inv_active" as InviteRow["id"], code: "7K2QF9XM4TVB", role: "org:member", createdAt: nowMs - 2 * DAY, expiresAt: nowMs + 5 * DAY, maxUses: 25, usedCount: 6, remaining: 19, status: "valid" },
+    { id: "inv_admin" as InviteRow["id"], code: "PQ4N8HZC3RWY", role: "org:admin", createdAt: nowMs - 6 * HOUR, expiresAt: nowMs + DAY, maxUses: 1, usedCount: 0, remaining: 1, status: "valid" },
+    { id: "inv_full" as InviteRow["id"], code: "M9XD2VTB6KQS", role: "org:member", createdAt: nowMs - 9 * DAY, expiresAt: nowMs + 3 * DAY, maxUses: 5, usedCount: 5, remaining: 0, status: "exhausted" },
+    { id: "inv_old" as InviteRow["id"], code: "3TFH7RJP5NWA", role: "org:member", createdAt: nowMs - 21 * DAY, expiresAt: nowMs - 14 * DAY, maxUses: 0, usedCount: 11, remaining: null, status: "expired" },
+  ];
 }
 
 /** Members currently reporting a heartbeat. */
