@@ -139,7 +139,8 @@ Users upgrade with `npm i -g codex-token-tracker@latest`. Electron is an *option
 
 ## 6. Operations
 
-- **Updating the dashboard/backend**: push to `main` → Vercel builds → `convex deploy` pushes functions and schema to production in the same build. Schema changes are validated against existing data; keep new fields optional (as done for `agent`).
+- **Updating the dashboard/backend**: push to `main` → Vercel builds → `convex deploy` pushes functions and schema to production in the same build. Schema changes are validated against existing data; keep new fields optional (as done for `agent`, and for `machineId` / `mergedInto` on `devices` in 0.3.0).
+- **Deploy the dashboard before publishing a tracker that needs it.** The tracker reads `wireVersion` from `/api/config` and only sends newer fields to a backend that advertises them (0.3.0 sends `machineId`, wire version 2), so an updated npm package keeps working against an older backend — but the one-device-per-machine fix only takes effect once the backend is redeployed.
 - **Preview deployments** (any non-`main` branch / PR): `CONVEX_DEPLOY_KEY` is only set for Production, so previews run a plain `next build` against the **dev** Convex deployment and the **dev** Clerk instance (Preview env vars) — a safe staging environment that never touches production data.
 - **Pricing table**: `packages/shared/src/pricing.ts` (USD per 1M tokens), mirroring <https://developers.openai.com/api/docs/pricing>, including the long-context tiers billed above 272K input tokens. Unknown models fall back to their family and are flagged *est.*; users can override locally in `~/.codex-tracker/pricing.json`. Only OpenAI models are counted — usage other agents produced on non-OpenAI models is dropped on the device and filtered again in the dashboard.
 - **Revoking a device**: the user does it in Dashboard → Devices; admins can set `revokedAt` on the `devices` row in the Convex dashboard.
