@@ -95,16 +95,19 @@ export function ModelDistribution({ stats, series, colorOf }: Props) {
       </div>
       <ul className="min-w-0 flex-1 divide-y divide-border text-sm">
         {items.map((it) => (
-          <li key={it.name} className="flex items-center gap-3 py-1.5">
+          <li key={it.name} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-2 py-1.5">
             <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: it.color }} />
-            <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg">{it.name}</span>
-            {it.estimated ? (
-              <Badge variant="warning" title={t("priceEstimated")}>
-                {tc("estimated")}
-              </Badge>
-            ) : null}
+            <span className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+              <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg" title={it.name}>
+                {it.name}
+              </span>
+              {it.estimated ? (
+                <Badge variant="warning" title={t("priceEstimated")}>
+                  {tc("estimated")}
+                </Badge>
+              ) : null}
+            </span>
             <span className="tabular w-12 text-right text-xs text-muted">{formatPercent(it.share, 1)}</span>
-            <span className="tabular hidden w-16 text-right text-xs text-fg-2 xs:inline">{formatTokens(it.value)}</span>
             <span className="tabular w-16 text-right text-xs text-fg">{formatUSD(it.cost)}</span>
           </li>
         ))}
@@ -138,9 +141,11 @@ export function ModelTable({ stats, series, colorOf }: Props) {
           {stats.map((s) => (
             <tr key={s.model} className="hover:bg-card-2/60">
               <Td primary>
-                <span className="flex items-center gap-2">
-                  <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: inSeries.has(s.model) ? colorOf(s.model) : theme.other }} />
-                  <span className="font-mono text-[12px]">{s.model}</span>
+                <span className="flex min-w-0 max-w-full items-start gap-2">
+                  <span className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: inSeries.has(s.model) ? colorOf(s.model) : theme.other }} />
+                  <span className="min-w-0 break-all font-mono text-[12px] md:whitespace-nowrap" title={s.model}>
+                    {s.model}
+                  </span>
                   {s.estimated ? (
                     <Badge variant="warning" title={t("priceEstimated")}>
                       {tc("estimated")}

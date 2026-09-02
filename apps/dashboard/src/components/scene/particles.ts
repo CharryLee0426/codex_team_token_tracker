@@ -60,11 +60,11 @@ interface Packet {
 const STAR_COUNT: Record<SceneMode, Record<PerfTier, number>> = {
   landing: { high: 240, medium: 150, low: 80 },
   auth: { high: 160, medium: 100, low: 60 },
-  app: { high: 70, medium: 45, low: 28 },
+  app: { high: 110, medium: 70, low: 40 },
   off: { high: 0, medium: 0, low: 0 },
 };
 
-const STAR_ALPHA: Record<SceneMode, number> = { landing: 1, auth: 0.9, app: 0.6, off: 0 };
+const STAR_ALPHA: Record<SceneMode, number> = { landing: 1, auth: 0.9, app: 0.82, off: 0 };
 const PACKET_COUNT = 9;
 const POINTER_RADIUS = 170;
 
@@ -119,9 +119,10 @@ export class StarScene {
     const prev = this.opts;
     this.opts = { ...prev, ...next };
     if (prev.mode !== this.opts.mode || prev.tier !== this.opts.tier || !this.stars.length) this.seedStars();
-    const wantsNodes = this.opts.mode === "landing" || this.opts.mode === "auth";
+    const wantsNodes = this.opts.mode !== "off";
     if (wantsNodes && (this.nodesMode !== this.opts.mode || prev.tier !== this.opts.tier)) this.seedNodes();
     if (prev.tier !== this.opts.tier) this.resize();
+    else if (prev.dark !== this.opts.dark) this.buildNebula();
     if (this.opts.mode === "off") {
       this.stop();
       this.paintBackground();
@@ -196,9 +197,9 @@ export class StarScene {
     this.pointer.until = holdMs ? performance.now() + holdMs : Infinity;
   }
 
-  /** A press ripples through the aperture; call alongside `setPointer` on pointerdown. */
+  /** A press ripples through the interactive particle fields. */
   press(): void {
-    if (this.opts.mode === "auth") this.shockwave = 1;
+    if (this.opts.mode === "auth" || this.opts.mode === "app") this.shockwave = 1;
   }
 
   setScroll(y: number): void {
@@ -244,6 +245,7 @@ export class StarScene {
   private seedNodes(): void {
     this.nodesMode = this.opts.mode;
     if (this.opts.mode === "auth") return this.seedOrbits();
+    if (this.opts.mode === "app") return this.seedAppField();
     const nodes: Node[] = [{ ax: 0.5, ay: 0.5, orbit: 0, angle: 0, omega: 0, x: 0, y: 0, vx: 0, vy: 0, r: 5, ring: 0, seed: 0.5 }];
     const rings: Array<{ count: number; radius: number; size: number; ring: 1 | 2 }> = [
       { count: 5, radius: 0.24, size: 3.2, ring: 1 },
@@ -312,6 +314,31 @@ export class StarScene {
     this.placeNodes(true);
   }
 
+  /** Dashboard: a sparse elastic mesh spanning the viewport, with deterministic anchor positions. */
+  private seedAppField(): void {
+    const count = { high: 32, medium: 22, low: 14 }[this.opts.tier];
+    const nodes: Node[] = [];
+    for (let i = 0; i < count; i++) {
+      nodes.push({
+        ax: 0.04 + ((i * 0.61803398875 + hash01(i * 17 + 3) * 0.09) % 1) * 0.92,
+        ay: 0.04 + hash01(i * 29 + 11) * 0.92,
+        orbit: 0,
+        angle: 0,
+        omega: 0,
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        r: 1.1 + hash01(i * 31 + 7) * 1.2,
+        ring: ((i % 3) + 1) as 1 | 2 | 3,
+        seed: hash01(i * 37 + 13) * 10,
+      });
+    }
+    this.nodes = nodes;
+    this.packets = [];
+    this.placeNodes(true);
+  }
+
   private focusRect(): FocusRect {
     if (this.focus && this.focus.w > 40 && this.focus.h > 40) return { ...this.focus, y: this.focus.y - this.scrollY };
     const w = this.width;
@@ -333,6 +360,7 @@ export class StarScene {
       const a = n.angle + this.time * n.omega;
       return [cx + Math.cos(a) * (f.w / 2) * n.orbit, cy + Math.sin(a) * (f.h / 2) * n.orbit];
     }
+    if (this.opts.mode === "app") return [n.ax * this.width, n.ay * this.height];
     // Keep the constellation roughly square inside the focus area so rings stay circular.
     const size = Math.min(f.w, f.h);
     return [cx + (n.ax - 0.5) * size, cy + (n.ay - 0.5) * size];
@@ -358,13 +386,14 @@ export class StarScene {
     const w = this.width;
     const h = this.height;
     const big = Math.max(w, h);
+    const dark = this.opts.dark;
     const g1 = ctx.createRadialGradient(w * 0.74, h * 0.12, 0, w * 0.74, h * 0.12, big * 0.62);
-    g1.addColorStop(0, "rgba(92,200,255,0.16)");
-    g1.addColorStop(0.45, "rgba(92,200,255,0.05)");
-    g1.addColorStop(1, "rgba(92,200,255,0)");
+    g1.addColorStop(0, dark ? "rgba(92,200,255,0.16)" : "rgba(3,105,161,0.08)");
+    g1.addColorStop(0.45, dark ? "rgba(92,200,255,0.05)" : "rgba(3,105,161,0.025)");
+    g1.addColorStop(1, dark ? "rgba(92,200,255,0)" : "rgba(3,105,161,0)");
     const g2 = ctx.createRadialGradient(w * 0.12, h * 0.95, 0, w * 0.12, h * 0.95, big * 0.5);
-    g2.addColorStop(0, "rgba(129,110,255,0.13)");
-    g2.addColorStop(1, "rgba(129,110,255,0)");
+    g2.addColorStop(0, dark ? "rgba(129,110,255,0.13)" : "rgba(99,102,241,0.055)");
+    g2.addColorStop(1, dark ? "rgba(129,110,255,0)" : "rgba(99,102,241,0)");
     this.nebula = [g1, g2];
   }
 
@@ -405,21 +434,22 @@ export class StarScene {
       }
     }
 
-    if ((mode === "landing" || mode === "auth") && this.nodes.length) this.updateConstellation(dt, pointerLive);
+    if (mode !== "off" && this.nodes.length) this.updateConstellation(dt, pointerLive);
     this.shockwave = this.shockwave > 0 ? Math.max(0, this.shockwave - dt * 1.1) : 0;
   }
 
   private updateConstellation(dt: number, pointerLive: boolean): void {
     const f = this.focusRect();
-    // The page scrolled: carry the nodes along rigidly so only wander and pointer forces use the springs.
+    // Landing/auth particles belong to page content; the dashboard mesh remains viewport-fixed.
     const dScroll = this.scrollY - this.lastScrollY;
     this.lastScrollY = this.scrollY;
-    if (dScroll) for (const n of this.nodes) n.y -= dScroll;
-    // The aperture is springier than the constellation: a shove visibly bends the ring before it heals.
+    const app = this.opts.mode === "app";
+    if (!app && dScroll) for (const n of this.nodes) n.y -= dScroll;
+    // The aperture is springier than the constellation; the app mesh drifts more freely.
     const auth = this.opts.mode === "auth";
-    const stiffness = auth ? 22 : 38;
-    const dampingC = auth ? 5.2 : 7.5;
-    const wander = auth ? 3 : 7;
+    const stiffness = auth ? 22 : app ? 14 : 38;
+    const dampingC = auth ? 5.2 : app ? 4.5 : 7.5;
+    const wander = auth ? 3 : app ? 11 : 7;
     for (const n of this.nodes) {
       const [ax, ay] = this.anchorOf(n, f);
       // Gentle organic wander around the anchor.
@@ -431,8 +461,9 @@ export class StarScene {
         const dx = n.x - this.pointer.x;
         const dy = n.y - this.pointer.y;
         const d = Math.hypot(dx, dy) || 1;
-        if (d < POINTER_RADIUS) {
-          const strength = (1 - d / POINTER_RADIUS) ** 2 * 5200;
+        const radius = app ? 220 : POINTER_RADIUS;
+        if (d < radius) {
+          const strength = (1 - d / radius) ** 2 * (app ? 6800 : 5200);
           fx += (dx / d) * strength;
           fy += (dy / d) * strength;
         }
@@ -461,8 +492,8 @@ export class StarScene {
     const { mode, dark } = this.opts;
     ctx.fillStyle = dark ? THEMES.dark.bg : THEMES.light.bg;
     ctx.fillRect(0, 0, this.width, this.height);
-    if (dark && this.nebula.length) {
-      const strength = mode === "app" ? 0.35 : 1;
+    if (this.nebula.length) {
+      const strength = mode === "app" ? (dark ? 0.52 : 0.8) : dark ? 1 : 0.7;
       ctx.globalAlpha = strength;
       for (const g of this.nebula) {
         ctx.fillStyle = g;
@@ -480,6 +511,7 @@ export class StarScene {
     if (!this.nodes.length) return;
     if (this.opts.mode === "landing") this.drawConstellation();
     else if (this.opts.mode === "auth") this.drawAperture();
+    else if (this.opts.mode === "app") this.drawAppField();
   }
 
   /** One frame with all motion frozen (reduced-motion users and pre-animation paint). */
@@ -490,16 +522,17 @@ export class StarScene {
     this.warpT = 0;
     this.paintBackground();
     this.drawStars(true);
-    if (this.nodes.length && (this.opts.mode === "landing" || this.opts.mode === "auth")) {
+    if (this.nodes.length && this.opts.mode !== "off") {
       this.placeNodes(true);
       if (this.opts.mode === "landing") this.drawConstellation(true);
-      else this.drawAperture(true);
+      else if (this.opts.mode === "auth") this.drawAperture(true);
+      else if (this.opts.mode === "app") this.drawAppField(true);
     }
     this.time = savedTime;
   }
 
   private starColor(tint: Star["tint"], a: number): string {
-    if (!this.opts.dark) return rgba(30, 41, 59, a * 0.32);
+    if (!this.opts.dark) return rgba(30, 64, 95, a * 0.44);
     if (tint === 1) return rgba(92, 200, 255, a);
     if (tint === 2) return rgba(255, 214, 170, a);
     return rgba(226, 234, 250, a);
@@ -538,6 +571,54 @@ export class StarScene {
         ctx.arc(x, y, s.r, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+  }
+
+  /** Elastic dashboard mesh: nearby particles link, drift around anchors and recoil from the pointer. */
+  private drawAppField(frozen = false): void {
+    const ctx = this.ctx!;
+    const nodes = this.nodes;
+    const dark = this.opts.dark;
+    const linkDist = Math.min(180, Math.max(120, this.width * 0.13));
+    const ink = dark ? [148, 163, 196] : [3, 105, 161];
+
+    ctx.lineWidth = 1;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (d >= linkDist) continue;
+        const alpha = (1 - d / linkDist) ** 1.5 * (dark ? 0.2 : 0.14);
+        ctx.strokeStyle = rgba(ink[0], ink[1], ink[2], alpha);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+    }
+
+    for (const n of nodes) {
+      const speed = frozen ? 0 : Math.min(1, Math.hypot(n.vx, n.vy) / 260);
+      const glow = dark ? [92, 200, 255] : [3, 105, 161];
+      const core = dark ? [214, 235, 250] : [15, 71, 106];
+      ctx.fillStyle = rgba(glow[0], glow[1], glow[2], (dark ? 0.08 : 0.055) + speed * 0.12);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r * (3.6 + speed * 2), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = rgba(core[0], core[1], core[2], (dark ? 0.64 : 0.48) + speed * 0.3);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (this.shockwave > 0.02 && !frozen) {
+      const t = 1 - this.shockwave;
+      ctx.strokeStyle = rgba(ink[0], ink[1], ink[2], this.shockwave * (dark ? 0.3 : 0.2));
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(this.pointer.x, this.pointer.y, 18 + t * 220, 0, Math.PI * 2);
+      ctx.stroke();
     }
   }
 

@@ -76,7 +76,7 @@ export function AppShell({ children, hrefFor = defaultHrefFor, demo = false, ban
         <header className="glass sticky top-0 z-20 border-b border-border">
           <div className="mx-auto flex h-[var(--header-h)] w-full max-w-[1400px] items-center justify-between gap-3 px-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
-              <Logo href={homeHref} className="md:hidden" />
+              <Logo href={homeHref} compact className="md:hidden" />
               {demo ? (
                 <span className="hidden items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1 text-xs text-fg-2 sm:inline-flex">
                   <span className="h-4 w-4 rounded bg-accent-soft" aria-hidden />
