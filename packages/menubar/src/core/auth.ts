@@ -1,13 +1,15 @@
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@codex-tracker/backend/convex/_generated/api";
-import { clearState, updateConfig, type TrackerConfig } from "./config";
-import { deviceName, hostname, platformKind, openUrl } from "./platform";
-import { resolveConvexUrl, errorMessage } from "./uploader";
+import { backendSupports, clearState, updateConfig, type TrackerConfig } from "./config";
+import { deviceName, hostname, machineId, platformKind, openUrl } from "./platform";
+import { resolveConvexUrl, errorMessage, WIRE_MACHINE_ID } from "./uploader";
 
 export interface LoginHandlers {
-  /** Called once the code is known (print it / show it in the UI). */
-  onCode: (code: string, verifyUrl: string) => void;
+  /** Called once the code is known (print it / show it in the UI). `expiresAt` is when the code stops working. */
+  onCode: (code: string, verifyUrl: string, expiresAt: number) => void;
   openBrowser: boolean;
+  /** Called after the browser was (or could not be) opened; only when `openBrowser` is set. */
+  onBrowser?: (opened: boolean) => void;
   signal?: AbortSignal;
   pollIntervalMs?: number;
 }
@@ -31,7 +33,12 @@ const sleep = (ms: number, signal?: AbortSignal) =>
 
 /**
  * Device-code login: the dashboard (Clerk: Google / GitHub) approves this device and mints a device token.
- * Works without a browser on this machine — the URL/code are printed for WSL / SSH sessions.
+ * Works without a browser on this machine — the URL/code are handed to `onCode` (the CLI prints them
+ * with a QR code) so the approval can be done from a phone or any other computer.
+ *
+ * The machine id makes a repeat login from this computer (tray app + headless agent, or a re-login)
+ * reuse the machine's existing device on the dashboard instead of creating — and double counting — a
+ * second one.
  */
 export async function deviceLogin(cfg: TrackerConfig, h: LoginHandlers): Promise<LoginResult> {
   const convexUrl = await resolveConvexUrl(cfg, true);
@@ -40,10 +47,14 @@ export async function deviceLogin(cfg: TrackerConfig, h: LoginHandlers): Promise
     deviceName: deviceName(),
     platform: platformKind(),
     hostname: hostname(),
+    ...(backendSupports(cfg, WIRE_MACHINE_ID) ? { machineId: machineId() } : {}),
   });
   const url = verifyUrlFor(cfg.dashboardUrl, start.code);
-  h.onCode(start.code, url);
-  if (h.openBrowser) void openUrl(url);
+  h.onCode(start.code, url, start.expiresAt);
+  if (h.openBrowser) {
+    const opened = await openUrl(url);
+    h.onBrowser?.(opened);
+  }
 
   const interval = h.pollIntervalMs ?? 3000;
   while (!h.signal?.aborted) {

@@ -15,7 +15,11 @@ import {
   type UploadHourBucket,
   type UploadSession,
 } from "@codex-tracker/shared";
-import { loadState, saveState, updateConfig, type TrackerConfig, type UploadState } from "./config";
+import { backendSupports, loadState, saveState, updateConfig, type TrackerConfig, type UploadState } from "./config";
+import { machineId } from "./platform";
+
+/** Wire version from which the backend accepts `machineId` (one device per machine). */
+export const WIRE_MACHINE_ID = 2;
 
 export class SignedOutError extends Error {
   constructor(message: string) {
@@ -39,12 +43,16 @@ export async function fetchDashboardConfig(dashboardUrl: string): Promise<Dashbo
   };
 }
 
-/** Resolve (and cache in config) the Convex deployment URL for the configured dashboard. */
+/**
+ * Resolve (and cache in config) the Convex deployment URL for the configured dashboard, together
+ * with the wire version its backend speaks (so newer fields are only sent where they are understood).
+ */
 export async function resolveConvexUrl(cfg: TrackerConfig, force = false): Promise<string> {
-  if (cfg.convexUrl && !force) return cfg.convexUrl;
+  if (cfg.convexUrl && cfg.wireVersion !== null && !force) return cfg.convexUrl;
   const remote = await fetchDashboardConfig(cfg.dashboardUrl);
-  updateConfig({ convexUrl: remote.convexUrl });
+  updateConfig({ convexUrl: remote.convexUrl, wireVersion: remote.wireVersion });
   cfg.convexUrl = remote.convexUrl;
+  cfg.wireVersion = remote.wireVersion;
   return remote.convexUrl;
 }
 
@@ -83,7 +91,12 @@ function bucketStateKey(b: { hourStart: number; model: string; agent: string }):
 
 export interface UploaderOptions {
   getConfig: () => TrackerConfig;
-  onSignedOut: (reason: string) => void;
+  /**
+   * The backend rejected `badToken`. Another process on this machine (tray app vs. headless agent —
+   * they share the config file) may have logged in again since; the callback returns the token that is
+   * on disk *now* so the uploader can adopt it, or null when this process really is signed out.
+   */
+  onSignedOut: (reason: string, badToken: string) => string | null;
   log?: (msg: string) => void;
 }
 
@@ -137,7 +150,22 @@ export class Uploader {
       return r;
     } catch (err) {
       if (isBadToken(err)) {
-        this.opts.onSignedOut(errorMessage(err));
+        // A fresh login by the other process on this machine? Then its token is in the shared config.
+        const replacement = this.opts.onSignedOut(errorMessage(err), token);
+        if (replacement && replacement !== token) {
+          this.opts.log?.("device token was replaced by another login on this machine; retrying with it");
+          try {
+            const r = await fn(await this.getClient(), replacement);
+            this.lastError = null;
+            return r;
+          } catch (err2) {
+            if (!isBadToken(err2)) {
+              this.lastError = errorMessage(err2);
+              throw err2;
+            }
+            this.opts.onSignedOut(errorMessage(err2), replacement);
+          }
+        }
         throw new SignedOutError(errorMessage(err));
       }
       if (isNetworkError(err)) {
@@ -265,7 +293,9 @@ export class Uploader {
   }
 
   async heartbeat(input: { appVersion: string; platform: string; hostname: string | null; timezone: string; live: LiveSnapshot | null }) {
-    await this.call((c, token) => c.mutation(api.ingest.heartbeat, { token, ...input }));
+    // The machine id lets the backend fold a second login from this computer into the same device.
+    const extra = backendSupports(this.opts.getConfig(), WIRE_MACHINE_ID) ? { machineId: machineId() } : {};
+    await this.call((c, token) => c.mutation(api.ingest.heartbeat, { token, ...input, ...extra }));
   }
 
   /** Other devices' hourly rows for the last `weeks` weeks (merged into the heatmap and "all devices today"). */

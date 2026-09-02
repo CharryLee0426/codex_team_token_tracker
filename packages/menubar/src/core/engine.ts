@@ -3,8 +3,8 @@ import { fromLogRateLimits, machineTimeZone, type LiveRateLimits, type LiveSnaps
 import { configDir, loadConfig, loadPricingOverrides, updateConfig, type TrackerConfig } from "./config";
 import { SessionStore } from "./store";
 import { computeStats, type Stats } from "./stats";
-import { Uploader, SignedOutError, errorMessage } from "./uploader";
-import { deviceLogin, logoutDevice, type LoginResult } from "./auth";
+import { Uploader, SignedOutError, errorMessage, resolveConvexUrl } from "./uploader";
+import { deviceLogin, logoutDevice, type LoginHandlers, type LoginResult } from "./auth";
 import { deviceName, hostname, platformKind, systemLocale } from "./platform";
 import { fetchLiveRateLimits } from "./usage-api";
 import { resolveLanguage, type Language, type LanguageSetting } from "../i18n";
@@ -31,6 +31,13 @@ const LIVE_LIMITS_MIN_GAP_MS = 20_000;
 const UPDATE_CHECK_MS = 6 * 60 * 60 * 1000;
 /** How long a finished sync keeps reporting "done"/"error" before the banner returns to idle. */
 const SYNC_BANNER_MS = 25_000;
+/**
+ * New local usage triggers a push this soon after it was seen, so the dashboard follows a running
+ * session within seconds instead of waiting for the next `uploadIntervalSec` tick …
+ */
+const UPLOAD_DEBOUNCE_MS = 5_000;
+/** … but never more often than this; the periodic upload remains the fallback. */
+const UPLOAD_MIN_GAP_MS = 15_000;
 
 /** Composes the file store, statistics, live rate limits and uploader; emits `snapshot` whenever the picture changes. */
 export class Engine extends EventEmitter {
@@ -59,6 +66,8 @@ export class Engine extends EventEmitter {
   private syncError: string | null = null;
   private syncResult: SyncResult | null = null;
   private syncBannerTimer: NodeJS.Timeout | null = null;
+  private uploadSoonTimer: NodeJS.Timeout | null = null;
+  private lastUploadAttempt = 0;
 
   constructor(private readonly opts: EngineOptions) {
     super();
@@ -70,10 +79,20 @@ export class Engine extends EventEmitter {
     }));
     this.uploader = new Uploader({
       getConfig: () => this.config,
-      onSignedOut: (reason) => {
+      onSignedOut: (reason, badToken) => {
+        // The tray app and the headless agent share the config file. If the other one logged in again
+        // since this process started, the token on disk is a newer, valid one: adopt it instead of
+        // signing out — and never wipe a token that is not the one that just failed.
+        const disk = loadConfig();
+        if (disk.deviceToken && disk.deviceToken !== badToken) {
+          this.config = disk;
+          this.emitSnapshot();
+          return disk.deviceToken;
+        }
         this.config = updateConfig({ deviceToken: null, deviceId: null, user: null });
         this.authError = reason;
         this.emitSnapshot();
+        return null;
       },
       log: opts.log,
     });
@@ -99,6 +118,13 @@ export class Engine extends EventEmitter {
   async start() {
     await this.store.refreshDeep();
     this.recompute();
+    if (this.opts.upload && this.signedIn) {
+      // Learn what the backend speaks (e.g. whether it takes machine ids) once per start; cheap, and
+      // the cached value keeps working when the dashboard is unreachable. One-shot callers wait for it
+      // so their single heartbeat already carries everything.
+      const refresh = resolveConvexUrl(this.config, true).catch(() => {});
+      if (this.opts.watch === false) await refresh;
+    }
     if (this.opts.watch === false) {
       // one-shot callers (CLI status/agent --once) want the live limits in the first snapshot
       await this.refreshLiveLimits(true);
@@ -133,6 +159,8 @@ export class Engine extends EventEmitter {
     this.liveLimitsTimer = null;
     if (this.syncBannerTimer) clearTimeout(this.syncBannerTimer);
     this.syncBannerTimer = null;
+    if (this.uploadSoonTimer) clearTimeout(this.uploadSoonTimer);
+    this.uploadSoonTimer = null;
     this.store.stopWatching();
     this.pending?.abort.abort();
   }
@@ -145,6 +173,7 @@ export class Engine extends EventEmitter {
       if (changed) {
         this.recompute();
         this.scheduleLiveLimits();
+        this.scheduleUpload();
       }
       return changed;
     } catch (err) {
@@ -188,6 +217,17 @@ export class Engine extends EventEmitter {
     }, LIVE_LIMITS_DEBOUNCE_MS);
   }
 
+  /** Push the changed buckets shortly after new local usage appeared (debounced, rate-limited). */
+  private scheduleUpload() {
+    if (!this.opts.upload || this.opts.watch === false || !this.signedIn || this.uploadSoonTimer) return;
+    const wait = Math.max(UPLOAD_DEBOUNCE_MS, this.lastUploadAttempt + UPLOAD_MIN_GAP_MS - Date.now());
+    this.uploadSoonTimer = setTimeout(() => {
+      this.uploadSoonTimer = null;
+      void this.uploadNow().catch(() => {});
+    }, wait);
+    this.uploadSoonTimer.unref?.();
+  }
+
   recompute() {
     this.stats = computeStats({
       sessions: this.store.sessions(),
@@ -217,6 +257,7 @@ export class Engine extends EventEmitter {
 
   async uploadNow(): Promise<{ buckets: number; sessions: number }> {
     if (!this.signedIn) return { buckets: 0, sessions: 0 };
+    this.lastUploadAttempt = Date.now();
     if (!this.stats) this.recompute();
     try {
       const r = await this.uploader.pushAll(this.stats!.buckets, this.stats!.sessions, this.stats!.sessionCosts);
@@ -404,7 +445,7 @@ export class Engine extends EventEmitter {
   }
 
   /** Start the device-code login flow (resolves when approved / denied / expired / cancelled). */
-  async login(openBrowser: boolean, onCode?: (code: string, url: string) => void): Promise<LoginResult> {
+  async login(openBrowser: boolean, handlers: Partial<Pick<LoginHandlers, "onCode" | "onBrowser">> = {}): Promise<LoginResult> {
     if (this.pending) return { status: "cancelled" };
     const abort = new AbortController();
     this.pending = { code: null, url: null, abort };
@@ -414,9 +455,10 @@ export class Engine extends EventEmitter {
       const result = await deviceLogin(this.config, {
         openBrowser,
         signal: abort.signal,
-        onCode: (code, url) => {
+        onBrowser: handlers.onBrowser,
+        onCode: (code, url, expiresAt) => {
           this.pending = { code, url, abort };
-          onCode?.(code, url);
+          handlers.onCode?.(code, url, expiresAt);
           this.emitSnapshot();
         },
       });

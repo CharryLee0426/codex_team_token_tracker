@@ -17,6 +17,7 @@ import { hasDisplay, platformKind, systemLocale } from "./core/platform";
 import { describeRoot, discoverSessionRoots } from "./core/sources";
 import { SOURCE_IDS, normalizeSources, type SourcesConfig } from "./core/config";
 import { errorMessage } from "./core/uploader";
+import { encodeQr, renderQrTerminal } from "./core/qr";
 import { checkForUpdate, runUpdate as installUpdate } from "./core/update";
 import { durationShort, localeTag, makeT, relativeTime, resolveLanguage, windowLabel, type LanguageSetting } from "./i18n";
 import { APP_VERSION, IS_DEV_BUILD } from "./version";
@@ -53,7 +54,7 @@ function applyDashboardFlag(flags: Args["flags"]): TrackerConfig {
   const d = flags.dashboard;
   if (typeof d === "string" && d) {
     const url = coerceConfigValue("dashboardUrl", d) as string;
-    if (url !== cfg.dashboardUrl) return updateConfig({ dashboardUrl: url, convexUrl: null });
+    if (url !== cfg.dashboardUrl) return updateConfig({ dashboardUrl: url, convexUrl: null, wireVersion: null });
   }
   return cfg;
 }
@@ -268,20 +269,60 @@ async function runSync(flags: Args["flags"]): Promise<number> {
   return 0;
 }
 
+/** Terminal QR of the approval link, black-on-white when the output is a colour terminal. */
+function loginQr(url: string): string | null {
+  try {
+    const ansi = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR && process.env.TERM !== "dumb";
+    return renderQrTerminal(encodeQr(url, { ecc: "M" }), { ansi, quiet: 2, indent: "  " });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `codex-tracker login`. Prints the code, the approval link and — whenever this machine cannot open a
+ * browser itself (WSL2, servers, SSH), or with `--qr` — a QR code of the link, so the approval can be
+ * given from a phone or any other computer. `--no-qr` suppresses the QR code.
+ */
 async function runLogin(flags: Args["flags"]): Promise<number> {
   const cfg = applyDashboardFlag(flags);
   const L = lang(cfg);
   const t = makeT(L);
   console.log(t("cliLoginStart", { dashboard: cfg.dashboardUrl }));
   const engine = new Engine({ upload: false, watch: false, systemLocale: systemLocale() });
+  const openBrowser = hasDisplay() && flags["no-browser"] !== true;
+  const wantQr = flags.qr === true || flags["no-qr"] !== true;
+  let pendingUrl: string | null = null;
+  const showQr = () => {
+    if (!pendingUrl || !wantQr) return;
+    const qr = loginQr(pendingUrl);
+    if (!qr) return;
+    console.log("");
+    console.log(qr);
+    console.log("");
+    console.log(t("cliLoginScan"));
+  };
   try {
-    const result = await engine.login(hasDisplay(), (code, url) => {
-      console.log("");
-      console.log("  " + t("cliLoginCode", { code }));
-      console.log("");
-      console.log(t("cliLoginOpen", { url }));
-      console.log("");
-      console.log(t("cliLoginWaiting"));
+    const result = await engine.login(openBrowser, {
+      onCode: (code, url, expiresAt) => {
+        pendingUrl = url;
+        console.log("");
+        console.log("  " + t("cliLoginCode", { code }));
+        console.log("");
+        console.log(t("cliLoginOpen", { url }));
+        console.log("  " + t("cliLoginExpires", { minutes: Math.max(1, Math.round((expiresAt - Date.now()) / 60_000)) }));
+        // No browser here: the QR code is the primary way in, so show it right away.
+        if (!openBrowser || flags.qr === true) showQr();
+        console.log("");
+        console.log(t("cliLoginWaiting"));
+      },
+      onBrowser: (opened) => {
+        if (opened) console.log(t("cliLoginBrowserOpened"));
+        else {
+          console.log(t("cliLoginBrowserFailed"));
+          if (flags.qr !== true) showQr();
+        }
+      },
     });
     if (result.status === "approved") {
       console.log(t("cliLoginSuccess", { name: result.user.name || result.user.email || "?" }));
@@ -401,7 +442,10 @@ function runConfig(positional: string[]): number {
     try {
       const coerced = coerceConfigValue(key as keyof TrackerConfig, value);
       const patch: Partial<TrackerConfig> = { [key]: coerced } as Partial<TrackerConfig>;
-      if (key === "dashboardUrl") patch.convexUrl = null;
+      if (key === "dashboardUrl") {
+        patch.convexUrl = null;
+        patch.wireVersion = null;
+      }
       updateConfig(patch);
       console.log(t("cliConfigSet", { key, value: JSON.stringify(coerced) }));
       return 0;

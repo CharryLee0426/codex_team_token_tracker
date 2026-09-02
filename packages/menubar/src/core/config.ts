@@ -45,6 +45,8 @@ export const SOURCE_IDS = Object.keys(DEFAULT_SOURCES) as Array<keyof SourcesCon
 export interface TrackerConfig {
   dashboardUrl: string;
   convexUrl: string | null;
+  /** Protocol version the dashboard advertised with `convexUrl` (`shared/wire.ts`); null = not fetched yet (treated as 1). */
+  wireVersion: number | null;
   deviceToken: string | null;
   deviceId: string | null;
   user: { name: string | null; email: string | null } | null;
@@ -69,6 +71,7 @@ export interface TrackerConfig {
 export const DEFAULT_CONFIG: TrackerConfig = {
   dashboardUrl: DEFAULT_DASHBOARD_URL,
   convexUrl: null,
+  wireVersion: null,
   deviceToken: null,
   deviceId: null,
   user: null,
@@ -186,7 +189,13 @@ export function loadConfig(): TrackerConfig {
   if (!(cfg.heartbeatIntervalSec >= 5)) cfg.heartbeatIntervalSec = DEFAULT_CONFIG.heartbeatIntervalSec;
   if (!["tokens", "cost", "none"].includes(cfg.trayTitle)) cfg.trayTitle = "tokens";
   cfg.dashboardUrl = (cfg.dashboardUrl || DEFAULT_DASHBOARD_URL).replace(/\/+$/, "");
+  cfg.wireVersion = typeof stored.wireVersion === "number" && stored.wireVersion >= 1 ? stored.wireVersion : null;
   return cfg;
+}
+
+/** Does the configured dashboard's backend understand wire protocol `version`? Unknown (not fetched yet) counts as 1. */
+export function backendSupports(cfg: TrackerConfig, version: number): boolean {
+  return (cfg.wireVersion ?? 1) >= version;
 }
 
 export function saveConfig(cfg: TrackerConfig) {
