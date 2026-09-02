@@ -125,17 +125,30 @@ export function hashToken(token: string): string {
   return sha256Hex(token);
 }
 
-/** Resolve a device token (menubar/agent) to its device + user. */
+/**
+ * Resolve a device token (menubar/agent) to its device + user.
+ *
+ * `login` is the row the token was minted for; `device` is the canonical row usage is stored under —
+ * the same row unless this login was folded into an earlier login from the same machine (`mergedInto`).
+ * Aliases are never chained: merging always re-points them at the final canonical device.
+ */
 export async function requireDevice(ctx: Ctx, token: string) {
   if (!token || token.length < 16) throw new ConvexError({ code: "BAD_TOKEN", message: "Invalid device token" });
-  const device = await ctx.db
+  const login = await ctx.db
     .query("devices")
     .withIndex("by_tokenHash", (q) => q.eq("tokenHash", hashToken(token)))
     .unique();
-  if (!device || device.revokedAt) throw new ConvexError({ code: "BAD_TOKEN", message: "Device token revoked or unknown" });
+  if (!login || login.revokedAt) throw new ConvexError({ code: "BAD_TOKEN", message: "Device token revoked or unknown" });
+  let device = login;
+  if (login.mergedInto) {
+    const canonical = await ctx.db.get(login.mergedInto);
+    if (!canonical) throw new ConvexError({ code: "BAD_TOKEN", message: "Device record missing" });
+    device = canonical;
+  }
+  if (device.revokedAt) throw new ConvexError({ code: "BAD_TOKEN", message: "Device token revoked or unknown" });
   const user = await ctx.db.get(device.userId);
   if (!user) throw new ConvexError({ code: "BAD_TOKEN", message: "Device owner missing" });
-  return { device, user };
+  return { device, login, user };
 }
 
 export function publicUser(u: Doc<"users">) {

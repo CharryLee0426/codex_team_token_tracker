@@ -41,7 +41,29 @@ codex-tracker                  # start the menu bar app (agent mode when there i
 codex-tracker status           # terminal summary — handy in WSL / over SSH
 ```
 
-By default the tool connects to **https://codex.chenli.dev**; other teams pass their own dashboard with `--dashboard <url>` (remembered afterwards). `login` prints a short code and opens `https://<dashboard>/cli-auth?code=XXXX-XXXX` in your browser. Approve the device there and the tracker receives a device token. Local tracking works without signing in; signing in enables uploads and the multi-device heatmap.
+By default the tool connects to **https://codex.chenli.dev**; other teams pass their own dashboard with `--dashboard <url>` (remembered afterwards). `login` prints a short code and the approval link `https://<dashboard>/cli-auth?code=XXXX-XXXX`, opens it in your browser when this machine has one, and otherwise prints a **QR code** of the link — scan it with your phone, or open the link on any other computer, sign in and approve. The tracker then receives a device token. Local tracking works without signing in; signing in enables uploads and the multi-device heatmap.
+
+```
+$ codex-tracker login
+Connecting this device to https://codex.chenli.dev
+
+  Your code: RHF7-DWW8
+
+Open this link on any device — this computer, another one, or your phone — sign in and approve:
+  https://codex.chenli.dev/cli-auth?code=RHF7-DWW8
+  The code expires in 15 min.
+
+  █▀▀▀▀▀█ ▄▀ █▄ ▀▀▀ █▀▀▀▀▀█      ← scan with a phone camera
+  █ ███ █ ▀▄▀ ▄ ██▀ █ ███ █
+  …
+
+Waiting for approval…
+Connected as Chen Li. Uploads are enabled.
+```
+
+`--qr` always prints the QR code (also on a desktop), `--no-qr` never does, and `--no-browser` only prints the link and the code.
+
+**One machine, one device.** Logging in more than once from the same computer — the tray app *and* `codex-tracker agent`, or a re-login — does not create a second device: the login carries a hashed hardware id (the platform UUID / MachineGuid / `/etc/machine-id`, SHA-256'd, never the raw value), the dashboard attaches it to the machine's existing device, and its usage is counted once. Inside WSL the Windows MachineGuid is used, so a WSL agent and the Windows tray app on the same PC count as one machine too.
 
 ### Self-hosted dashboard
 
@@ -60,7 +82,7 @@ The tracker discovers the Convex deployment through `<dashboard>/api/config`.
 | `codex-tracker` | Menu bar app; falls back to `agent` when no display / no Electron |
 | `codex-tracker menubar [--background]` | Start the tray app (detached with `--background`) |
 | `codex-tracker agent [--interval <sec>] [--once]` | Headless tracking + uploads; `--once` runs one cycle and exits |
-| `codex-tracker login [--dashboard <url>]` | Device-code login |
+| `codex-tracker login [--dashboard <url>] [--qr\|--no-qr] [--no-browser]` | Device-code login; prints the link and a QR code for phones / other computers |
 | `codex-tracker logout` | Forget the device token (local data stays) |
 | `codex-tracker status [--json]` | Today / 7d / 30d usage, live session, rate limits, models |
 | `codex-tracker sync` | Full sync: rescan every agent and re-upload this device's whole history |
@@ -110,11 +132,11 @@ action, never on a timer.
 **Inside WSL2**: Electron cannot show a Windows tray from WSL, so run the agent:
 
 ```bash
-codex-tracker login    # prints the URL + code; open it in your Windows browser
+codex-tracker login    # prints the URL, the code and a QR code — approve from your Windows browser or your phone
 codex-tracker agent    # keep running (tmux / nohup / systemd --user)
 ```
 
-The agent also scans `/mnt/c/Users/*/.codex/sessions`, so one agent covers both sides. WSLg can display the Electron window but tray support is limited; the Windows tray app is the recommended UI.
+The agent also scans `/mnt/c/Users/*/.codex/sessions`, so one agent covers both sides. WSLg can display the Electron window but tray support is limited; the Windows tray app is the recommended UI. Running both the Windows tray app and a WSL agent on one PC is fine since 0.3.0: they identify as the same machine and the dashboard counts it once.
 
 Example `systemd --user` unit (`~/.config/systemd/user/codex-tracker.service`):
 
@@ -214,7 +236,7 @@ accurate number; the values inside Codex logs are just snapshots from Codex's ow
 
 ## What gets uploaded
 
-Only aggregates: token counts per UTC hour and model, per-session totals, the model name, the project **folder name** and a SHA-256 of its path, plus a heartbeat (tokens/s, today's totals). Prompts, code, file paths and session contents never leave your machine. Timestamps are stored in UTC; the app and dashboard display them in your local time zone.
+Only aggregates: token counts per UTC hour and model, per-session totals, the model name, the project **folder name** and a SHA-256 of its path, plus a heartbeat (tokens/s, today's totals) that carries a SHA-256 of the machine's hardware id (so one computer maps to one device however often it logs in). Prompts, code, file paths, session contents and the raw hardware id never leave your machine. Timestamps are stored in UTC; the app and dashboard display them in your local time zone.
 
 ## Development
 
@@ -273,3 +295,5 @@ MIT
 - **"Electron download failed" / tray app does not start** – the CLI downloads the Electron runtime on first launch from GitHub releases into `~/.codex-tracker/electron/<version>/`. Behind a firewall set `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` (or `HTTPS_PROXY`) and run `codex-tracker menubar` again; a half-finished download can be cleared by deleting that directory. A manually installed `npm i -g electron` is also picked up. The headless `codex-tracker agent` and `codex-tracker status` work without Electron.
 - **Nothing is tracked** – run `codex-tracker paths`; Codex must have written rollouts under `~/.codex/sessions` (or set `CODEX_HOME`). Add other locations with `codex-tracker config set extraSessionDirs '["/path/to/sessions"]'`.
 - **Uploads fail with BAD_TOKEN** – the device was revoked in the dashboard; run `codex-tracker login` again.
+- **No browser on this machine** (WSL2, a server, SSH) – `codex-tracker login` prints the approval link and a QR code; scan it with your phone or open the link on any computer where you can sign in. `--qr` forces the QR code on a desktop too.
+- **This machine shows up twice on the dashboard** – it logged in twice with a version before 0.3.0. Restart the tracker (tray app or agent) on 0.3.0; within a few minutes its first heartbeats merge the two entries, and the Devices page shows one device with a *2 logins* badge.

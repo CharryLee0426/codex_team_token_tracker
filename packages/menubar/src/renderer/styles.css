@@ -488,6 +488,18 @@ button.ghost:hover {
   flex-direction: column;
   gap: 6px;
 }
+.qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0 2px;
+}
+.qr svg {
+  border: 4px solid #fff;
+  border-radius: 6px;
+  background: #fff;
+}
 .code {
   font-family: var(--mono);
   font-size: 18px;

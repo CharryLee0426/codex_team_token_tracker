@@ -195,7 +195,9 @@
     "connectHint": "Run `codex-tracker login` on a machine to connect it.",
     "liveSession": "Live session",
     "idle": "Idle",
-    "count": "{count, plural, =1 {1 device} other {# devices}}"
+    "count": "{count, plural, =1 {1 device} other {# devices}}",
+    "logins": "{count} logins",
+    "loginsHint": "This machine is connected more than once (e.g. tray app + headless agent). Its usage is counted once."
   },
   "sessions": {
     "title": "Recent sessions",

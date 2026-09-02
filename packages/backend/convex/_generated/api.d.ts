@@ -10,6 +10,7 @@
 
 import type * as crons from "../crons.js";
 import type * as deviceAuth from "../deviceAuth.js";
+import type * as devices from "../devices.js";
 import type * as http from "../http.js";
 import type * as ingest from "../ingest.js";
 import type * as lib_auth from "../lib/auth.js";
@@ -28,6 +29,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   deviceAuth: typeof deviceAuth;
+  devices: typeof devices;
   http: typeof http;
   ingest: typeof ingest;
   "lib/auth": typeof lib_auth;

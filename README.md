@@ -27,7 +27,8 @@ Production: dashboard **https://codex.chenli.dev** · npm package **`codex-token
 - **Live rate limits** — weekly / 5-hour Codex windows straight from the account (same endpoint the Codex app uses), plus per-model limits, plan and credits; falls back to log values when offline.
 - **Views** — daily contribution heatmap, hour × weekday activity, Mon–Sun comparison, model distribution, member leaderboard, live "coding now", recent sessions, devices.
 - **Sources** — every agent that consumes the Codex subscription is tagged (`codex`, `pi`, `opencode`, `cline`, `roo`, `kilo`, `hermes`, custom dirs); API-key providers inside those agents are excluded by default.
-- **Teams** — Clerk Organizations; membership synced from JWT and webhooks; any number of devices per person.
+- **Teams** — Clerk Organizations; membership synced from JWT and webhooks; any number of devices per person — and exactly one device per machine, however often it logs in (tray app + headless agent, re-logins).
+- **Headless login** — `codex-tracker login` prints the approval link and a QR code, so a WSL2 box, a server or an SSH session is approved from a phone or any other computer.
 - **Time & language** — database in UTC, all views in the viewer's local time; English / Simplified Chinese, auto-detected and persisted; light / dark / system theme (mission-control style UI with a particle scene behind the landing page and dashboard).
 - **Privacy** — only counts, model/agent names, project folder names and a path hash leave the machine.
 

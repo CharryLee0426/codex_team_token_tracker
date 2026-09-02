@@ -38,6 +38,8 @@ export interface DeviceItem {
   createdAt: number;
   lastSeenAt: number;
   live: DeviceLive | null;
+  /** Active tokens for this machine — 2 when both the tray app and the headless agent ran `login`. */
+  logins?: number;
 }
 
 const LIVE_WINDOW_MS = 2 * 60 * 1000;
@@ -90,6 +92,11 @@ export function DevicesList({ devices, compact = false, onRevoke, now }: ListPro
                 <span className="truncate font-medium text-fg">{d.name}</span>
                 <Badge variant="muted">{d.platform}</Badge>
                 {d.appVersion ? <Badge variant="muted">v{d.appVersion}</Badge> : null}
+                {d.logins && d.logins > 1 ? (
+                  <Badge variant="muted" title={t("loginsHint")}>
+                    {t("logins", { count: d.logins })}
+                  </Badge>
+                ) : null}
                 {live ? (
                   <Badge variant="success">
                     <LiveDot size={6} /> {live.sessionId ? t("liveSession") : t("idle")}

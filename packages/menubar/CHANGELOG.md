@@ -2,6 +2,51 @@
 
 All notable changes to `codex-token-tracker`. This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.3.0 — 2026-09-02
+
+Approve a headless login from your phone, one device per machine, and a dashboard that stays live.
+
+### Added
+
+- **QR code login.** `codex-token-tracker login` now prints a QR code of the approval link next to the
+  code and the URL, so a machine that cannot open a browser — WSL2, a build server, an SSH session, a
+  desktop whose browser failed to launch — can still be approved: scan it with your phone, or open the
+  link on any other computer, sign in and click *Approve*. The QR code appears automatically whenever
+  no browser could be opened; `--qr` always prints it, `--no-qr` never does, and `--no-browser` skips
+  the browser altogether. The popover's sign-in box shows the same QR code. The encoder is built in
+  (no new dependency) and runs on Node 16 as well as Node 20. The terminal output is painted
+  black-on-white explicitly so it scans on light and dark terminal themes alike.
+- `login` now says how long the code stays valid and whether a browser was opened.
+
+### Fixed
+
+- **A machine that logged in twice was counted twice.** Every `login` created a new device on the
+  dashboard and re-uploaded the machine's whole history under it, so running the tray app *and* the
+  headless agent on one computer — or simply logging in again — doubled that machine's tokens in every
+  view. The client now sends a hashed hardware identity (`machineId`: the IOPlatformUUID on macOS, the
+  registry MachineGuid on Windows — also from inside WSL, so a WSL agent and a Windows tray app on the
+  same PC agree — `/etc/machine-id` on Linux; only its SHA-256 leaves the machine), and the backend keeps
+  **one device per machine per user**: a repeat login becomes an alias whose token writes into the
+  existing device. Devices created by older versions are reconciled on their first heartbeat after
+  the update: two device rows of yours with the same hostname and *identical* hourly counts are
+  recognised as the same computer and merged, so existing duplicates disappear on their own once the
+  tracker is restarted with 0.3.0. Nothing is summed during a merge — where both rows hold an hour the
+  fresher copy wins. The Devices page lists each machine once and shows a *2 logins* badge when both
+  a tray app and an agent are connected.
+- **A second login no longer signs the first process out.** The tray app and the agent share the
+  config file; when one of them logs in again the other now adopts the new token instead of hitting
+  *BAD_TOKEN*, signing out, and wiping the token the other had just stored.
+- **The dashboard follows a running session within seconds.** New local usage now triggers a push
+  ~5 s after it is seen (at most every 15 s) instead of waiting for the next 60 s upload tick.
+
+### Changed
+
+- Wire protocol version 2. The client reads the backend's version from `<dashboard>/api/config` and
+  only sends `machineId` to backends that understand it, so an updated tracker keeps working against a
+  dashboard that has not been redeployed yet (it just does not get the one-device-per-machine fix).
+  `config.json` gains a cached `wireVersion`.
+- Heartbeats from an alias login do not relabel the machine's platform or hostname on the dashboard.
+
 ## 0.2.2 — 2026-09-02
 
 Installs on machines that cannot download Electron.

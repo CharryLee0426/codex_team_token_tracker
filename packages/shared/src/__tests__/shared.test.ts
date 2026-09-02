@@ -188,3 +188,73 @@ test("parses wham/usage response", () => {
   assert.equal(rl.additional[0].primary?.windowMinutes, 300);
   assert.equal(parseCodexUsageResponse({ foo: 1 }), null);
 });
+
+// ---- device identity (one device per machine) ----
+import { isMachineId, normalizeHostname, usageOverlapVerdict, type HourFingerprint } from "../device-identity.ts";
+
+function fp(hourStart: number, total: number, requests: number, models: Array<[string, string, number, number]> = [["codex", "gpt-5.6-sol", total, requests]]): HourFingerprint {
+  return { hourStart, total, requests, models: models.map(([agent, model, t, q]) => ({ agent, model, total: t, requests: q })) };
+}
+
+test("machineId shape", () => {
+  assert.equal(isMachineId("m1_" + "a".repeat(32)), true);
+  assert.equal(isMachineId("a".repeat(32)), false);
+  assert.equal(isMachineId("m1_has space"), false);
+  assert.equal(isMachineId("m1_" + "a".repeat(80)), false);
+  assert.equal(isMachineId(null), false);
+});
+
+test("hostnames compare loosely across Windows / WSL / macOS", () => {
+  assert.equal(normalizeHostname("DESKTOP-ABC"), "desktop-abc");
+  assert.equal(normalizeHostname("Chens-MacBook-Pro.local"), "chens-macbook-pro");
+  assert.equal(normalizeHostname("desktop-abc (WSL Ubuntu)"), "desktop-abc");
+  assert.equal(normalizeHostname(null), "");
+});
+
+test("identical hourly rows on overlapping hours mean the same machine", () => {
+  const H = 3_600_000;
+  const pairs = [0, 1, 2, 3].map((i) => ({ probe: fp(i * H, 1000 + i, 3), other: fp(i * H, 1000 + i, 3) }));
+  const v = usageOverlapVerdict(pairs);
+  assert.equal(v.compared, 4);
+  assert.equal(v.matched, 4);
+  assert.equal(v.same, true);
+});
+
+test("hours only one side knows are ignored; too few overlapping hours is no verdict", () => {
+  const H = 3_600_000;
+  const v = usageOverlapVerdict([
+    { probe: fp(0, 500, 1), other: fp(0, 500, 1) },
+    { probe: fp(H, 700, 2), other: fp(H, 700, 2) },
+    { probe: fp(2 * H, 900, 2), other: null },
+    { probe: fp(3 * H, 900, 2), other: null },
+  ]);
+  assert.equal(v.compared, 2);
+  assert.equal(v.same, false);
+});
+
+test("different counts, or a different model mix, mean different machines", () => {
+  const H = 3_600_000;
+  const diffCounts = [0, 1, 2, 3].map((i) => ({ probe: fp(i * H, 1000, 3), other: fp(i * H, 1001, 3) }));
+  assert.equal(usageOverlapVerdict(diffCounts).same, false);
+  const diffModels = [0, 1, 2, 3].map((i) => ({
+    probe: fp(i * H, 1000, 3, [["codex", "gpt-5.6-sol", 600, 2], ["pi", "gpt-5.4", 400, 1]]),
+    other: fp(i * H, 1000, 3, [["codex", "gpt-5.6-sol", 400, 1], ["pi", "gpt-5.4", 600, 2]]),
+  }));
+  assert.equal(usageOverlapVerdict(diffModels).same, false);
+  // model order does not matter
+  const reordered = [0, 1, 2, 3].map((i) => ({
+    probe: fp(i * H, 1000, 3, [["codex", "gpt-5.6-sol", 600, 2], ["pi", "gpt-5.4", 400, 1]]),
+    other: fp(i * H, 1000, 3, [["pi", "gpt-5.4", 400, 1], ["codex", "gpt-5.6-sol", 600, 2]]),
+  }));
+  assert.equal(usageOverlapVerdict(reordered).same, true);
+});
+
+test("one diverging hour (still uploading) does not break a long identical run", () => {
+  const H = 3_600_000;
+  const pairs = [0, 1, 2, 3, 4].map((i) => ({ probe: fp(i * H, 1000 + i, 3), other: fp(i * H, 1000 + i, 3) }));
+  pairs.push({ probe: fp(5 * H, 2000, 5), other: fp(5 * H, 1500, 4) });
+  const v = usageOverlapVerdict(pairs);
+  assert.equal(v.compared, 6);
+  assert.equal(v.matched, 5);
+  assert.equal(v.same, true);
+});

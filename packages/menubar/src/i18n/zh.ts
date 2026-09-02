@@ -53,6 +53,7 @@ export const zh: Record<MessageKey, string> = {
   signedInAs: "已登录：{name}",
   signedOut: "未登录 — 仅本地统计",
   pendingCode: "请在浏览器中批准代码 {code}",
+  scanToApprove: "也可以用手机扫码，在手机上完成批准",
   copyUrl: "复制链接",
   cancel: "取消",
   openDashboard: "打开仪表盘",
@@ -106,6 +107,8 @@ export const zh: Record<MessageKey, string> = {
   agent             无界面模式：定时统计并上传（适用于 WSL2、服务器）
                     --interval <秒>  上传间隔（默认 60）   --once  只执行一轮后退出
   login             将本设备连接到仪表盘（--dashboard <url>）
+                    --qr  总是打印批准链接的二维码   --no-qr  不打印
+                    --no-browser  不打开浏览器（只打印链接和二维码）
   logout            断开本设备
   status            打印今日用量、实时会话与限额
   sync              重新扫描所有智能体并重新上传本设备完整历史（校准）
@@ -129,7 +132,11 @@ export const zh: Record<MessageKey, string> = {
   cliStartingMenubar: "正在启动菜单栏应用…",
   cliLoginStart: "正在将本设备连接到 {dashboard}",
   cliLoginCode: "你的代码：{code}",
-  cliLoginOpen: "请在浏览器中打开以下链接并批准该设备：\n  {url}",
+  cliLoginOpen: "在任意设备上打开以下链接（本机、另一台电脑或手机均可），登录后批准：\n  {url}",
+  cliLoginExpires: "代码将在 {minutes} 分钟后过期。",
+  cliLoginScan: "  用手机相机扫描二维码，即可在手机上打开同一链接。",
+  cliLoginBrowserOpened: "已在浏览器中打开链接。",
+  cliLoginBrowserFailed: "本机无法打开浏览器 —— 请改用上面的链接或二维码。",
   cliLoginWaiting: "等待批准…",
   cliLoginSuccess: "已连接：{name}。上传已启用。",
   cliLoginDenied: "请求被拒绝。",

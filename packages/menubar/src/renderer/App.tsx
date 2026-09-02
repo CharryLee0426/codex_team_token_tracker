@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatPercent, formatTokens, formatUSD } from "@codex-tracker/shared";
 import type { Snapshot, SyncState, UpdateState } from "../core/snapshot";
 import { durationShort, localeTag, relativeTime, t as tr, windowLabel, type Language, type MessageKey } from "../i18n";
 import { Heatmap } from "./components/Heatmap";
 import { Models } from "./components/Models";
+import { encodeQr, qrSvgPath } from "../core/qr";
 
 const bridge = () => window.codexTracker;
 
@@ -127,6 +128,28 @@ function SyncBar({ sync, t }: { sync: SyncState; t: (key: MessageKey, params?: R
       <span className="msg" title={`${r.roots} dirs · ${(r.durationMs / 1000).toFixed(1)}s`}>
         {t(r.uploaded ? "syncDone" : "syncDoneLocal", params)}
       </span>
+    </div>
+  );
+}
+
+
+/** The approval link as a QR code, so the device can be approved from a phone when this machine has no browser handy. */
+function LoginQr({ url, caption }: { url: string; caption: string }) {
+  const qr = useMemo(() => {
+    try {
+      return encodeQr(url, { ecc: "M" });
+    } catch {
+      return null;
+    }
+  }, [url]);
+  if (!qr) return null;
+  return (
+    <div className="qr">
+      <svg viewBox={`0 0 ${qr.size} ${qr.size}`} width={132} height={132} shapeRendering="crispEdges" role="img" aria-label={url}>
+        <rect width={qr.size} height={qr.size} fill="#fff" />
+        <path d={qrSvgPath(qr)} fill="#000" />
+      </svg>
+      <div className="empty">{caption}</div>
     </div>
   );
 }
@@ -436,6 +459,7 @@ export function App() {
                 <>
                   <div className="code">{auth.pendingCode}</div>
                   <div className="empty">{t("pendingCode", { code: auth.pendingCode })}</div>
+                  {auth.verifyUrl ? <LoginQr url={auth.verifyUrl} caption={t("scanToApprove")} /> : null}
                   <div className="row">
                     {auth.verifyUrl ? (
                       <button onClick={() => void bridge().openExternal(auth.verifyUrl!)}>{t("openDashboard")}</button>

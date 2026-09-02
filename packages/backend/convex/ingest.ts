@@ -3,6 +3,8 @@ import { mutation, query } from "./_generated/server";
 import { requireDevice, publicUser } from "./lib/auth";
 import { usageFields, liveValidator } from "./schema";
 import { MAX_BUCKETS_PER_PUSH, MAX_SESSIONS_PER_PUSH } from "@codex-tracker/shared/wire";
+import { isMachineId } from "@codex-tracker/shared/device-identity";
+import { noteMachineId } from "./devices";
 import type { Doc } from "./_generated/dataModel";
 
 const bucketValidator = v.object({ hourStart: v.number(), model: v.string(), agent: v.optional(v.string()), ...usageFields });
@@ -139,6 +141,11 @@ export const pushSessions = mutation({
   },
 });
 
+/**
+ * Liveness + the "live now" snapshot. Also where a machine's identity is reconciled: the heartbeat's
+ * `machineId` is backfilled onto devices created before 0.3.0, and duplicate device rows for the same
+ * machine (a tray app and an agent that each ran `login`) are folded together — see `devices.ts`.
+ */
 export const heartbeat = mutation({
   args: {
     token: v.string(),
@@ -154,18 +161,22 @@ export const heartbeat = mutation({
       todayTotal: v.number(),
       todayCost: v.number(),
     })),
+    machineId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { device } = await requireDevice(ctx, args.token);
+    const { device, login } = await requireDevice(ctx, args.token);
     const now = Date.now();
+    const isCanonical = login._id === device._id;
     await ctx.db.patch(device._id, {
       lastSeenAt: now,
       appVersion: args.appVersion,
-      platform: args.platform,
-      hostname: args.hostname ?? undefined,
       timezone: args.timezone,
       live: args.live ? { ...args.live, updatedAt: now } : undefined,
+      // An alias (e.g. the WSL agent of a Windows tray device) must not relabel the machine.
+      ...(isCanonical ? { platform: args.platform, hostname: args.hostname ?? undefined } : {}),
     });
+    if (!isCanonical) await ctx.db.patch(login._id, { lastSeenAt: now, appVersion: args.appVersion });
+    if (isMachineId(args.machineId)) await noteMachineId(ctx, device, login, args.machineId, now);
     return { ok: true, serverTime: now };
   },
 });

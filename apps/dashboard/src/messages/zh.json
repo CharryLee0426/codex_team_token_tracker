@@ -195,7 +195,9 @@
     "connectHint": "在机器上运行 `codex-tracker login` 即可连接。",
     "liveSession": "当前会话",
     "idle": "空闲",
-    "count": "{count} 台设备"
+    "count": "{count} 台设备",
+    "logins": "{count} 次登录",
+    "loginsHint": "这台机器登录了多次（例如托盘应用 + 无界面 agent）。其用量只统计一次。"
   },
   "sessions": {
     "title": "最近会话",

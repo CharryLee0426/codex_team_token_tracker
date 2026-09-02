@@ -52,6 +52,7 @@ export const en = {
   signedInAs: "Signed in as {name}",
   signedOut: "Not signed in — local tracking only",
   pendingCode: "Approve code {code} in your browser",
+  scanToApprove: "Or scan with your phone to approve from there",
   copyUrl: "Copy link",
   cancel: "Cancel",
   openDashboard: "Open dashboard",
@@ -107,6 +108,8 @@ Commands:
   agent             Headless mode: track + upload on a schedule (WSL2, servers)
                     --interval <sec>  upload interval (default 60)   --once  run one cycle and exit
   login             Connect this device to your dashboard (--dashboard <url>)
+                    --qr  always print a QR code of the approval link   --no-qr  never
+                    --no-browser  do not open a browser (print the link + QR code only)
   logout            Disconnect this device
   status            Print today's usage, live session and rate limits
   sync              Rescan every agent and re-upload this device's full history (calibrate)
@@ -130,7 +133,11 @@ Options:
   cliStartingMenubar: "Starting menu bar app…",
   cliLoginStart: "Connecting this device to {dashboard}",
   cliLoginCode: "Your code: {code}",
-  cliLoginOpen: "Open this link in your browser and approve the device:\n  {url}",
+  cliLoginOpen: "Open this link on any device — this computer, another one, or your phone — sign in and approve:\n  {url}",
+  cliLoginExpires: "The code expires in {minutes} min.",
+  cliLoginScan: "  Scan the QR code with your phone's camera to open the same link there.",
+  cliLoginBrowserOpened: "Opened the link in your browser.",
+  cliLoginBrowserFailed: "Could not open a browser on this machine — use the link or the QR code instead.",
   cliLoginWaiting: "Waiting for approval…",
   cliLoginSuccess: "Connected as {name}. Uploads are enabled.",
   cliLoginDenied: "The request was denied.",
