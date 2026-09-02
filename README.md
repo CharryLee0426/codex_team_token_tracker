@@ -28,7 +28,7 @@ Production: dashboard **https://codex.chenli.dev** · npm package **`codex-token
 - **Views** — daily contribution heatmap, hour × weekday activity, Mon–Sun comparison, model distribution, member leaderboard, live "coding now", recent sessions, devices.
 - **Sources** — every agent that consumes the Codex subscription is tagged (`codex`, `pi`, `opencode`, `cline`, `roo`, `kilo`, `hermes`, custom dirs); API-key providers inside those agents are excluded by default.
 - **Teams** — Clerk Organizations; membership synced from JWT and webhooks; any number of devices per person.
-- **Time & language** — database in UTC, all views in the viewer's local time; English / Simplified Chinese, auto-detected and persisted; light / dark / system theme (OpenRouter-style UI).
+- **Time & language** — database in UTC, all views in the viewer's local time; English / Simplified Chinese, auto-detected and persisted; light / dark / system theme (mission-control style UI with a particle scene behind the landing page and dashboard).
 - **Privacy** — only counts, model/agent names, project folder names and a path hash leave the machine.
 
 ## Repository layout
@@ -47,7 +47,7 @@ Tech stack: Node ≥ 20, TypeScript, pnpm workspaces, Next.js, Clerk, Convex, El
 
 1. Every Codex-OAuth agent keeps a local transcript with per-request usage. The tracker's source registry (`packages/menubar/src/core/sources`) discovers and parses them: Codex rollouts (`~/.codex/sessions`, cumulative `token_count` counters turned into per-request deltas), pi (`~/.pi/agent/sessions`), OpenCode storage, Cline-family task folders, Hermes sessions, custom directories.
 2. Usage is bucketed by **UTC hour × model × agent**, priced, and upserted to Convex (idempotent — rescans never double count). Sessions are summarized (project folder name + path hash only).
-3. A heartbeat every 15 s carries the live snapshot (current session, tokens/sec) for the dashboard's "live now".
+3. A heartbeat every 15 s carries the live snapshot (current session, output tokens/sec) for the dashboard's "live now".
 4. The dashboard subscribes to Convex queries and converts UTC buckets to the viewer's local time for every day / hour / weekday view.
 5. Teams are Clerk Organizations; the team view aggregates all members' devices.
 
@@ -59,18 +59,24 @@ cd apps/dashboard && npx convex dev            # dev deployment; writes .env.loc
 # Clerk dev keys → apps/dashboard/.env.local (see .env.example); `clerk init` can do it
 pnpm dev                                        # http://localhost:3000
 
-pnpm --filter codex-token-tracker build
-node packages/menubar/bin/codex-tracker.js login --dashboard http://localhost:3000
+pnpm --filter codex-token-tracker build          # a local build is a *dev* build
+node packages/menubar/bin/codex-tracker.js login   # → localhost:3000 by default, no flag needed
 node packages/menubar/bin/codex-tracker.js      # tray app, or `agent` / `status`
 ```
+
+A local `pnpm build` targets the **dev** environment: the dashboard at `http://localhost:3000` (and so
+the dev Convex deployment), state in `~/.codex-tracker-dev`, no self-update, an orange **DEV** badge in
+the popover. Only `--release` — which `prepack` runs on `npm pack` / `npm publish` — produces a build
+that talks to production. The two can run side by side; see
+[`packages/menubar/README.md`](packages/menubar/README.md#dev-builds-vs-published-builds).
 
 | Command | What |
 |---|---|
 | `pnpm test` | unit tests (shared parsers/pricing/aggregation, menubar sources) |
 | `pnpm -r typecheck` | all workspaces |
 | `pnpm build` | packages, then the dashboard |
-| `pnpm release:menubar` | publish `codex-token-tracker` (see the admin guide) |
+| `pnpm release:menubar` | publish `codex-token-tracker` — `prepack` makes the production build (see the admin guide) |
 
-Pricing lives in `packages/shared/src/pricing.ts`; unknown models fall back to their family and are flagged *estimated*. Versions are pinned to stable major lines (Next 15, Clerk 6, Convex 1.x, TypeScript 5.9, Electron 38, recharts 2); pnpm ≥ 10 needs the `allowBuilds` list in `pnpm-workspace.yaml`.
+Pricing lives in `packages/shared/src/pricing.ts`, mirroring <https://developers.openai.com/api/docs/pricing> (including the 272K long-context tiers); unknown models fall back to their family and are flagged *estimated*. Only OpenAI models are counted — usage other agents produced on Anthropic/Google/local models is dropped, since this tracker reports Codex consumption. Versions are pinned to stable major lines (Next 15, Clerk 6, Convex 1.x, TypeScript 5.9, Electron 38, recharts 2); pnpm ≥ 10 needs the `allowBuilds` list in `pnpm-workspace.yaml`.
 
 License: MIT.

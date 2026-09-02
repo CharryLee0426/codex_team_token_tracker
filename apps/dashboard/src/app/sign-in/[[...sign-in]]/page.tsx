@@ -1,16 +1,13 @@
 import { SignIn } from "@clerk/nextjs";
 import { getTranslations } from "next-intl/server";
-import { SiteHeader } from "@/components/header/site-header";
+import { AuthShell } from "@/components/auth/auth-shell";
 
 export default async function SignInPage() {
   const t = await getTranslations("auth");
+  const tc = await getTranslations("common");
   return (
-    <div className="min-h-screen">
-      <SiteHeader />
-      <main className="mx-auto flex max-w-6xl flex-col items-center px-4 py-12">
-        <h1 className="mb-6 text-lg font-semibold text-fg">{t("signInTitle")}</h1>
-        <SignIn />
-      </main>
-    </div>
+    <AuthShell eyebrow={tc("appName")} title={t("signInTitle")}>
+      <SignIn />
+    </AuthShell>
   );
 }

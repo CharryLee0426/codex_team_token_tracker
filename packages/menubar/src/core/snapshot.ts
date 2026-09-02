@@ -1,6 +1,8 @@
 import type { TokenUsage, HeatmapGrid, LiveRateLimits } from "@codex-tracker/shared";
 import type { Language, LanguageSetting } from "../i18n";
+import type { AppChannel } from "../version";
 import type { PlatformKind } from "./platform";
+import type { UpdateInfo } from "./update";
 
 export interface ModelStat {
   model: string;
@@ -29,12 +31,53 @@ export interface LiveState {
   model: string;
   startedAt: number;
   lastEventAt: number;
-  tokensPerSecond: number; // 60 s window
-  tokensPerSecond10s: number; // 10 s window
+  /** Generated (output) tokens per second over the last 60 s. */
+  tokensPerSecond: number;
+  /** Generated (output) tokens per second over the last 10 s — the burst rate. */
+  tokensPerSecond10s: number;
   contextUsed: number; // last request's context size (input + output)
   contextWindow: number | null;
   sessionUsage: TokenUsage;
   sessionCost: number;
+}
+
+/** Self-update state: what the registry says, plus how the last in-app install attempt went. */
+export interface UpdateState extends UpdateInfo {
+  status: "idle" | "checking" | "installing" | "installed" | "failed";
+  /** Tail of the installer output — only kept when `status` is "failed". */
+  log: string | null;
+}
+
+/** Stages of a full sync, in the order they run. */
+export type SyncPhase = "scanning" | "computing" | "uploading" | "downloading" | "limits";
+
+/** What one completed full sync found and sent. */
+export interface SyncResult {
+  startedAt: number;
+  finishedAt: number;
+  durationMs: number;
+  /** Transcript files re-read across every discovered source. */
+  files: number;
+  sessions: number;
+  /** Session roots that were discovered (Codex, pi, OpenCode, Cline/Roo/Kilo, Hermes, custom dirs). */
+  roots: number;
+  /** Agent names found on disk, e.g. ["codex", "opencode", "pi"]. */
+  agents: string[];
+  /** Hour buckets re-uploaded (0 when signed out). */
+  uploadedBuckets: number;
+  uploadedSessions: number;
+  /** False when the device is signed out — the rescan still ran, nothing left the machine. */
+  uploaded: boolean;
+}
+
+export interface SyncState {
+  status: "idle" | "running" | "done" | "error";
+  phase: SyncPhase | null;
+  startedAt: number | null;
+  finishedAt: number | null;
+  error: string | null;
+  /** The most recent successful sync, kept after the banner clears. */
+  last: SyncResult | null;
 }
 
 export type AuthStatus = "signedOut" | "pending" | "signedIn";
@@ -64,6 +107,8 @@ export interface SessionRootInfo {
 
 export interface Snapshot {
   version: string;
+  /** "dev" for a local build (local dashboard, separate config dir), "prod" for a published one. */
+  channel: AppChannel;
   generatedAt: number;
   language: Language;
   languageSetting: LanguageSetting;
@@ -78,6 +123,10 @@ export interface Snapshot {
   rateLimits: LiveRateLimits | null;
   rateLimitsError: string | null;
   rateLimitsUpdatedAt: number | null;
+  /** Null when update checks are disabled (`config set checkUpdates false`). */
+  update: UpdateState | null;
+  /** Full-sync progress and the result of the last one. */
+  sync: SyncState;
   modelsToday: ModelStat[];
   modelsMonth: ModelStat[];
   byAgentToday: AgentStat[];
@@ -94,6 +143,8 @@ export interface Snapshot {
   };
   sessionDirs: string[];
   sessionRoots: SessionRootInfo[];
+  /** Where config, device token and upload state live — differs between dev and prod builds. */
+  configDir: string;
   launchAtLogin: boolean;
   trayTitle: "tokens" | "cost" | "none";
 }
@@ -110,5 +161,11 @@ export interface TrackerBridge {
   cancelLogin(): Promise<void>;
   logout(): Promise<void>;
   refresh(): Promise<void>;
+  /** Rescan every agent source from scratch and re-upload this device's whole history. */
+  syncNow(): Promise<void>;
+  /** Force a registry check now. */
+  checkUpdate(): Promise<void>;
+  /** Run the global install; resolves once the package manager has exited. */
+  installUpdate(): Promise<void>;
   quit(): Promise<void>;
 }

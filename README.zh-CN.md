@@ -28,7 +28,7 @@
 - **视图** — 每日贡献热力图、小时 × 星期活跃度、周一至周日对比、模型分布、成员排行榜、实时“正在编码”、最近会话、设备列表。
 - **来源** — 所有消耗 Codex 订阅的智能体都会被打上标签（`codex`、`pi`、`opencode`、`cline`、`roo`、`kilo`、`hermes`、自定义目录）；这些智能体内部使用 API Key 的 provider 默认不计入。
 - **团队** — 基于 Clerk 组织（团队）；成员关系通过 JWT 与 Webhook 同步；每人可绑定任意数量的设备。
-- **时间与语言** — 数据库以 UTC 存储，所有视图按查看者的本机本地时间显示；英文 / 简体中文自动检测并持久化；浅色 / 深色 / 跟随系统主题（OpenRouter 风格 UI）。
+- **时间与语言** — 数据库以 UTC 存储，所有视图按查看者的本机本地时间显示；英文 / 简体中文自动检测并持久化；浅色 / 深色 / 跟随系统主题（任务控制风格 UI，落地页与仪表盘背后有粒子场景）。
 - **隐私** — 离开本机的只有计数、模型/智能体名称、项目文件夹名和路径哈希。
 
 ## 仓库结构
@@ -59,18 +59,23 @@ cd apps/dashboard && npx convex dev            # dev deployment; writes .env.loc
 # Clerk dev keys → apps/dashboard/.env.local (see .env.example); `clerk init` can do it
 pnpm dev                                        # http://localhost:3000
 
-pnpm --filter codex-token-tracker build
-node packages/menubar/bin/codex-tracker.js login --dashboard http://localhost:3000
+pnpm --filter codex-token-tracker build          # 本地构建即*开发版*构建
+node packages/menubar/bin/codex-tracker.js login   # 默认指向 localhost:3000，无需附加参数
 node packages/menubar/bin/codex-tracker.js      # tray app, or `agent` / `status`
 ```
+
+本地执行 `pnpm build` 得到的是面向**开发环境**的构建：仪表盘为 `http://localhost:3000`（因而对应开发用
+Convex 部署），状态保存在 `~/.codex-tracker-dev`，不进行自动更新，弹窗中带橙色 **DEV** 标记。只有
+`--release`（`npm pack` / `npm publish` 时由 `prepack` 执行）才会生成连接生产环境的构建。两者可以同时运行，
+详见 [`packages/menubar/README.md`](packages/menubar/README.md#dev-builds-vs-published-builds)。
 
 | 命令 | 作用 |
 |---|---|
 | `pnpm test` | 单元测试（shared 的解析器/定价/聚合，menubar 的来源模块） |
 | `pnpm -r typecheck` | 所有 workspace 的类型检查 |
 | `pnpm build` | 先构建各 package，再构建仪表盘 |
-| `pnpm release:menubar` | 发布 `codex-token-tracker`（见管理员指南） |
+| `pnpm release:menubar` | 发布 `codex-token-tracker` —— 由 `prepack` 生成生产版构建（见管理员指南） |
 
-定价表位于 `packages/shared/src/pricing.ts`；未知模型会回退到同系列价格并标记为 *estimated*（估算）。依赖版本固定在稳定的主版本线（Next 15、Clerk 6、Convex 1.x、TypeScript 5.9、Electron 38、recharts 2）；pnpm ≥ 10 需要 `pnpm-workspace.yaml` 中的 `allowBuilds` 列表。
+定价表位于 `packages/shared/src/pricing.ts`，与 <https://developers.openai.com/api/docs/pricing> 保持一致（含 272K 长上下文档位）；未知模型会回退到同系列价格并标记为 *estimated*（估算）。仅统计 OpenAI 模型 —— 其他 agent 在 Anthropic/Google/本地模型上的用量会被忽略，因为本工具统计的是 Codex 消耗。依赖版本固定在稳定的主版本线（Next 15、Clerk 6、Convex 1.x、TypeScript 5.9、Electron 38、recharts 2）；pnpm ≥ 10 需要 `pnpm-workspace.yaml` 中的 `allowBuilds` 列表。
 
 许可证：MIT。

@@ -2,7 +2,7 @@
 
 # Codex Tracker – Dashboard
 
-Next.js 15 (App Router) dashboard for team Codex token usage. Auth by Clerk (Google / GitHub, Organizations), realtime data from Convex, English + Chinese, light / dark / system theme, OpenRouter-style UI.
+Next.js 15 (App Router) dashboard for team Codex token usage. Auth by Clerk (Google / GitHub, Organizations), realtime data from Convex, English + Chinese, light / dark / system theme. Mission-control style UI: a dark-first "deep space" design system with a persistent particle scene behind the landing page and the dashboard.
 
 ## Local development
 
@@ -59,8 +59,23 @@ In the Convex dashboard (Settings → Environment Variables) for each deployment
 
 ## Structure
 
-- `src/app` – routes: `/` landing, `/dashboard/{personal,team,members,devices}`, `/cli-auth` (device approval), `/settings`, `/sign-in`, `/sign-up`, `/api/config`, `/api/health`
-- `src/components/charts` – recharts + SVG charts using the shared, CVD-validated palette
-- `src/components/dashboard` – KPI tiles, usage dashboard composition, leaderboard, sessions, devices
-- `src/hooks/use-hourly-range.ts` – chunked live subscription to `usage.hourly` (UTC hour buckets → local time on the client)
+- `src/app` – routes: `/` landing, `/dashboard/{personal,team,members,devices}`, `/cli-auth` (device approval), `/settings`, `/sign-in`, `/sign-up`, `/preview/*` (design harness, dev only), `/api/config`, `/api/health`
+- `src/app/globals.css` + `src/lib/theme.ts` – design tokens (dark-first palette with a light variant); the TS copy feeds charts, the canvas scene and Clerk's appearance
+- `src/components/scene` – the canvas particle engine (starfield, landing constellation, warp transition) mounted once in the root layout so it persists across navigation
+- `src/components/landing` – hero, telemetry strip, feature cards, how-it-works, product preview (the real board on sample data)
+- `src/components/shell` – dashboard chrome: desktop rail, glass top bar, phone tab bar, realtime-link indicator
+- `src/components/charts` – recharts + SVG charts using the shared, CVD-validated palette; every chart sits in `ChartCard` (skeleton → chart, stale dimming, optional table twin)
+- `src/components/dashboard` – `usage-dashboard.tsx` (container: Convex subscriptions + preferences) and `usage-dashboard-view.tsx` (pure view), KPI tiles, leaderboard, sessions, devices, members
+- `src/components/ui` – primitives (button, card, stat tile with sparkline / ring meter, segmented control, responsive table that collapses into cards below `md`)
+- `src/hooks/use-usage-data.ts` – live usage → render model (`src/lib/usage-model.ts`); `use-hourly-range.ts` – chunked subscription to `usage.hourly` (UTC hour buckets → local time on the client)
+- `src/lib/demo-data.ts` – deterministic sample data for the landing preview and the `/preview` harness
 - `src/i18n` + `src/messages` – next-intl (cookie `NEXT_LOCALE`, defaults to the browser language)
+
+## Design preview harness
+
+`/preview/{personal,team,members,devices,settings}` renders the full dashboard chrome and views from sample data, without a session — handy for reviewing the UI on phones and tablets. It is available in development only; set `NEXT_PUBLIC_DESIGN_PREVIEW=1` to expose it on a deployed build.
+
+## Motion & performance notes
+
+- The scene respects `prefers-reduced-motion` (static frame, plain navigation instead of the warp), pauses when the tab is hidden, caps the frame rate at 30 fps inside the app, and scales particle counts by a coarse device tier (`src/hooks/use-perf-tier.ts`).
+- Charts animate only on first render; live updates never replay transitions. Range changes keep the previous render dimmed instead of flashing skeletons.

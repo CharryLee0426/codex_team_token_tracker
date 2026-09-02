@@ -3,8 +3,19 @@ import os from "node:os";
 import path from "node:path";
 import type { ModelPrice } from "@codex-tracker/shared";
 import type { LanguageSetting } from "../i18n";
+import { IS_DEV_BUILD } from "../version";
 
-export const DEFAULT_DASHBOARD_URL = "https://codex.chenli.dev";
+/** The hosted dashboard a published build talks to. */
+export const PROD_DASHBOARD_URL = "https://codex.chenli.dev";
+/**
+ * `pnpm dev` / `next dev` in apps/dashboard. Its /api/config advertises whatever Convex deployment
+ * the local dashboard is configured against — the dev one — so pointing here is all a dev build
+ * needs to keep its data out of production.
+ */
+export const DEV_DASHBOARD_URL = "http://localhost:3000";
+
+/** Default for *this* build. Users can still override it (`--dashboard`, `config set dashboardUrl`). */
+export const DEFAULT_DASHBOARD_URL = IS_DEV_BUILD ? DEV_DASHBOARD_URL : PROD_DASHBOARD_URL;
 
 /** How a session directory's files are parsed (see src/core/sources). */
 export type SourceFormat = "codex" | "pi" | "generic" | "opencode" | "cline";
@@ -51,6 +62,8 @@ export interface TrackerConfig {
   liveRateLimits: boolean;
   /** Seconds between live rate-limit refreshes. */
   usageRefreshSec: number;
+  /** Ask the npm registry whether a newer version has been published. */
+  checkUpdates: boolean;
 }
 
 export const DEFAULT_CONFIG: TrackerConfig = {
@@ -69,6 +82,8 @@ export const DEFAULT_CONFIG: TrackerConfig = {
   trackAllProviders: false,
   liveRateLimits: true,
   usageRefreshSec: 60,
+  // a dev build must never offer to replace itself with the published package
+  checkUpdates: !IS_DEV_BUILD,
 };
 
 /** Keys users may change through `codex-tracker config set` (plus dotted `sources.<name>`). */
@@ -84,6 +99,7 @@ export const EDITABLE_KEYS: Array<keyof TrackerConfig> = [
   "trackAllProviders",
   "liveRateLimits",
   "usageRefreshSec",
+  "checkUpdates",
 ];
 
 export interface UploadState {
@@ -92,8 +108,13 @@ export interface UploadState {
   lastUploadAt: number | null;
 }
 
+/**
+ * Where config, device token, upload state and pricing overrides live.
+ * A dev build gets its own directory: sharing one would let a local run overwrite the production
+ * device token and the record of what was already pushed to the production deployment.
+ */
 export function configDir(): string {
-  return process.env.CODEX_TRACKER_HOME || path.join(os.homedir(), ".codex-tracker");
+  return process.env.CODEX_TRACKER_HOME || path.join(os.homedir(), IS_DEV_BUILD ? ".codex-tracker-dev" : ".codex-tracker");
 }
 
 function readJson<T>(file: string, fallback: T): T {
@@ -158,6 +179,7 @@ export function loadConfig(): TrackerConfig {
   cfg.sources = normalizeSources(stored.sources);
   cfg.trackAllProviders = stored.trackAllProviders === true;
   cfg.liveRateLimits = stored.liveRateLimits !== false;
+  cfg.checkUpdates = typeof stored.checkUpdates === "boolean" ? stored.checkUpdates : DEFAULT_CONFIG.checkUpdates;
   if (!(cfg.usageRefreshSec >= 15)) cfg.usageRefreshSec = DEFAULT_CONFIG.usageRefreshSec;
   if (!["auto", "en", "zh"].includes(cfg.language)) cfg.language = "auto";
   if (!(cfg.uploadIntervalSec >= 10)) cfg.uploadIntervalSec = DEFAULT_CONFIG.uploadIntervalSec;
@@ -191,6 +213,7 @@ export function coerceConfigValue(key: keyof TrackerConfig, raw: string): Tracke
     case "launchAtLogin":
     case "trackAllProviders":
     case "liveRateLimits":
+    case "checkUpdates":
       return parseBool(raw);
     case "extraSessionDirs": {
       const trimmed = raw.trim();

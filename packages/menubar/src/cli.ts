@@ -17,8 +17,9 @@ import { hasDisplay, platformKind, systemLocale } from "./core/platform";
 import { describeRoot, discoverSessionRoots } from "./core/sources";
 import { SOURCE_IDS, normalizeSources, type SourcesConfig } from "./core/config";
 import { errorMessage } from "./core/uploader";
+import { checkForUpdate, runUpdate as installUpdate } from "./core/update";
 import { durationShort, localeTag, makeT, relativeTime, resolveLanguage, windowLabel, type LanguageSetting } from "./i18n";
-import { APP_VERSION } from "./version";
+import { APP_VERSION, IS_DEV_BUILD } from "./version";
 
 interface Args {
   command: string | null;
@@ -209,11 +210,52 @@ async function runStatus(json: boolean): Promise<number> {
       : t("cliNotSignedIn"),
   );
   line(t("cliStatusDirs"), s.sessionDirs.join("\n" + " ".repeat(15)) || "-");
+  if (IS_DEV_BUILD) console.log(t("cliChannelDev", { url: s.auth.dashboardUrl, dir: configDir() }));
   const byAgent = Object.entries(s.counts.byAgent)
     .sort((a, b) => b[1].sessions - a[1].sessions)
     .map(([agent, c]) => `${agent} ${c.sessions}`)
     .join(", ");
   console.log(t("sessions", { n: s.counts.sessions }) + " · " + t("files", { n: s.counts.files }) + (byAgent ? ` (${byAgent})` : ""));
+  if (cfg.checkUpdates) {
+    const u = await checkForUpdate();
+    if (u.available) console.log("\n" + t("cliUpdateAvailable", { current: u.current, latest: u.latest ?? "?" }) + ` — ${u.command}`);
+  }
+  return 0;
+}
+
+/**
+ * `codex-tracker sync` — the CLI twin of the popover's Sync button: re-discover every agent on this
+ * device, re-parse every transcript and re-upload the whole history so the dashboard's numbers for
+ * this device are recalibrated.
+ */
+async function runSync(flags: Args["flags"]): Promise<number> {
+  const cfg = applyDashboardFlag(flags);
+  const L = lang(cfg);
+  const t = makeT(L);
+  const engine = new Engine({
+    upload: true,
+    watch: false,
+    systemLocale: systemLocale(),
+    log: process.env.CODEX_TRACKER_DEBUG ? (m) => console.error("[sync]", m) : undefined,
+  });
+  console.log(t("cliSyncStart"));
+  const result = await engine.syncNow();
+  if (!result) {
+    console.error(t("cliSyncFailed", { message: engine.snapshot().sync.error ?? "?" }));
+    return 1;
+  }
+  console.log(t("cliSyncScanned", { files: result.files, roots: result.roots, agents: result.agents.join(", ") || "-" }));
+  if (result.uploaded) console.log(t("cliSyncUploaded", { buckets: result.uploadedBuckets, sessions: result.uploadedSessions }));
+  else console.log(t("cliSyncLocal"));
+  const s = engine.snapshot();
+  console.log(
+    t("cliSyncDone", {
+      seconds: (result.durationMs / 1000).toFixed(1),
+      sessions: result.sessions,
+      tokens: formatTokens(s.today.usage.total),
+      cost: formatUSD(s.today.cost),
+    }),
+  );
   return 0;
 }
 
@@ -322,6 +364,7 @@ function runPaths(): number {
   const off = SOURCE_IDS.filter((id) => !cfg.sources[id]);
   if (off.length) console.log(`  (disabled: ${off.join(", ")})`);
   console.log(t("cliConfigDir", { dir: configDir() }));
+  if (IS_DEV_BUILD) console.log(t("cliChannelDev", { url: cfg.dashboardUrl, dir: configDir() }));
   return 0;
 }
 
@@ -368,6 +411,41 @@ function runConfig(positional: string[]): number {
   return 0;
 }
 
+/**
+ * `update` — report the newest published version and, unless `--check`, install it globally with
+ * the package manager this copy came from. The installer's output is streamed through so a failure
+ * (root-owned prefix, proxy, offline) is visible rather than swallowed.
+ */
+async function runUpdateCommand(flags: Args["flags"]): Promise<number> {
+  const t = makeT(lang());
+  if (IS_DEV_BUILD) {
+    console.error(t("cliUpdateDevBuild"));
+    return 1;
+  }
+  const info = await checkForUpdate({ force: true });
+  if (info.error && !info.latest) {
+    console.error(t("cliUpdateCheckFailed", { message: info.error }));
+    return 1;
+  }
+  if (!info.available) {
+    console.log(t("cliUpdateLatest", { version: info.current }));
+    return 0;
+  }
+  console.log(t("cliUpdateAvailable", { current: info.current, latest: info.latest ?? "?" }));
+  if (flags.check === true) {
+    console.log(`  ${info.command}`);
+    return 0;
+  }
+  console.log(t("cliUpdateRunning", { command: info.command }));
+  const r = await installUpdate({ version: info.latest ?? undefined, onOutput: (c) => process.stdout.write(c) });
+  if (!r.ok) {
+    console.error(t("cliUpdateFailed", { code: r.code ?? "?", command: r.command }));
+    return 1;
+  }
+  console.log(t("cliUpdateDone", { version: info.latest ?? "?" }));
+  return 0;
+}
+
 function runLang(positional: string[]): number {
   const value = positional[0];
   if (!value || !["en", "zh", "auto"].includes(value)) {
@@ -384,6 +462,7 @@ async function main(): Promise<number> {
   const t = makeT(lang());
   if (args.flags.version) {
     console.log(t("cliVersion", { version: APP_VERSION }));
+    if (IS_DEV_BUILD) console.log(t("cliChannelDev", { url: loadConfig().dashboardUrl, dir: configDir() }));
     return 0;
   }
   if (args.flags.help || args.command === "help") {
@@ -420,12 +499,17 @@ async function main(): Promise<number> {
     }
     case "status":
       return runStatus(args.flags.json === true);
+    case "sync":
+      return runSync(args.flags);
     case "paths":
       return runPaths();
     case "config":
       return runConfig(args.positional);
     case "lang":
       return runLang(args.positional);
+    case "update":
+    case "upgrade":
+      return runUpdateCommand(args.flags);
     default:
       console.error(t("cliUnknownCommand", { command: args.command }));
       console.log(t("cliUsage"));

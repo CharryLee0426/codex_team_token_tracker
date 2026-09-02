@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseSessionText, sessionIdFromFilename } from "../codex-parser.ts";
-import { resolvePrice, computeCost } from "../pricing.ts";
+import { resolvePrice, computeCost, isOpenAIModel, LONG_CONTEXT_THRESHOLD } from "../pricing.ts";
 import { sha256Hex } from "../sha256.ts";
 import { bucketEvents, buildHeatmap, groupByLocalDay } from "../aggregate.ts";
 import { formatTokens, formatUSD } from "../format.ts";
@@ -60,15 +60,38 @@ test("session id from filename", () => {
 test("pricing resolution and fallback", () => {
   assert.equal(resolvePrice("gpt-5-codex").estimated, false);
   assert.equal(resolvePrice("gpt-5.1-codex-max-2025-11-19").matchedKey, "gpt-5.1-codex-max");
-  const unknown = resolvePrice("gpt-5.6-sol");
+  // now a listed model rather than a family guess
+  const sol = resolvePrice("gpt-5.6-sol");
+  assert.equal(sol.estimated, false);
+  assert.equal(sol.price.output, 20);
+  assert.equal(resolvePrice("gpt-5.3-codex").price.input, 1.75);
+  const unknown = resolvePrice("gpt-5.9-quasar");
   assert.equal(unknown.estimated, true);
-  assert.equal(unknown.matchedKey, "gpt-5.2");
-  assert.equal(resolvePrice("gpt-5.7-mini").matchedKey, "gpt-5-mini");
+  assert.equal(unknown.matchedKey, "gpt-5.6-sol");
+  assert.equal(resolvePrice("gpt-5.7-mini").matchedKey, "gpt-5.4-mini");
   assert.equal(resolvePrice("codex-auto-review").matchedKey, null);
   const ov = resolvePrice("gpt-5.6-sol", { "gpt-5.6-sol": { input: 2, cachedInput: 0.2, output: 16 } });
-  assert.equal(ov.estimated, false);
+  assert.equal(ov.price.input, 2);
   const cost = computeCost({ input: 1_000_000, cached: 500_000, output: 100_000 }, { input: 1.25, cachedInput: 0.125, output: 10 });
   assert.equal(Number(cost.toFixed(4)), 0.625 + 0.0625 + 1);
+});
+
+test("long-context tier applies per request", () => {
+  const p = resolvePrice("gpt-5.6-terra").price;
+  const short = computeCost({ input: 100_000, output: 10_000 }, p);
+  const long = computeCost({ input: LONG_CONTEXT_THRESHOLD + 1, output: 0 }, p);
+  assert.equal(Number(short.toFixed(6)), Number(((100_000 * 2 + 10_000 * 12) / 1_000_000).toFixed(6)));
+  // 272_001 input tokens bill at the long-context input rate ($4/1M), not $2/1M
+  assert.equal(Number(long.toFixed(6)), Number((((LONG_CONTEXT_THRESHOLD + 1) * 4) / 1_000_000).toFixed(6)));
+});
+
+test("only OpenAI models count as Codex usage", () => {
+  for (const m of ["gpt-5.3-codex", "gpt-4o-mini", "o3-mini", "openai/gpt-5.1", "codex-mini-latest", "unknown"]) {
+    assert.equal(isOpenAIModel(m), true, m);
+  }
+  for (const m of ["claude-sonnet-4-5", "gemini-3-pro", "llama-4-70b", "qwen3-coder", "deepseek-v3"]) {
+    assert.equal(isOpenAIModel(m), false, m);
+  }
 });
 
 test("sha256 known vector", () => {

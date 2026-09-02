@@ -43,6 +43,7 @@ export interface UploadSession {
 export interface LiveSnapshot {
   sessionId: string | null;
   model: string | null;
+  /** Generated (output) tokens per second over the last 60 s. */
   tokensPerSecond: number;
   lastEventAt: number | null;
   todayTotal: number; // machine-local "today" total tokens

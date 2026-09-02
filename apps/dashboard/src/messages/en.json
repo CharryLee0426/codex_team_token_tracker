@@ -40,6 +40,7 @@
     "localTime": "Local time"
   },
   "nav": {
+    "dashboard": "Dashboard",
     "personal": "Personal",
     "team": "Team",
     "members": "Members",
@@ -52,12 +53,28 @@
     "system": "System",
     "docs": "Docs"
   },
+  "shell": {
+    "linkOnline": "Realtime link",
+    "linkReconnecting": "Reconnecting…",
+    "linkConnecting": "Connecting…"
+  },
   "landing": {
+    "eyebrow": "Realtime token telemetry for Codex teams",
     "badge": "For teams on Codex subscriptions",
     "title": "Know exactly how your team uses Codex",
     "subtitle": "A menu bar app that reads your local Codex sessions and a realtime team dashboard: tokens, cache hits, model mix and what it would cost at API prices.",
     "cta": "Get started",
     "ctaSecondary": "View dashboard",
+    "trust": "macOS · Windows · WSL2 · Google or GitHub sign-in",
+    "scroll": "Scroll",
+    "hud": {
+      "title": "Sample session",
+      "rate": "output tokens / s",
+      "devices": "Devices"
+    },
+    "sampleHint": "Sample figures · last 30 days",
+    "featuresEyebrow": "What you get",
+    "featuresTitle": "From every developer's machine to one live board",
     "install": "Install the menu bar app",
     "installHint": "Works on macOS and Windows (native and WSL2). Sign in with Google or GitHub.",
     "features": {
@@ -78,15 +95,22 @@
         "body": "Subscription usage priced at standard OpenAI API list prices, with cache-hit savings called out — so you know what the plan is worth."
       }
     },
+    "howEyebrow": "Three steps",
     "howTitle": "How it works",
     "how": {
       "1": "Install the npm package and run `codex-tracker login`.",
       "2": "Approve the device in this dashboard with your Google or GitHub account.",
       "3": "Usage is read from local Codex session logs and synced every minute."
     },
+    "previewEyebrow": "Mission control",
+    "previewTitle": "Every session, every device, one board",
+    "previewBody": "This is the real team dashboard rendered from sample data — switch the range, hover the charts. Your own data looks exactly like this.",
+    "previewCta": "Start tracking",
+    "launching": "Opening dashboard…",
     "footer": "Built for Codex CLI · Next.js · Convex · Clerk"
   },
   "ranges": {
+    "label": "Date range",
     "today": "Today",
     "7d": "7 days",
     "30d": "30 days",
@@ -95,16 +119,19 @@
   },
   "kpi": {
     "totalTokens": "Total tokens",
-    "cost": "API-equivalent cost",
-    "costHint": "At standard OpenAI API list prices",
+    "cost": "API cost",
+    "costHint": "At OpenAI API list prices",
     "cacheHit": "Cache hit rate",
     "cacheHitHint": "Cached input ÷ total input",
+    "cachedTokens": "{tokens} cached",
     "requests": "Requests",
+    "perRequest": "{tokens} per request",
     "activeMembers": "Active members",
-    "activeMembersHint": "Members with usage in range",
+    "activeMembersHint": "With usage in range",
     "liveNow": "Live now",
-    "liveNowHint": "Devices reporting in the last 2 min",
+    "liveNowHint": "Reporting in the last 2 min",
     "devices": "Devices",
+    "devicesHint": "Connected to your account",
     "sessions": "Sessions",
     "inputOutput": "{input} in · {output} out"
   },
@@ -113,21 +140,25 @@
     "usageOverTimeHint": "Daily tokens by model, local time",
     "heatmap": "Contribution heatmap",
     "heatmapHint": "Tokens per local day",
+    "weeksShown": "Last {count} weeks",
     "activeHours": "Active hours",
     "activeHoursHint": "Tokens by weekday and hour, local time",
+    "peak": "Peak",
     "weekday": "Weekday comparison",
     "weekdayHint": "Total tokens Monday to Sunday",
     "avgPerDay": "Average per {weekday}",
     "occurrences": "{count} days in range",
     "modelDist": "Model distribution",
     "modelDistHint": "Share of tokens by model",
+    "day": "Day",
     "less": "Less",
     "more": "More",
     "noData": "No usage in this range",
     "priceEstimated": "Price estimated — model not in the pricing table",
     "hour": "{hour}:00",
     "tokensPerDay": "tokens / day",
-    "cacheSavings": "Cache savings"
+    "cacheSavings": "Cache savings",
+    "activeHoursHover": "Hover or tap a cell for its hour"
   },
   "members": {
     "title": "Members",
@@ -257,7 +288,7 @@
     "connectStep2": "Sign in (opens this dashboard to approve the device)",
     "connectStep3": "Run in the background — the tray icon shows today's usage; on WSL2 use the headless agent",
     "pricingTitle": "Pricing",
-    "pricingBody": "Costs are computed on each device from standard OpenAI API list prices. Newer models fall back to the closest known family and are marked as estimated."
+    "pricingBody": "Costs are computed on each device from standard OpenAI API list prices, including the long-context tier above 272K input tokens. Only Codex (OpenAI) usage is reported — other providers your agents may use are not counted. Newer models fall back to the closest known family and are marked as estimated."
   },
   "auth": {
     "signInTitle": "Sign in to Codex Tracker",
@@ -266,5 +297,8 @@
   "sources": {
     "title": "Sources",
     "subtitle": "Which tools consumed the Codex subscription"
+  },
+  "preview": {
+    "banner": "Design preview — sample data, not your account"
   }
 }

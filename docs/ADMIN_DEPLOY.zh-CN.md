@@ -100,14 +100,30 @@ npm: codex-token-tracker (menu bar app; default dashboard = https://codex.chenli
 
 ## 5. 将菜单栏工具发布到 npm
 
-包名为 `codex-token-tracker`（内置默认仪表盘地址 `https://codex.chenli.dev`，用户可通过 `--dashboard` 自行更改）。
+包名为 `codex-token-tracker`。**已发布**构建内置的仪表盘地址是 `https://codex.chenli.dev`（用户可通过 `--dashboard` 自行更改）；**本地**构建则指向 `http://localhost:3000` —— 详见下方的*构建通道*。
 
 ```bash
 npm login                                  # once, on the publishing machine (npm account with 2FA recommended)
 pnpm --filter codex-token-tracker version patch   # or minor / major
-pnpm release:menubar                       # = pnpm --filter codex-token-tracker publish --access public (runs build + typecheck first)
+pnpm release:menubar                       # = pnpm --filter codex-token-tracker publish --access public
 git push origin main --tags
 ```
+
+`pnpm release:menubar` 会先执行 `prepublishOnly`（类型检查），再执行 `prepack` —— 后者用 `--release` 重新构建 `dist/`。正是这个标记让发布出去的产物指向生产环境，因此**绝不要发布手工构建的 `dist/`**，始终让生命周期脚本来做。发布结束后 `postpack` 会把 `dist/` 还原为开发版构建，你的工作副本仍然指向 localhost。
+
+### 构建通道
+
+`packages/menubar/scripts/build.mjs` 在打包时写入 `__APP_CHANNEL__`：带 `--release` 即为 `prod`，其他情况一律为 `dev`。该通道决定了：
+
+| | 开发版构建（`pnpm build`、`pnpm dev`） | 发布版构建（`prepack` → npm） |
+| --- | --- | --- |
+| 默认仪表盘 | `http://localhost:3000` | `https://codex.chenli.dev` |
+| Convex 部署 | 开发部署，经由本地仪表盘的 `/api/config` 获取 | 生产部署 |
+| 配置 / 设备令牌 / 上传状态 | `~/.codex-tracker-dev` | `~/.codex-tracker` |
+| 自动更新 | 关闭；`update` 会拒绝执行 | 开启 |
+| 应用名、LaunchAgent | `Codex Tracker (dev)`、`…menubar.dev` | `Codex Tracker`、`…menubar` |
+
+因此开发者在本地测试时，数据会用开发环境的设备令牌上传到开发部署，并且该构建可以与已安装的生产版本**同时运行**。弹窗中会用橙色 **DEV** 标记标识开发版构建。
 
 用户通过 `npm i -g codex-token-tracker@latest` 升级。Electron 是*可选*依赖，因此即使其二进制下载被拦截，无界面 / WSL 环境下的安装也能成功。
 
@@ -115,12 +131,12 @@ git push origin main --tags
 
 - **更新仪表盘 / 后端**：推送到 `main` → Vercel 构建 → 同一次构建中 `convex deploy` 会把函数和 schema 推送到生产环境。Schema 变更会针对现有数据做校验；新增字段请保持可选（如 `agent` 字段的做法）。
 - **预览部署（Preview）**（任何非 `main` 分支 / PR）：`CONVEX_DEPLOY_KEY` 只在 Production 环境设置，因此预览构建只执行 `next build`，并使用 **开发** Convex 部署和 **开发** Clerk 实例（Preview 环境变量）—— 这是一个不会触碰生产数据的安全预发布环境。
-- **定价表**：`packages/shared/src/pricing.ts`（每 100 万 token 的美元价格）。未知模型会回退到同系列价格并标记为 *est.*；用户可在本地 `~/.codex-tracker/pricing.json` 中覆盖。
+- **定价表**：`packages/shared/src/pricing.ts`（每 100 万 token 的美元价格），与 <https://developers.openai.com/api/docs/pricing> 保持一致，并包含输入超过 272K token 时的长上下文档位。未知模型会回退到同系列价格并标记为 *est.*；用户可在本地 `~/.codex-tracker/pricing.json` 中覆盖。仅统计 OpenAI 模型 —— 其他 agent 在非 OpenAI 模型上的用量会在设备端丢弃，并在仪表盘再过滤一次。
 - **撤销设备**：用户在 Dashboard → Devices 中操作；管理员可以在 Convex 控制台中为 `devices` 表对应行设置 `revokedAt`。
 - **移除成员**：从 Clerk 组织中移除该成员；Webhook 会删除成员关系，团队视图不再包含此人（其数据行仍然关联到该用户）。
 - **备份 / 导出**：Convex 控制台 → Settings → Export，或执行 `npx convex export --prod`。
 - **轮换密钥**：重新生成 Convex 部署密钥或 Clerk 密钥并更新 Vercel → 重新部署；更换 Webhook 密钥后需要同步更新 Convex 环境变量。
-- **本地开发**仍然使用开发部署：`cd apps/dashboard && npx convex dev` + `pnpm dev`；`codex-tracker login --dashboard http://localhost:3000`。
+- **本地开发**仍然使用开发部署：`cd apps/dashboard && npx convex dev` + `pnpm dev`，然后执行 `pnpm --filter codex-token-tracker build` 与 `node packages/menubar/bin/codex-tracker.js login` —— 本地构建已经默认指向 `http://localhost:3000` 并使用独立的 `~/.codex-tracker-dev`，无需 `--dashboard` 参数，也不会影响生产数据。
 
 ## 7. 故障排查
 

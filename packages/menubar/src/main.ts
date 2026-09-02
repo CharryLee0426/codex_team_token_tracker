@@ -9,7 +9,7 @@ import { Engine } from "./core/engine";
 import { errorMessage } from "./core/uploader";
 import type { Snapshot } from "./core/snapshot";
 import { t, type LanguageSetting } from "./i18n";
-import { APP_NAME, APP_VERSION } from "./version";
+import { APP_NAME, APP_VERSION, IS_DEV_BUILD } from "./version";
 
 const DEBUG = Boolean(process.env.CODEX_TRACKER_DEBUG);
 const assetsDir = path.join(__dirname, "..", "assets");
@@ -57,7 +57,8 @@ function updateTray(s: Snapshot) {
 }
 
 // ---------- launch at login ----------
-const launchAgentPath = path.join(os.homedir(), "Library", "LaunchAgents", "dev.codex-tracker.menubar.plist");
+const launchAgentLabel = IS_DEV_BUILD ? "dev.codex-tracker.menubar.dev" : "dev.codex-tracker.menubar";
+const launchAgentPath = path.join(os.homedir(), "Library", "LaunchAgents", `${launchAgentLabel}.plist`);
 
 function setLaunchAtLogin(enabled: boolean) {
   if (isMac) {
@@ -65,7 +66,7 @@ function setLaunchAtLogin(enabled: boolean) {
       const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>dev.codex-tracker.menubar</string>
+  <key>Label</key><string>${launchAgentLabel}</string>
   <key>ProgramArguments</key><array><string>${process.execPath}</string><string>${path.join(__dirname, "main.js")}</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><false/>
@@ -102,6 +103,7 @@ function buildMenu(s: Snapshot): Menu {
   });
   const template: MenuItemConstructorOptions[] = [
     { label: `${APP_NAME} ${t(L, "version", { version: APP_VERSION })}`, enabled: false },
+    ...(IS_DEV_BUILD ? [{ label: t(L, "devBuildMenu", { url: s.auth.dashboardUrl }), enabled: false }] : []),
     {
       label:
         s.auth.status === "signedIn"
@@ -135,6 +137,18 @@ function buildMenu(s: Snapshot): Menu {
         ]
       : []),
     { label: t(L, "refresh"), click: () => void engine?.refresh(true) },
+    {
+      label: s.sync.status === "running" ? t(L, "syncing") : t(L, "syncNow"),
+      enabled: s.sync.status !== "running",
+      click: () => void engine?.syncNow(),
+    },
+    ...(s.update
+      ? [
+          s.update.available
+            ? { label: t(L, "updateAvailable", { version: s.update.latest ?? "?" }), click: () => void engine?.installUpdate() }
+            : { label: t(L, "checkForUpdates"), click: () => void engine?.checkUpdate(true) },
+        ]
+      : []),
     { type: "separator" },
     { label: t(L, "quit"), click: () => app.quit() },
   ];
@@ -151,10 +165,14 @@ async function startLogin() {
 }
 
 // ---------- app ----------
+// Name first: the single-instance lock is keyed on the userData directory, which is derived from
+// the app name. Setting it after would make a dev build and a released one share one lock, so
+// whichever started second would quit instead of running alongside.
+app.setName(APP_NAME);
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.setName(APP_NAME);
   app.on("second-instance", () => mb?.showWindow());
   // keep running in the tray when the popover window is closed
   app.on("window-all-closed", () => {});
@@ -197,6 +215,9 @@ if (!app.requestSingleInstanceLock()) {
   ipcMain.handle("auth:cancel", () => engine?.cancelLogin());
   ipcMain.handle("auth:logout", () => engine?.logout());
   ipcMain.handle("refresh", () => engine?.refresh(true).then(() => undefined));
+  ipcMain.handle("sync:now", () => engine?.syncNow().then(() => undefined));
+  ipcMain.handle("update:check", () => engine?.checkUpdate(true).then(() => undefined));
+  ipcMain.handle("update:install", () => engine?.installUpdate().then(() => undefined));
   ipcMain.handle("quit", () => app.quit());
 
   mb.on("ready", async () => {

@@ -1,6 +1,4 @@
-"use client";
-
-import { clsx } from "clsx";
+import { cn } from "@/lib/utils";
 
 /** Human labels for agent ids sent by the menubar/agent uploader. */
 export const AGENT_LABELS: Record<string, string> = {
@@ -22,9 +20,9 @@ export function AgentTag({ agent, className }: { agent: string; className?: stri
   const isCodex = agent === "codex";
   return (
     <span
-      className={clsx(
-        "inline-flex items-center rounded-md border px-1.5 py-[1px] font-mono text-[10px] leading-4",
-        isCodex ? "border-border text-muted" : "border-primary/40 bg-primary/10 text-primary",
+      className={cn(
+        "inline-flex items-center rounded-md border px-1.5 py-px font-mono text-[10px] leading-4",
+        isCodex ? "border-border text-muted" : "border-accent/40 bg-accent-soft text-accent",
         className,
       )}
       title={agent}

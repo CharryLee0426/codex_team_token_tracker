@@ -7,10 +7,13 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const watch = process.argv.includes("--watch");
+// Only an explicit --release (what `prepack` runs) produces a production build; everything else —
+// `pnpm build`, `pnpm dev`, watch mode — is a dev build pointed at the local dashboard.
+const channel = process.argv.includes("--release") ? "prod" : "dev";
 const src = (p) => path.join(root, "src", p);
 const out = (p) => path.join(root, "dist", p);
 
-const define = { __APP_VERSION__: JSON.stringify(pkg.version) };
+const define = { __APP_VERSION__: JSON.stringify(pkg.version), __APP_CHANNEL__: JSON.stringify(channel) };
 const common = { bundle: true, sourcemap: false, logLevel: "info", legalComments: "none", define };
 
 const nodeCommon = { ...common, platform: "node", format: "cjs", target: "node20", external: ["electron", "menubar"] };
@@ -44,8 +47,8 @@ if (watch) {
   fs.watch(src("renderer"), { persistent: true }, (_e, file) => {
     if (file && /\.(html|css)$/.test(file)) copyStatic();
   });
-  console.log("[build] watching…");
+  console.log(`[build] watching… (${channel} build)`);
 } else {
   await Promise.all(configs.map((c) => esbuild.build(c)));
-  console.log(`[build] codex-token-tracker v${pkg.version} built → dist/`);
+  console.log(`[build] codex-token-tracker v${pkg.version} (${channel}) built → dist/`);
 }

@@ -100,14 +100,38 @@ Development keys (`pk_test_`) cannot be used in production. The production insta
 
 ## 5. Publishing the menu bar tool to npm
 
-The package name is `codex-token-tracker` (default dashboard baked in: `https://codex.chenli.dev`, changeable per user with `--dashboard`).
+The package name is `codex-token-tracker`. The dashboard baked into a **published** build is
+`https://codex.chenli.dev` (changeable per user with `--dashboard`); a **local** build points at
+`http://localhost:3000` instead — see *Build channels* below.
 
 ```bash
 npm login                                  # once, on the publishing machine (npm account with 2FA recommended)
 pnpm --filter codex-token-tracker version patch   # or minor / major
-pnpm release:menubar                       # = pnpm --filter codex-token-tracker publish --access public (runs build + typecheck first)
+pnpm release:menubar                       # = pnpm --filter codex-token-tracker publish --access public
 git push origin main --tags
 ```
+
+`pnpm release:menubar` runs `prepublishOnly` (typecheck) and then `prepack`, which rebuilds `dist/`
+with `--release`. That stamp is what makes the published bundle point at production, so **never publish
+a hand-built `dist/`** — always let the lifecycle scripts do it. `postpack` puts the dev build back
+afterwards, so the working copy keeps pointing at localhost.
+
+### Build channels
+
+`packages/menubar/scripts/build.mjs` stamps `__APP_CHANNEL__` at bundle time: `--release` → `prod`,
+anything else → `dev`. The channel decides:
+
+| | dev build (`pnpm build`, `pnpm dev`) | published build (`prepack` → npm) |
+| --- | --- | --- |
+| Dashboard default | `http://localhost:3000` | `https://codex.chenli.dev` |
+| Convex deployment | the dev one, via the local dashboard's `/api/config` | production |
+| Config / device token / upload state | `~/.codex-tracker-dev` | `~/.codex-tracker` |
+| Self-update | disabled; `update` refuses | enabled |
+| App name, LaunchAgent | `Codex Tracker (dev)`, `…menubar.dev` | `Codex Tracker`, `…menubar` |
+
+So a developer testing locally uploads to the dev deployment with a dev device token, and can run that
+build **at the same time** as their installed production copy. The popover marks a dev build with an
+orange **DEV** badge.
 
 Users upgrade with `npm i -g codex-token-tracker@latest`. Electron is an *optional* dependency, so headless/WSL installs succeed even if its binary download is blocked.
 
@@ -115,12 +139,12 @@ Users upgrade with `npm i -g codex-token-tracker@latest`. Electron is an *option
 
 - **Updating the dashboard/backend**: push to `main` → Vercel builds → `convex deploy` pushes functions and schema to production in the same build. Schema changes are validated against existing data; keep new fields optional (as done for `agent`).
 - **Preview deployments** (any non-`main` branch / PR): `CONVEX_DEPLOY_KEY` is only set for Production, so previews run a plain `next build` against the **dev** Convex deployment and the **dev** Clerk instance (Preview env vars) — a safe staging environment that never touches production data.
-- **Pricing table**: `packages/shared/src/pricing.ts` (USD per 1M tokens). Unknown models fall back to their family and are flagged *est.*; users can override locally in `~/.codex-tracker/pricing.json`.
+- **Pricing table**: `packages/shared/src/pricing.ts` (USD per 1M tokens), mirroring <https://developers.openai.com/api/docs/pricing>, including the long-context tiers billed above 272K input tokens. Unknown models fall back to their family and are flagged *est.*; users can override locally in `~/.codex-tracker/pricing.json`. Only OpenAI models are counted — usage other agents produced on non-OpenAI models is dropped on the device and filtered again in the dashboard.
 - **Revoking a device**: the user does it in Dashboard → Devices; admins can set `revokedAt` on the `devices` row in the Convex dashboard.
 - **Removing a member**: remove them from the Clerk organization; the webhook deletes the membership and the team view stops including them (their rows stay attached to their user).
 - **Backups / export**: Convex dashboard → Settings → Export, or `npx convex export --prod`.
 - **Rotating secrets**: regenerate the Convex deploy key or Clerk keys and update Vercel → redeploy; changing the webhook secret needs the Convex env var updated.
-- **Local development** stays on the dev deployment: `cd apps/dashboard && npx convex dev` + `pnpm dev`; `codex-tracker login --dashboard http://localhost:3000`.
+- **Local development** stays on the dev deployment: `cd apps/dashboard && npx convex dev` + `pnpm dev`, then `pnpm --filter codex-token-tracker build` and `node packages/menubar/bin/codex-tracker.js login` — a local build already defaults to `http://localhost:3000` and its own `~/.codex-tracker-dev`, so no `--dashboard` flag and no risk to production data.
 
 ## 7. Troubleshooting
 

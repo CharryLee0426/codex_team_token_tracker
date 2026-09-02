@@ -2,35 +2,66 @@
 
 import { useTranslations } from "next-intl";
 import { formatInt, formatPercent, formatTokens, formatUSD } from "@codex-tracker/shared/format";
-import type { Summary } from "@/lib/analytics";
+import type { UsageModel } from "@/lib/usage-model";
 import { StatTile } from "@/components/ui/stat-tile";
 import { LiveDot } from "@/components/ui/live-dot";
+import { cn } from "@/lib/utils";
 
 interface Props {
-  summary: Summary;
+  model: UsageModel | null;
   loading: boolean;
   scope: "personal" | "team";
   liveCount: number;
   deviceCount?: number;
+  className?: string;
 }
 
-export function KpiRow({ summary, loading, scope, liveCount, deviceCount }: Props) {
+const TREND_POINTS = 30;
+
+/** The figures row: total tokens is the hero (with its daily trend), the rest support it. */
+export function KpiRow({ model, loading, scope, liveCount, deviceCount, className }: Props) {
   const t = useTranslations("kpi");
-  const u = summary.usage;
+  const u = model?.summary.usage;
+  const trend = model ? model.dailyTotals.slice(-TREND_POINTS) : [];
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-      <StatTile label={t("totalTokens")} value={formatTokens(u.total)} loading={loading} sub={t("inputOutput", { input: formatTokens(u.input), output: formatTokens(u.output) })} />
-      <StatTile label={t("cost")} value={formatUSD(summary.cost)} hint={t("costHint")} loading={loading} sub={t("costHint")} />
-      <StatTile label={t("cacheHit")} value={formatPercent(summary.cacheHit)} hint={t("cacheHitHint")} loading={loading} sub={`${formatTokens(u.cached)} ${t("cacheHitHint").toLowerCase().split(" ")[0]}`} />
-      <StatTile label={t("requests")} value={formatInt(u.requests)} loading={loading} sub={u.requests ? `${formatTokens(u.total / u.requests)} / req` : undefined} />
+    <div className={cn("grid grid-cols-2 gap-3 @2xl:grid-cols-3 @6xl:grid-cols-7", className)}>
+      <StatTile
+        hero
+        className="col-span-2 @2xl:col-span-1 @6xl:col-span-2"
+        label={t("totalTokens")}
+        value={u?.total ?? 0}
+        format={formatTokens}
+        loading={loading}
+        trend={trend}
+        sub={u ? t("inputOutput", { input: formatTokens(u.input), output: formatTokens(u.output) }) : undefined}
+      />
+      <StatTile label={t("cost")} value={model?.summary.cost ?? 0} format={formatUSD} hint={t("costHint")} loading={loading} sub={t("costHint")} />
+      <StatTile
+        label={t("cacheHit")}
+        value={model?.summary.cacheHit ?? 0}
+        format={(n) => formatPercent(n)}
+        hint={t("cacheHitHint")}
+        loading={loading}
+        meter={model?.summary.cacheHit ?? 0}
+        sub={u ? t("cachedTokens", { tokens: formatTokens(u.cached) }) : undefined}
+      />
+      <StatTile
+        label={t("requests")}
+        value={u?.requests ?? 0}
+        format={formatInt}
+        loading={loading}
+        sub={u?.requests ? t("perRequest", { tokens: formatTokens(u.total / u.requests) }) : undefined}
+      />
       {scope === "team" ? (
-        <StatTile label={t("activeMembers")} value={formatInt(summary.activeUsers)} hint={t("activeMembersHint")} loading={loading} sub={t("activeMembersHint")} />
+        <StatTile label={t("activeMembers")} value={model?.summary.activeUsers ?? 0} format={formatInt} hint={t("activeMembersHint")} loading={loading} sub={t("activeMembersHint")} />
       ) : (
-        <StatTile label={t("devices")} value={formatInt(deviceCount ?? 0)} loading={loading && deviceCount === undefined} />
+        <StatTile label={t("devices")} value={deviceCount ?? 0} format={formatInt} loading={loading && deviceCount === undefined} sub={t("devicesHint")} />
       )}
       <StatTile
+        className="col-span-2 @2xl:col-span-1"
         label={t("liveNow")}
-        value={formatInt(liveCount)}
+        value={liveCount}
+        format={formatInt}
         hint={t("liveNowHint")}
         sub={t("liveNowHint")}
         accent={liveCount > 0 ? <LiveDot /> : undefined}

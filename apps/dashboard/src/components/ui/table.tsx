@@ -1,22 +1,20 @@
 import { cn } from "@/lib/utils";
 
 export function TableWrap({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("overflow-x-auto scrollbar-thin", className)}>{children}</div>;
+  return <div className={cn("overflow-x-auto scrollbar-thin max-md:px-3 max-md:pb-3", className)}>{children}</div>;
 }
 
-export function Table({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <table className={cn("w-full text-sm border-collapse", className)}>{children}</table>;
+/**
+ * Data table. With `responsive` (default) the same markup collapses into a stack of cards below `md`:
+ * give each cell a `label`, and mark the identifying cell `primary`.
+ */
+export function Table({ children, className, responsive = true }: { children: React.ReactNode; className?: string; responsive?: boolean }) {
+  return <table className={cn("w-full border-collapse text-sm", responsive && "table-responsive", className)}>{children}</table>;
 }
 
 export function Th({ children, className, right }: { children?: React.ReactNode; className?: string; right?: boolean }) {
   return (
-    <th
-      className={cn(
-        "px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted border-b border-border whitespace-nowrap",
-        right ? "text-right" : "text-left",
-        className,
-      )}
-    >
+    <th className={cn("eyebrow border-b border-border px-3 py-2 text-[10.5px] font-normal whitespace-nowrap", right ? "text-right" : "text-left", className)}>
       {children}
     </th>
   );
@@ -28,15 +26,26 @@ export function Td({
   right,
   mono,
   title,
+  label,
+  primary,
 }: {
   children?: React.ReactNode;
   className?: string;
   right?: boolean;
   mono?: boolean;
   title?: string;
+  /** Mobile card label (rendered via CSS `attr(data-label)`). */
+  label?: string;
+  /** The identifying cell: full-width header of the mobile card. */
+  primary?: boolean;
 }) {
   return (
-    <td title={title} className={cn("px-3 py-2 border-b border-border/70 align-middle", right && "text-right", mono && "tabular", className)}>
+    <td
+      title={title}
+      data-label={label}
+      data-primary={primary ? "" : undefined}
+      className={cn("border-b border-border/70 px-3 py-2.5 align-middle", right && "text-right", mono && "tabular", className)}
+    >
       {children}
     </td>
   );
