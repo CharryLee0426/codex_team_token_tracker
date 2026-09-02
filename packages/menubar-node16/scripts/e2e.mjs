@@ -146,9 +146,6 @@ function isolatedEnv(configHome) {
     XDG_CONFIG_HOME: path.join(fixtures, "xdg-config"),
     CODEX_TRACKER_REGISTRY: registryUrl,
   };
-  // Keep Electron out of the way unless the GUI stage asks for it.
-  if (GUI) delete env.ELECTRON_SKIP_BINARY_DOWNLOAD;
-  else env.ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
   return env;
 }
 
@@ -252,13 +249,21 @@ try {
   // -- 2. install like a user ----------------------------------------------
   setStage("2. install with Node 16's own npm");
   fs.writeFileSync(path.join(installDir, "package.json"), JSON.stringify({ name: "e2e-install", version: "1.0.0", private: true }));
+  // No --omit=optional and no ELECTRON_SKIP_BINARY_DOWNLOAD: a plain install must succeed exactly as a
+  // user runs it. Electron is not an npm dependency of this package — Node 16's npm 8 aborts the whole
+  // install when an optional dependency's install script fails, which is how a machine that cannot reach
+  // GitHub ended up unable to install the tracker even for headless use.
   const installArgs = [npm16, "install", tarball, "--no-audit", "--no-fund", "--engine-strict"];
-  if (!GUI) installArgs.push("--omit=optional");
   const inst = await run(process.execPath, installArgs, { cwd: installDir, timeout: 900000 });
   // --engine-strict makes npm fail outright if engines.node excludes this runtime.
   check("installs on Node 16 with --engine-strict", inst.status === 0, inst.all);
   check("binary present", fs.existsSync(installedBin), installedBin);
   check("undici dependency installed", fs.existsSync(path.join(installDir, "node_modules", "undici")));
+  check(
+    "install pulled in no electron package (nothing that can run a download at install time)",
+    !fs.existsSync(path.join(installDir, "node_modules", "electron")) && !fs.existsSync(path.join(installDir, "node_modules", "menubar")),
+    fs.readdirSync(path.join(installDir, "node_modules")).join(", ")
+  );
 
   // -- 3. the polyfill actually does HTTP on Node 16 -------------------------
   setStage("3. polyfill");
@@ -402,6 +407,8 @@ try {
   if (GUI) {
     const ens = await run16(["menubar", "--background"], cfg16);
     check("menubar --background starts (downloads Electron on first run)", ens.status === 0, ens.all.slice(-1500));
+    const managed = path.join(cfg16, "electron");
+    check("Electron runtime landed in the tracker's own config dir", fs.existsSync(managed), managed);
     await new Promise((r) => setTimeout(r, 8000));
     const ps = spawnSync("pgrep", ["-fl", "Electron"], { encoding: "utf8" });
     const running = /Electron/.test(ps.stdout ?? "");

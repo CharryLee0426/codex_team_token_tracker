@@ -27,6 +27,7 @@ if (!fs.existsSync(path.join(upstream, "src", "cli.ts"))) {
 
 syncVersion();
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const upstreamPkg = JSON.parse(fs.readFileSync(path.join(upstream, "package.json"), "utf8"));
 const watch = process.argv.includes("--watch");
 // Mirrors the upstream rule: only an explicit --release (what `prepack` runs) is a production build;
 // `pnpm build`, `pnpm dev` and watch mode stay pointed at the local dashboard.
@@ -35,10 +36,15 @@ const channel = process.argv.includes("--release") ? "prod" : "dev";
 const src = (p) => path.join(upstream, "src", p);
 const out = (p) => path.join(root, "dist", p);
 
+// The Electron release the CLI downloads itself when no `electron` npm package is around. Taken from
+// codex-token-tracker's devDependency range so the self-managed runtime tracks the one developers run.
+const electronVersion = String(upstreamPkg.devDependencies?.electron ?? upstreamPkg.optionalDependencies?.electron ?? "").replace(/^[^\d]*/, "");
+if (!electronVersion) throw new Error("[build] cannot determine the Electron version to stamp into __ELECTRON_VERSION__");
 const define = {
   __APP_VERSION__: JSON.stringify(pkg.version),
   __APP_CHANNEL__: JSON.stringify(channel),
   __NPM_PACKAGE__: JSON.stringify(pkg.name),
+  __ELECTRON_VERSION__: JSON.stringify(electronVersion),
 };
 const common = { bundle: true, sourcemap: false, logLevel: "info", legalComments: "none", define };
 
@@ -50,7 +56,9 @@ const nodeCommon = {
   platform: "node",
   format: "cjs",
   target: "node16",
-  external: ["electron", "menubar", "undici"],
+  // `menubar` is bundled (it has a hard peer dependency on `electron`, which npm ≥ 7 would auto-install and
+  // run the install script of); `electron` is resolved at runtime; `undici` must stay a real require.
+  external: ["electron", "undici"],
   banner,
 };
 

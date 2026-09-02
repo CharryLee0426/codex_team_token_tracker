@@ -4,14 +4,31 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 /**
- * Self-contained Electron binary installer used when the `electron` npm package is present but its
- * binary is missing — npm ≥ 11 / pnpm ≥ 10 block install scripts of dependencies by default, and
- * Electron's own `install.js` (extract-zip) can exit 0 without extracting on newer Node versions.
+ * Self-contained Electron binary installer. It is used in two situations:
+ *
+ *   1. the `electron` npm package is present but its binary is missing — npm ≥ 11 / pnpm ≥ 10 block
+ *      install scripts of dependencies by default, and Electron's own `install.js` (extract-zip) can
+ *      exit 0 without extracting on newer Node versions;
+ *   2. the `electron` npm package is not installed at all. The Node 16 build deliberately does not
+ *      depend on it: npm 8 (Node 16's npm) aborts a whole global install when an *optional*
+ *      dependency's install script fails, so a machine that cannot reach GitHub could not install the
+ *      tracker at all — not even for headless use. Instead the runtime is downloaded on first GUI
+ *      launch into a directory we own (see `managedElectronDir`), laid out exactly like the npm
+ *      package (`package.json`, `dist/`, `path.txt`) so the rest of the code does not care which it got.
  *
  * Flow: reuse a zip from Electron's download cache → otherwise download from GitHub releases (or
  * `ELECTRON_MIRROR`, e.g. https://npmmirror.com/mirrors/electron/) → extract with the OS tool
  * (`ditto` / `unzip` / `tar`) → write `path.txt` exactly like Electron's installer does.
  */
+
+declare const __ELECTRON_VERSION__: string | undefined;
+
+/**
+ * The Electron release downloaded when no `electron` npm package is around. Stamped by the build
+ * scripts from the `electron` range in codex-token-tracker's package.json, so the self-managed
+ * runtime and the npm optional dependency stay on the same release.
+ */
+export const DEFAULT_ELECTRON_VERSION: string = typeof __ELECTRON_VERSION__ !== "undefined" ? __ELECTRON_VERSION__ : "38.8.6";
 
 export interface InstallLog {
   info(msg: string): void;
@@ -173,4 +190,49 @@ export async function installElectronBinary(pkgDir: string, log: InstallLog): Pr
   }
   fs.writeFileSync(path.join(pkgDir, "path.txt"), platformExecutablePath());
   return fs.existsSync(exe) ? exe : null;
+}
+
+/**
+ * Where a self-managed Electron runtime lives: `<config dir>/electron/<version>`. Under the tracker's
+ * own config directory rather than inside the npm package, because the global `node_modules` may not be
+ * writable by the user who runs the app and is wiped by every `npm update`.
+ */
+export function managedElectronDir(configHome: string, version: string = DEFAULT_ELECTRON_VERSION): string {
+  return path.join(configHome, "electron", version);
+}
+
+/**
+ * Make sure the self-managed directory looks like an `electron` npm package as far as
+ * `installElectronBinary` and `binaryFromPackageDir` are concerned: a `package.json` carrying the version
+ * to download. Returns the directory.
+ */
+export function ensureManagedElectronDir(configHome: string, version: string = DEFAULT_ELECTRON_VERSION): string {
+  const dir = managedElectronDir(configHome, version);
+  const manifest = path.join(dir, "package.json");
+  let current: string | null = null;
+  try {
+    current = JSON.parse(fs.readFileSync(manifest, "utf8")).version ?? null;
+  } catch {
+    /* absent or unreadable — rewrite below */
+  }
+  if (current !== version) {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(manifest, JSON.stringify({ name: "electron", version, private: true }, null, 2) + "\n");
+  }
+  return dir;
+}
+
+/**
+ * Resolve the executable inside an Electron package directory the way Electron's own `index.js` does:
+ * `path.txt` names the executable relative to `dist/`. Returns null when the binary is not there.
+ */
+export function binaryFromPackageDir(pkgDir: string): string | null {
+  try {
+    const rel = fs.readFileSync(path.join(pkgDir, "path.txt"), "utf8").trim();
+    if (!rel) return null;
+    const exe = path.join(pkgDir, "dist", rel);
+    return fs.existsSync(exe) ? exe : null;
+  } catch {
+    return null;
+  }
 }

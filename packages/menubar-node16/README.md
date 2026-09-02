@@ -56,11 +56,17 @@ package back, the Node 16 support lives here:
 
 - **Node >= 16.8.** 16.8 is the first release undici's `fetch` supports; 16.20.2 is the last 16.x. Running an
   older Node prints a clear message instead of a syntax error.
-- **Electron is optional.** It is only needed for the menu bar UI, it brings its own modern Node, and it
-  installs fine under Node 16 (`electron` itself requires only Node >= 12.20). Without a usable Electron or a
-  display, the app automatically runs headless — `codex-tracker agent` — which does all the tracking and
-  uploading. If your OS is too old for Electron 38, install an older one alongside it
-  (`npm i -g electron@22`); the renderer is built for Chromium 108 so it still works.
+- **Electron is not an npm dependency of this package.** Node 16's npm (8.x) aborts an entire global
+  install when an optional dependency's install script fails, so on a machine that could not reach GitHub
+  the tracker could not be installed at all — not even for headless use — and the retry died with
+  `Cannot find module …/node_modules/electron/install.js`. Since 0.2.2, `npm install -g` never runs
+  Electron's installer. On a machine with a display, the first `codex-tracker` (or `codex-tracker menubar`)
+  downloads the runtime itself — about 100 MB, once — into `~/.codex-tracker/electron/<version>/`, honouring
+  `ELECTRON_MIRROR` (for example `https://npmmirror.com/mirrors/electron/`) and `HTTPS_PROXY`. Without a
+  display the app runs headless — `codex-tracker agent` — which does all the tracking and uploading and never
+  touches Electron. If your OS is too old for Electron 38, install an older one alongside
+  (`npm i -g electron@22`): a globally installed `electron` is picked up first, and the renderer is built for
+  Chromium 108 so it still works.
 - **Hermes SQLite sources are skipped**, because they need `node:sqlite`. This is not a regression: that
   module only arrived in Node 22.5, so the Node 20 build skips them too.
 - **Self-update stays on this package.** `codex-tracker update` checks and installs
@@ -90,7 +96,7 @@ pnpm e2e:node16:gui        # also downloads Electron (~100 MB) and launches the 
 ```
 
 This does what a user does: builds a release, packs a tarball, installs it with **Node 16's own npm**
-under `--engine-strict`, and drives the installed binary on a real Node 16 — 35 checks across the
+under `--engine-strict`, and drives the installed binary on a real Node 16 — 36 checks across the
 polyfill, the CLI surface, the self-updater and a headless agent cycle.
 
 The load-bearing assertion is **differential**: the same synthetic Codex fixtures are fed to both the
