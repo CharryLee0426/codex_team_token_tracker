@@ -63,7 +63,8 @@ In the Convex dashboard (Settings → Environment Variables) for each deployment
 - `src/app/globals.css` + `src/lib/theme.ts` – design tokens (dark-first palette with a light variant); the TS copy feeds charts, the canvas scene and Clerk's appearance
 - `src/components/scene` – the canvas particle engine (starfield, landing constellation, warp transition) mounted once in the root layout so it persists across navigation
 - `src/components/landing` – hero, telemetry strip, feature cards, how-it-works, product preview (the real board on sample data)
-- `src/components/shell` – dashboard chrome: desktop rail, glass top bar, phone tab bar, realtime-link indicator
+- `src/components/providers.tsx` – Clerk + Convex providers; token fetches retry and an auth watchdog re-arms Convex auth when a refresh failed (sleep/wake, network blip), so subscriptions never silently freeze
+- `src/components/shell` – dashboard chrome: desktop rail, glass top bar, phone tab bar, realtime-link indicator (reads *Reconnecting…* while auth is being re-armed)
 - `src/components/charts` – recharts + SVG charts using the shared, CVD-validated palette; every chart sits in `ChartCard` (skeleton → chart, stale dimming, optional table twin)
 - `src/components/dashboard` – `usage-dashboard.tsx` (container: Convex subscriptions + preferences) and `usage-dashboard-view.tsx` (pure view), KPI tiles, leaderboard, sessions, devices, members
 - `src/components/ui` – primitives (button, card, stat tile with sparkline / ring meter, segmented control, responsive table that collapses into cards below `md`)
