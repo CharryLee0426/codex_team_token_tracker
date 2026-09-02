@@ -11,10 +11,13 @@
     "dev": "pnpm --filter dashboard dev",
     "dev:convex": "pnpm --filter dashboard dev:convex",
     "dev:menubar": "pnpm --filter codex-token-tracker dev",
+    "dev:menubar16": "pnpm --filter codex-token-tracker-nodejs16 dev",
     "build": "pnpm -r --filter './packages/**' build && pnpm --filter dashboard build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r --if-present test",
     "codegen": "pnpm --filter dashboard codegen",
-    "release:menubar": "pnpm --filter codex-token-tracker publish --access public"
+    "release:menubar": "pnpm --filter codex-token-tracker publish --access public",
+    "release:menubar16": "pnpm --filter codex-token-tracker-nodejs16 publish --access public",
+    "test:node16": "pnpm --filter codex-token-tracker-nodejs16 test:node16"
   }
 }

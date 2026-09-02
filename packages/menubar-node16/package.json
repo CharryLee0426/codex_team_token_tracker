@@ -1,0 +1,86 @@
+{
+  "name": "codex-token-tracker-nodejs16",
+  "version": "0.2.1",
+  "description": "Node.js 16 build of codex-token-tracker: menu bar / system tray app and headless agent that tracks OpenAI Codex token usage, cache hits, model mix and API-equivalent cost — and syncs it to your team dashboard.",
+  "license": "MIT",
+  "author": "Chen Li",
+  "homepage": "https://codex.chenli.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CharryLee0426/codex_team_token_tracker.git",
+    "directory": "packages/menubar-node16"
+  },
+  "bugs": {
+    "url": "https://github.com/CharryLee0426/codex_team_token_tracker/issues"
+  },
+  "keywords": [
+    "codex",
+    "openai",
+    "tokens",
+    "usage",
+    "tracker",
+    "menubar",
+    "tray",
+    "electron",
+    "convex",
+    "node16",
+    "legacy"
+  ],
+  "bin": {
+    "codex-token-tracker": "bin/codex-tracker.js",
+    "codex-tracker": "bin/codex-tracker.js",
+    "codex-token-tracker-node16": "bin/codex-tracker.js"
+  },
+  "main": "dist/main.js",
+  "files": [
+    "bin",
+    "dist",
+    "assets",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=16.8.0"
+  },
+  "os": [
+    "darwin",
+    "win32",
+    "linux"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "sync:version": "node scripts/sync-version.mjs",
+    "build": "node scripts/build.mjs",
+    "build:release": "node scripts/build.mjs --release",
+    "dev": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "node bin/codex-tracker.js",
+    "test": "node scripts/test.mjs",
+    "test:node16": "node scripts/test.mjs --node16",
+    "prepublishOnly": "pnpm typecheck",
+    "prepack": "node scripts/build.mjs --release",
+    "postpack": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "menubar": "^9.5.3",
+    "undici": "^5.29.0"
+  },
+  "optionalDependencies": {
+    "electron": "^38.8.6"
+  },
+  "devDependencies": {
+    "@codex-tracker/backend": "workspace:*",
+    "@codex-tracker/shared": "workspace:*",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "convex": "^1.45.0",
+    "esbuild": "^0.28.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "~5.9.3"
+  }
+}

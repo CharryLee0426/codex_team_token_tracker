@@ -13,7 +13,11 @@ const channel = process.argv.includes("--release") ? "prod" : "dev";
 const src = (p) => path.join(root, "src", p);
 const out = (p) => path.join(root, "dist", p);
 
-const define = { __APP_VERSION__: JSON.stringify(pkg.version), __APP_CHANNEL__: JSON.stringify(channel) };
+const define = {
+  __APP_VERSION__: JSON.stringify(pkg.version),
+  __APP_CHANNEL__: JSON.stringify(channel),
+  __NPM_PACKAGE__: JSON.stringify(pkg.name),
+};
 const common = { bundle: true, sourcemap: false, logLevel: "info", legalComments: "none", define };
 
 const nodeCommon = { ...common, platform: "node", format: "cjs", target: "node20", external: ["electron", "menubar"] };
