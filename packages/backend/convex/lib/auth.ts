@@ -25,6 +25,28 @@ export async function currentUser(ctx: Ctx): Promise<Doc<"users"> | null> {
     .unique();
 }
 
+/** Upsert the signed-in user from Clerk identity claims. Shared by `users.ensureUser` and invite redemption. */
+export async function upsertIdentityUser(ctx: MutationCtx): Promise<Id<"users"> | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) return null;
+  const now = Date.now();
+  const fields = {
+    email: identity.email ?? undefined,
+    name: identity.name ?? identity.nickname ?? undefined,
+    imageUrl: identity.pictureUrl ?? undefined,
+  };
+  const existing = await ctx.db
+    .query("users")
+    .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+    .unique();
+  if (existing) {
+    const changed = existing.email !== fields.email || existing.name !== fields.name || existing.imageUrl !== fields.imageUrl;
+    if (changed) await ctx.db.patch(existing._id, { ...fields, updatedAt: now });
+    return existing._id;
+  }
+  return await ctx.db.insert("users", { clerkId: identity.subject, ...fields, createdAt: now, updatedAt: now });
+}
+
 export async function requireUser(ctx: Ctx): Promise<Doc<"users">> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new ConvexError({ code: "UNAUTHENTICATED", message: "Sign in required" });
@@ -59,6 +81,44 @@ export async function requireOrgMember(ctx: Ctx, orgId: Id<"orgs">) {
   const org = await ctx.db.get(orgId);
   if (!org) throw new ConvexError({ code: "NOT_FOUND", message: "Organization not found" });
   return { user, membership, org };
+}
+
+/**
+ * Org admin gate for privileged actions (invite links). The role comes from the Clerk-signed JWT
+ * (`org_role`) rather than the mirrored membership row, and the token's active organization must be
+ * the one being acted on.
+ */
+export async function requireOrgAdmin(ctx: Ctx, orgId: Id<"orgs">) {
+  const { user, membership, org } = await requireOrgMember(ctx, orgId);
+  const identity = await ctx.auth.getUserIdentity();
+  const claim = identityOrg(identity as unknown as Record<string, unknown>);
+  if (!claim || claim.clerkOrgId !== org.clerkOrgId) {
+    throw new ConvexError({ code: "ORG_MISMATCH", message: "Switch to this organization before managing it" });
+  }
+  if (claim.role !== "org:admin") {
+    throw new ConvexError({ code: "FORBIDDEN", message: "Only organization admins can manage invite links" });
+  }
+  return { user, membership, org };
+}
+
+/**
+ * Non-throwing counterpart to `requireOrgAdmin`, for read paths that should degrade to "nothing to
+ * show". A throwing query takes the whole page down with it, and admin-ness can legitimately be
+ * false here — a token minted before an org switch, or a JWT template without the `org_role` claim.
+ */
+export async function isOrgAdmin(ctx: Ctx, orgId: Id<"orgs">): Promise<boolean> {
+  const user = await currentUser(ctx);
+  if (!user) return false;
+  const membership = await ctx.db
+    .query("memberships")
+    .withIndex("by_org_user", (q) => q.eq("orgId", orgId).eq("userId", user._id))
+    .unique();
+  if (!membership) return false;
+  const org = await ctx.db.get(orgId);
+  if (!org) return false;
+  const identity = await ctx.auth.getUserIdentity();
+  const claim = identityOrg(identity as unknown as Record<string, unknown>);
+  return !!claim && claim.clerkOrgId === org.clerkOrgId && claim.role === "org:admin";
 }
 
 export function hashToken(token: string): string {

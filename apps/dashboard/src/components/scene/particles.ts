@@ -36,14 +36,18 @@ interface Star {
 }
 
 interface Node {
-  ax: number; // anchor, normalized within the focus rect
+  ax: number; // landing: anchor, normalized within the focus rect
   ay: number;
+  /** Auth: ellipse scale relative to the focus rect, plus phase and angular velocity (rad/s). */
+  orbit: number;
+  angle: number;
+  omega: number;
   x: number; // current position, CSS px
   y: number;
   vx: number;
   vy: number;
   r: number;
-  ring: 0 | 1 | 2;
+  ring: 0 | 1 | 2 | 3;
   seed: number;
 }
 
@@ -64,8 +68,17 @@ const STAR_ALPHA: Record<SceneMode, number> = { landing: 1, auth: 0.9, app: 0.6,
 const PACKET_COUNT = 9;
 const POINTER_RADIUS = 170;
 
+/** Auth aperture: particles per orbit ring, innermost first. */
+const ORBIT_RINGS: Record<PerfTier, number[]> = {
+  high: [9, 13, 17],
+  medium: [7, 10, 13],
+  low: [5, 7, 9],
+};
+/** Ellipse scale of each ring relative to the focused card, so ring 0 clears its edge. */
+const ORBIT_SCALE = [1.14, 1.42, 1.74];
+
 function rgba(r: number, g: number, b: number, a: number): string {
-  return `rgba(${r},${g},${b},${a.toFixed(3)})`;
+  return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a.toFixed(3)})`;
 }
 
 export class StarScene {
@@ -73,7 +86,11 @@ export class StarScene {
   private opts: SceneOptions = { mode: "off", dark: true, tier: "medium", reducedMotion: false };
   private stars: Star[] = [];
   private nodes: Node[] = [];
+  /** Which mode the current `nodes` were seeded for (the landing constellation and the auth aperture differ). */
+  private nodesMode: SceneMode | null = null;
   private packets: Packet[] = [];
+  /** Expanding ring left by a pointer press, 0..1 (auth aperture only). */
+  private shockwave = 0;
   private width = 0;
   private height = 0;
   private dpr = 1;
@@ -102,7 +119,8 @@ export class StarScene {
     const prev = this.opts;
     this.opts = { ...prev, ...next };
     if (prev.mode !== this.opts.mode || prev.tier !== this.opts.tier || !this.stars.length) this.seedStars();
-    if (this.opts.mode === "landing" && !this.nodes.length) this.seedNodes();
+    const wantsNodes = this.opts.mode === "landing" || this.opts.mode === "auth";
+    if (wantsNodes && (this.nodesMode !== this.opts.mode || prev.tier !== this.opts.tier)) this.seedNodes();
     if (prev.tier !== this.opts.tier) this.resize();
     if (this.opts.mode === "off") {
       this.stop();
@@ -178,6 +196,11 @@ export class StarScene {
     this.pointer.until = holdMs ? performance.now() + holdMs : Infinity;
   }
 
+  /** A press ripples through the aperture; call alongside `setPointer` on pointerdown. */
+  press(): void {
+    if (this.opts.mode === "auth") this.shockwave = 1;
+  }
+
   setScroll(y: number): void {
     this.scrollY = y;
   }
@@ -219,7 +242,9 @@ export class StarScene {
   }
 
   private seedNodes(): void {
-    const nodes: Node[] = [{ ax: 0.5, ay: 0.5, x: 0, y: 0, vx: 0, vy: 0, r: 5, ring: 0, seed: 0.5 }];
+    this.nodesMode = this.opts.mode;
+    if (this.opts.mode === "auth") return this.seedOrbits();
+    const nodes: Node[] = [{ ax: 0.5, ay: 0.5, orbit: 0, angle: 0, omega: 0, x: 0, y: 0, vx: 0, vy: 0, r: 5, ring: 0, seed: 0.5 }];
     const rings: Array<{ count: number; radius: number; size: number; ring: 1 | 2 }> = [
       { count: 5, radius: 0.24, size: 3.2, ring: 1 },
       { count: 9, radius: 0.44, size: 2.4, ring: 2 },
@@ -230,7 +255,20 @@ export class StarScene {
         const jitter = (hash01(i * 19) - 0.5) * 0.5;
         const angle = ((k + jitter) / ring.count) * Math.PI * 2 - Math.PI / 2;
         const radius = ring.radius * (0.86 + hash01(i * 23) * 0.28);
-        nodes.push({ ax: 0.5 + Math.cos(angle) * radius, ay: 0.5 + Math.sin(angle) * radius, x: 0, y: 0, vx: 0, vy: 0, r: ring.size, ring: ring.ring, seed: hash01(i * 29) * 10 });
+        nodes.push({
+          ax: 0.5 + Math.cos(angle) * radius,
+          ay: 0.5 + Math.sin(angle) * radius,
+          orbit: 0,
+          angle: 0,
+          omega: 0,
+          x: 0,
+          y: 0,
+          vx: 0,
+          vy: 0,
+          r: ring.size,
+          ring: ring.ring,
+          seed: hash01(i * 29) * 10,
+        });
       }
     }
     this.nodes = nodes;
@@ -238,19 +276,65 @@ export class StarScene {
     this.placeNodes(true);
   }
 
+  /**
+   * Auth aperture: three counter-rotating ellipses of particles around the sign-in card. Each
+   * particle springs toward its moving orbit slot, so shoving them with the pointer bends the ring
+   * and it recovers — the rotation is the anchor, not the position.
+   */
+  private seedOrbits(): void {
+    const counts = ORBIT_RINGS[this.opts.tier];
+    const nodes: Node[] = [];
+    let i = 0;
+    counts.forEach((count, ringIndex) => {
+      // Alternate direction per ring so the field shears instead of turning as one disc.
+      const dir = ringIndex % 2 === 0 ? 1 : -1;
+      const speed = (0.1 - ringIndex * 0.022) * dir;
+      for (let k = 0; k < count; k++, i++) {
+        const jitter = (hash01(i * 19 + 3) - 0.5) * 0.7;
+        nodes.push({
+          ax: 0.5,
+          ay: 0.5,
+          orbit: ORBIT_SCALE[ringIndex] * (0.96 + hash01(i * 23 + 5) * 0.09),
+          angle: ((k + jitter) / count) * Math.PI * 2,
+          omega: speed * (0.85 + hash01(i * 31 + 7) * 0.3),
+          x: 0,
+          y: 0,
+          vx: 0,
+          vy: 0,
+          r: 2.9 - ringIndex * 0.55,
+          ring: (ringIndex + 1) as 1 | 2 | 3,
+          seed: hash01(i * 29 + 11) * 10,
+        });
+      }
+    });
+    this.nodes = nodes;
+    this.packets = [];
+    this.placeNodes(true);
+  }
+
   private focusRect(): FocusRect {
     if (this.focus && this.focus.w > 40 && this.focus.h > 40) return { ...this.focus, y: this.focus.y - this.scrollY };
     const w = this.width;
     const h = this.height;
-    // Fallback: right half on wide screens, upper-middle band on narrow ones.
+    // Fallback before the page reports a card: centred for auth, hero-shaped for the landing page.
+    if (this.opts.mode === "auth") {
+      const cw = Math.min(w * 0.8, 420);
+      const ch = Math.min(h * 0.7, 520);
+      return { x: (w - cw) / 2, y: (h - ch) / 2, w: cw, h: ch };
+    }
     return w >= 900 ? { x: w * 0.52, y: h * 0.12, w: w * 0.42, h: h * 0.72 } : { x: w * 0.05, y: h * 0.05, w: w * 0.9, h: h * 0.55 };
   }
 
   private anchorOf(n: Node, f: FocusRect): [number, number] {
-    // Keep the constellation roughly square inside the focus area so rings stay circular.
-    const size = Math.min(f.w, f.h);
     const cx = f.x + f.w / 2;
     const cy = f.y + f.h / 2;
+    if (this.opts.mode === "auth") {
+      // The orbit slot itself rotates; the particle only ever springs toward it.
+      const a = n.angle + this.time * n.omega;
+      return [cx + Math.cos(a) * (f.w / 2) * n.orbit, cy + Math.sin(a) * (f.h / 2) * n.orbit];
+    }
+    // Keep the constellation roughly square inside the focus area so rings stay circular.
+    const size = Math.min(f.w, f.h);
     return [cx + (n.ax - 0.5) * size, cy + (n.ay - 0.5) * size];
   }
 
@@ -321,7 +405,8 @@ export class StarScene {
       }
     }
 
-    if (mode === "landing" && this.nodes.length) this.updateConstellation(dt, pointerLive);
+    if ((mode === "landing" || mode === "auth") && this.nodes.length) this.updateConstellation(dt, pointerLive);
+    this.shockwave = this.shockwave > 0 ? Math.max(0, this.shockwave - dt * 1.1) : 0;
   }
 
   private updateConstellation(dt: number, pointerLive: boolean): void {
@@ -330,13 +415,16 @@ export class StarScene {
     const dScroll = this.scrollY - this.lastScrollY;
     this.lastScrollY = this.scrollY;
     if (dScroll) for (const n of this.nodes) n.y -= dScroll;
-    const stiffness = 38;
-    const dampingC = 7.5;
+    // The aperture is springier than the constellation: a shove visibly bends the ring before it heals.
+    const auth = this.opts.mode === "auth";
+    const stiffness = auth ? 22 : 38;
+    const dampingC = auth ? 5.2 : 7.5;
+    const wander = auth ? 3 : 7;
     for (const n of this.nodes) {
       const [ax, ay] = this.anchorOf(n, f);
       // Gentle organic wander around the anchor.
-      const wx = ax + Math.sin(this.time * 0.6 + n.seed) * 7 + Math.cos(this.time * 0.23 + n.seed * 2) * 4;
-      const wy = ay + Math.cos(this.time * 0.5 + n.seed * 1.7) * 7 + Math.sin(this.time * 0.31 + n.seed) * 4;
+      const wx = ax + Math.sin(this.time * 0.6 + n.seed) * wander + Math.cos(this.time * 0.23 + n.seed * 2) * (wander * 0.6);
+      const wy = ay + Math.cos(this.time * 0.5 + n.seed * 1.7) * wander + Math.sin(this.time * 0.31 + n.seed) * (wander * 0.6);
       let fx = (wx - n.x) * stiffness - n.vx * dampingC;
       let fy = (wy - n.y) * stiffness - n.vy * dampingC;
       if (pointerLive && n.ring !== 0) {
@@ -389,7 +477,9 @@ export class StarScene {
     if (!ctx || !this.width) return;
     this.paintBackground();
     this.drawStars();
-    if (this.opts.mode === "landing" && this.nodes.length) this.drawConstellation();
+    if (!this.nodes.length) return;
+    if (this.opts.mode === "landing") this.drawConstellation();
+    else if (this.opts.mode === "auth") this.drawAperture();
   }
 
   /** One frame with all motion frozen (reduced-motion users and pre-animation paint). */
@@ -400,9 +490,10 @@ export class StarScene {
     this.warpT = 0;
     this.paintBackground();
     this.drawStars(true);
-    if (this.opts.mode === "landing" && this.nodes.length) {
+    if (this.nodes.length && (this.opts.mode === "landing" || this.opts.mode === "auth")) {
       this.placeNodes(true);
-      this.drawConstellation(true);
+      if (this.opts.mode === "landing") this.drawConstellation(true);
+      else this.drawAperture(true);
     }
     this.time = savedTime;
   }
@@ -447,6 +538,89 @@ export class StarScene {
         ctx.arc(x, y, s.r, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+  }
+
+  /**
+   * Auth aperture: a lit halo, three orbit guides, the particles riding them and the links between
+   * near neighbours. The pointer bends the rings (see `updateConstellation`) and a press sends a
+   * ring outwards from the cursor.
+   */
+  private drawAperture(frozen = false): void {
+    const ctx = this.ctx!;
+    const fade = 1 - this.warpT;
+    if (fade <= 0.02) return;
+    const f = this.focusRect();
+    const cx = f.x + f.w / 2;
+    const cy = f.y + f.h / 2;
+    const rx = f.w / 2;
+    const ry = f.h / 2;
+
+    // Halo behind the card so the form reads against the starfield.
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(f.w, f.h) * 1.15);
+    glow.addColorStop(0, rgba(92, 200, 255, 0.1 * fade));
+    glow.addColorStop(0.5, rgba(92, 200, 255, 0.035 * fade));
+    glow.addColorStop(1, rgba(92, 200, 255, 0));
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    ctx.lineWidth = 1;
+    ORBIT_SCALE.forEach((s, i) => {
+      ctx.strokeStyle = rgba(148, 163, 196, (0.17 - i * 0.045) * fade);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx * s, ry * s, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+
+    // A lit arc sweeping the outer guide, like a slow radar return.
+    const outer = ORBIT_SCALE[ORBIT_SCALE.length - 1];
+    const sweep = frozen ? -Math.PI / 2 : this.time * 0.34;
+    ctx.strokeStyle = rgba(92, 200, 255, 0.5 * fade);
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx * outer, ry * outer, 0, sweep, sweep + 0.6);
+    ctx.stroke();
+
+    // Links between neighbours: the field looks like a mesh being deformed, not loose dots.
+    const linkDist = Math.min(f.w, f.h) * 0.42;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < this.nodes.length; i++) {
+      for (let j = i + 1; j < this.nodes.length; j++) {
+        const a = this.nodes[i];
+        const b = this.nodes[j];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (d > linkDist) continue;
+        const alpha = (1 - d / linkDist) ** 1.6 * 0.3 * fade;
+        if (alpha < 0.015) continue;
+        ctx.strokeStyle = rgba(148, 163, 196, alpha);
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+    }
+
+    for (const n of this.nodes) {
+      // Particles knocked off their slot glow hotter, so the disturbance is legible.
+      const speed = Math.min(1, Math.hypot(n.vx, n.vy) / 320);
+      ctx.fillStyle = rgba(92, 200, 255, (0.06 + speed * 0.1) * fade);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r * (3.4 + speed * 2.4), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = rgba(lerp(226, 190, speed), lerp(234, 236, speed), lerp(250, 255, speed), (0.62 + n.ring * 0.06 + speed * 0.3) * fade);
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (this.shockwave > 0.02 && !frozen) {
+      const t = 1 - this.shockwave;
+      ctx.strokeStyle = rgba(92, 200, 255, this.shockwave * 0.4 * fade);
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(this.pointer.x, this.pointer.y, 20 + t * 260, 0, Math.PI * 2);
+      ctx.stroke();
     }
   }
 

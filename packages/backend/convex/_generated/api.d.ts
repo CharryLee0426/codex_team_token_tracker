@@ -13,6 +13,7 @@ import type * as deviceAuth from "../deviceAuth.js";
 import type * as http from "../http.js";
 import type * as ingest from "../ingest.js";
 import type * as lib_auth from "../lib/auth.js";
+import type * as orgInvites from "../orgInvites.js";
 import type * as orgs from "../orgs.js";
 import type * as usage from "../usage.js";
 import type * as users from "../users.js";
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   ingest: typeof ingest;
   "lib/auth": typeof lib_auth;
+  orgInvites: typeof orgInvites;
   orgs: typeof orgs;
   usage: typeof usage;
   users: typeof users;

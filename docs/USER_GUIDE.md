@@ -14,7 +14,11 @@ Everything is shown in **your computer's local time** and in **English or Chines
 ## 2. Sign in to the dashboard
 
 1. Open https://codex.chenli.dev and click **Sign in** → **Google** or **GitHub**.
-2. Your admin invites you to the team (a Clerk *organization*). Accept the invitation from the email or from the organization switcher in the dashboard header. Until then you still see your **Personal** view.
+2. Your admin adds you to the team (a Clerk *organization*), in one of two ways:
+   - **An invite link** like `https://codex.chenli.dev/j/7K2QF9XM4TVB` — open it, sign in with any account, and press **Join the organization**. The link works for anyone who has it until it expires (at most 7 days) or runs out of seats.
+   - **An e-mail invitation** — accept it from the email or from the organization switcher in the dashboard header.
+
+   Until you are in the organization you still see your **Personal** view.
 
 Always use the same login provider (or the same e-mail) on every device so all usage lands on one account.
 

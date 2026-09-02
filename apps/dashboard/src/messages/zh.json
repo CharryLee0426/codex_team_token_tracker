@@ -292,7 +292,90 @@
   },
   "auth": {
     "signInTitle": "登录 Codex Tracker",
-    "signUpTitle": "创建账号"
+    "signUpTitle": "创建账号",
+    "signInHeadline": "欢迎回到指挥中心",
+    "signUpHeadline": "把团队的 Codex 用量收进一块屏幕",
+    "signInLead": "从上次的遥测继续：实时会话、缓存命中，以及所有设备按 API 价格折算的费用。",
+    "signUpLead": "创建账号、连接菜单栏应用，一分钟内就能看到 token、费用与模型分布实时流入。",
+    "trust": "认证由 Clerk 提供 · 用量数据留在你自己的 Convex 部署里",
+    "highlights": {
+      "live": {
+        "title": "秒级实时",
+        "body": "会话、每秒 token 与当日花费，发生即可见。"
+      },
+      "team": {
+        "title": "一份名单，覆盖所有设备",
+        "body": "个人与团队用量自动汇总，不用再互相要截图。"
+      },
+      "privacy": {
+        "title": "只有计数会离开本机",
+        "body": "提示词和代码留在本地，上传的只是 token 统计。"
+      }
+    }
+  },
+  "join": {
+    "eyebrow": "邀请",
+    "metaTitle": "加入 {org}",
+    "headline": "加入 {org} 的 Codex Tracker",
+    "lead": "通过这个链接即可加入团队的共享仪表盘。用任意账号登录即可——邀请不绑定邮箱。",
+    "invalidTitle": "该链接无法使用",
+    "invalidLead": "邀请链接在过期、被撤销或名额用完后就会失效。请让团队管理员重新发一条。",
+    "cta": "加入该组织",
+    "joining": "正在加入…",
+    "joined": "已加入——欢迎来到 {org}。",
+    "alreadyMember": "你已经是该组织的成员了。",
+    "openTeam": "打开团队仪表盘",
+    "signInCta": "登录后加入",
+    "signUpCta": "注册账号并加入",
+    "signedOutHint": "登录后会自动回到这里。",
+    "backHome": "返回首页",
+    "memberCount": "{count, plural, =0 {暂无成员} other {# 位成员}}",
+    "seatsLeft": "{count, plural, =0 {名额已用完} other {剩余 # 个名额}}",
+    "unlimitedSeats": "不限名额",
+    "expiresIn": "{days, plural, =0 {今天到期} other {# 天后到期}}",
+    "roleMember": "成员",
+    "roleAdmin": "管理员",
+    "roleMemberHint": "你将以成员身份加入",
+    "roleAdminHint": "你将以管理员身份加入",
+    "errors": {
+      "not_found": "该邀请链接不存在，请向管理员索取新的链接。",
+      "expired": "该邀请链接已过期，请向管理员索取新的链接。",
+      "revoked": "该邀请链接已被管理员撤销。",
+      "exhausted": "该邀请链接的名额已用完。",
+      "generic": "加入时出了点问题，请稍后重试。"
+    }
+  },
+  "invites": {
+    "title": "邀请链接",
+    "hint": "一条链接，任何人打开即可加入，直到过期或名额用完。",
+    "expiry": "有效期",
+    "seats": "名额",
+    "role": "加入身份",
+    "roleMember": "成员",
+    "roleAdmin": "管理员",
+    "dayShort": "{count}天",
+    "unlimitedShort": "不限",
+    "create": "生成链接",
+    "creating": "生成中…",
+    "ready": "复制这条",
+    "link": "链接",
+    "status": "状态",
+    "uses": "已使用",
+    "expires": "到期",
+    "revoke": "撤销",
+    "empty": "还没有邀请链接",
+    "emptyBody": "生成一条并发到团队群里——打开链接的人都能加入。",
+    "footnote": "任何持有有效链接的人都能加入该组织；撤销链接会立即失效。",
+    "statuses": {
+      "valid": "有效",
+      "expired": "已过期",
+      "revoked": "已撤销",
+      "exhausted": "已满"
+    },
+    "errors": {
+      "forbidden": "只有组织管理员可以管理邀请链接。请先切换到该组织再试。",
+      "generic": "生成链接失败，请重试。"
+    }
   },
   "sources": {
     "title": "来源",

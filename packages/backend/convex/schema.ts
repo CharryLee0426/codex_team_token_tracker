@@ -55,6 +55,38 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_org_user", ["orgId", "userId"]),
 
+  /**
+   * Reusable organization invite links ("/j/<code>"). Unlike a Clerk email invitation these are not
+   * bound to an address: anyone holding the code can redeem it until it expires, runs out of seats
+   * or is revoked. `code` is the only secret — org, role and limits are resolved server-side.
+   */
+  orgInvites: defineTable({
+    code: v.string(),
+    orgId: v.id("orgs"),
+    clerkOrgId: v.string(),
+    role: v.string(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    /** 0 = unlimited seats (still bounded by `expiresAt`). */
+    maxUses: v.number(),
+    usedCount: v.number(),
+    revokedAt: v.optional(v.number()),
+  })
+    .index("by_code", ["code"])
+    .index("by_org", ["orgId"]),
+
+  /** One row per (invite, redeemer): makes redemption idempotent and gives admins an audit trail. */
+  orgInviteUses: defineTable({
+    inviteId: v.id("orgInvites"),
+    userId: v.id("users"),
+    status: v.string(), // pending | joined
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_invite", ["inviteId"])
+    .index("by_invite_user", ["inviteId", "userId"]),
+
   devices: defineTable({
     userId: v.id("users"),
     name: v.string(),
