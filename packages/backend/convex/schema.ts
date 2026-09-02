@@ -87,6 +87,13 @@ export default defineSchema({
     .index("by_invite", ["inviteId"])
     .index("by_invite_user", ["inviteId", "userId"]),
 
+  /**
+   * One row per *login* (`codex-tracker login`), but usage is stored per *machine*: the first login
+   * from a machine is its canonical device, and later logins from the same machine — the tray app and
+   * the headless agent, or a re-login — are aliases whose `mergedInto` points at it. A device token
+   * always resolves to the canonical row (see `lib/auth.requireDevice`), so hourly rows and sessions
+   * for one machine live under one device id and are never counted twice.
+   */
   devices: defineTable({
     userId: v.id("users"),
     name: v.string(),
@@ -99,9 +106,16 @@ export default defineSchema({
     lastSeenAt: v.number(),
     revokedAt: v.optional(v.number()),
     live: v.optional(liveValidator),
+    /** Hashed hardware identity reported by clients ≥ 0.3.0 (`shared/device-identity.ts`). */
+    machineId: v.optional(v.string()),
+    /** Set on aliases: the canonical device of the same machine that owns this login's usage. */
+    mergedInto: v.optional(v.id("devices")),
+    /** Throttle for the duplicate sweep that runs on heartbeats. */
+    dedupCheckedAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
-    .index("by_tokenHash", ["tokenHash"]),
+    .index("by_tokenHash", ["tokenHash"])
+    .index("by_user_machine", ["userId", "machineId"]),
 
   deviceAuthRequests: defineTable({
     code: v.string(),
@@ -110,6 +124,7 @@ export default defineSchema({
     deviceName: v.string(),
     platform: v.string(),
     hostname: v.optional(v.string()),
+    machineId: v.optional(v.string()),
     userId: v.optional(v.id("users")),
     deviceId: v.optional(v.id("devices")),
     tokenPlain: v.optional(v.string()),

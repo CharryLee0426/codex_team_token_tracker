@@ -104,7 +104,7 @@ export const liveNow = query({
     for (const u of users) {
       const devices = await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", u._id)).collect();
       for (const d of devices) {
-        if (d.revokedAt || !d.live || d.live.updatedAt < cutoff) continue;
+        if (d.revokedAt || d.mergedInto || !d.live || d.live.updatedAt < cutoff) continue;
         out.push({ user: publicUser(u), deviceId: d._id, deviceName: d.name, platform: d.platform, live: d.live });
       }
     }
@@ -112,16 +112,23 @@ export const liveNow = query({
   },
 });
 
+/** One entry per machine: alias logins (a second `login` from the same computer) are folded into it. */
 export const myDevices = query({
   args: {},
   handler: async (ctx) => {
     const user = await requireUser(ctx);
     const devices = await ctx.db.query("devices").withIndex("by_user", (q) => q.eq("userId", user._id)).collect();
+    const logins = new Map<string, number>();
+    for (const d of devices) {
+      if (d.mergedInto && !d.revokedAt) logins.set(d.mergedInto, (logins.get(d.mergedInto) ?? 0) + 1);
+    }
     return devices
-      .filter((d) => !d.revokedAt)
+      .filter((d) => !d.revokedAt && !d.mergedInto)
       .map((d) => ({
         id: d._id, name: d.name, platform: d.platform, hostname: d.hostname ?? null, appVersion: d.appVersion ?? null,
         timezone: d.timezone ?? null, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt, live: d.live ?? null,
+        /** Active tokens for this machine (1 = a single login; 2 = e.g. tray app + headless agent). */
+        logins: 1 + (logins.get(d._id) ?? 0),
       }));
   },
 });

@@ -1,6 +1,12 @@
 /** Wire types shared between the menubar/agent uploader, the Convex backend and the dashboard. */
 
-export const WIRE_VERSION = 1;
+/**
+ * Bumped when the client sends fields an older backend would reject. Clients read it from
+ * `<dashboard>/api/config` and only send the newer fields when the backend understands them.
+ *   1 — initial protocol
+ *   2 — `machineId` on device-auth start and heartbeats (one device per machine, 0.3.0)
+ */
+export const WIRE_VERSION = 2;
 export const DEVICE_AUTH_TTL_MS = 15 * 60 * 1000;
 export const DEVICE_TOKEN_PREFIX = "cxt_";
 export const MAX_BUCKETS_PER_PUSH = 400;
@@ -56,6 +62,8 @@ export interface HeartbeatPayload {
   hostname: string | null;
   timezone: string;
   live: LiveSnapshot | null;
+  /** Hashed machine identity (see `device-identity.ts`); only sent to backends with wireVersion >= 2. */
+  machineId?: string;
 }
 
 export interface DashboardConfigResponse {

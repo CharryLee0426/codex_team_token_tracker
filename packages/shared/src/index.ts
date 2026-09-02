@@ -10,3 +10,4 @@ export * from "./aggregate.ts";
 export * from "./palette.ts";
 export * from "./wire.ts";
 export * from "./sha256.ts";
+export * from "./device-identity.ts";

@@ -3,6 +3,8 @@ import { internalMutation, mutation, query } from "./_generated/server";
 import { hashToken, requireUser, publicUser } from "./lib/auth";
 import { randomHex } from "@codex-tracker/shared/sha256";
 import { DEVICE_AUTH_TTL_MS, DEVICE_TOKEN_PREFIX } from "@codex-tracker/shared/wire";
+import { isMachineId } from "@codex-tracker/shared/device-identity";
+import { canonicalDeviceFor } from "./devices";
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -25,11 +27,15 @@ function normalizeCode(code: string): string {
 /**
  * Device-authorization flow (menubar / headless agent):
  * 1. device calls `start` → gets a short code + poll secret
- * 2. user opens <dashboard>/cli-auth?code=XXXX-XXXX, signs in with Clerk (Google/GitHub) and approves
+ * 2. user opens <dashboard>/cli-auth?code=XXXX-XXXX (the CLI prints the link and a QR code, so any
+ *    phone or computer will do), signs in with Clerk (Google/GitHub) and approves
  * 3. device polls `poll` until approved and receives a long-lived device token
+ *
+ * `machineId` (clients ≥ 0.3.0) lets `approve` attach a repeat login — the tray app *and* the headless
+ * agent, or a re-login — to the machine's existing device instead of creating a second one.
  */
 export const start = mutation({
-  args: { deviceName: v.string(), platform: v.string(), hostname: v.optional(v.string()) },
+  args: { deviceName: v.string(), platform: v.string(), hostname: v.optional(v.string()), machineId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const now = Date.now();
     let code = makeCode();
@@ -46,6 +52,7 @@ export const start = mutation({
       deviceName: args.deviceName.slice(0, 120),
       platform: args.platform.slice(0, 40),
       hostname: args.hostname?.slice(0, 120),
+      machineId: isMachineId(args.machineId) ? args.machineId : undefined,
       createdAt: now,
       expiresAt: now + DEVICE_AUTH_TTL_MS,
     });
@@ -113,17 +120,32 @@ export const approve = mutation({
     }
     const now = Date.now();
     const token = DEVICE_TOKEN_PREFIX + randomHex(32);
-    const deviceId = await ctx.db.insert("devices", {
+    // A machine that already has a device with this user keeps it: the new login becomes an alias whose
+    // token writes into the existing rows, so nothing is counted twice. A revoked device that logs in
+    // again is reinstated rather than duplicated.
+    const canonical = req.machineId ? await canonicalDeviceFor(ctx, user._id, req.machineId) : null;
+    const loginId = await ctx.db.insert("devices", {
       userId: user._id,
       name: req.deviceName,
       platform: req.platform,
       hostname: req.hostname,
+      machineId: req.machineId,
       tokenHash: hashToken(token),
       createdAt: now,
       lastSeenAt: now,
+      mergedInto: canonical?._id,
     });
+    if (canonical) {
+      const samePlatform = canonical.platform === req.platform;
+      await ctx.db.patch(canonical._id, {
+        revokedAt: undefined,
+        lastSeenAt: now,
+        ...(samePlatform ? { name: req.deviceName, hostname: req.hostname ?? canonical.hostname } : {}),
+      });
+    }
+    const deviceId = canonical?._id ?? loginId;
     await ctx.db.patch(req._id, { status: "approved", userId: user._id, deviceId, tokenPlain: token });
-    return { deviceName: req.deviceName, deviceId };
+    return { deviceName: req.deviceName, deviceId, reused: canonical !== null };
   },
 });
 
