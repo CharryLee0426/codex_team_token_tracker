@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { requireOrgAdmin, requireOrgMember, upsertIdentityUser } from "./lib/auth";
+import { isOrgAdmin, requireOrgAdmin, requireOrgMember, upsertIdentityUser } from "./lib/auth";
 
 /**
  * Reusable organization invite links.
@@ -117,11 +117,15 @@ export const create = mutation({
 /** How many links the panel shows; older ones stay redeemable but drop off the list. */
 const LIST_LIMIT = 50;
 
-/** Links issued for the org, newest first. Admins only — the code is the credential. */
+/**
+ * Links issued for the org, newest first. Admins only — the code is the credential. Returns `null`
+ * rather than throwing for non-admins, so a role mismatch hides the panel instead of erroring the
+ * whole members page.
+ */
 export const listForOrg = query({
   args: { orgId: v.id("orgs") },
   handler: async (ctx, { orgId }) => {
-    await requireOrgAdmin(ctx, orgId);
+    if (!(await isOrgAdmin(ctx, orgId))) return null;
     const now = Date.now();
     const invites = await ctx.db
       .query("orgInvites")

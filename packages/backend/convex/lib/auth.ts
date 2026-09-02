@@ -101,6 +101,26 @@ export async function requireOrgAdmin(ctx: Ctx, orgId: Id<"orgs">) {
   return { user, membership, org };
 }
 
+/**
+ * Non-throwing counterpart to `requireOrgAdmin`, for read paths that should degrade to "nothing to
+ * show". A throwing query takes the whole page down with it, and admin-ness can legitimately be
+ * false here — a token minted before an org switch, or a JWT template without the `org_role` claim.
+ */
+export async function isOrgAdmin(ctx: Ctx, orgId: Id<"orgs">): Promise<boolean> {
+  const user = await currentUser(ctx);
+  if (!user) return false;
+  const membership = await ctx.db
+    .query("memberships")
+    .withIndex("by_org_user", (q) => q.eq("orgId", orgId).eq("userId", user._id))
+    .unique();
+  if (!membership) return false;
+  const org = await ctx.db.get(orgId);
+  if (!org) return false;
+  const identity = await ctx.auth.getUserIdentity();
+  const claim = identityOrg(identity as unknown as Record<string, unknown>);
+  return !!claim && claim.clerkOrgId === org.clerkOrgId && claim.role === "org:admin";
+}
+
 export function hashToken(token: string): string {
   return sha256Hex(token);
 }

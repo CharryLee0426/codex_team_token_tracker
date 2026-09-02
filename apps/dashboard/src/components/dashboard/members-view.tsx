@@ -18,13 +18,9 @@ export function MembersView() {
   return (
     <div className="space-y-5">
       <PageHeader eyebrow={clerkOrg.name} title={t("title")} subtitle={t("subtitle")} />
-      {/* Invite links are an admin tool, and `orgInvites.listForOrg` rejects everyone else — only
-          mount it once the membership row confirms the role. */}
-      {org?.role === "org:admin" ? (
-        <Card>
-          <InviteLinks orgId={org.id} />
-        </Card>
-      ) : null}
+      {/* Admin-only, but the gate that counts is server-side: `listForOrg` answers null for anyone
+          else and `InviteLinks` then renders nothing, so a stale role here cannot leak the codes. */}
+      {org ? <InviteLinks orgId={org.id} /> : null}
       <Card>{org ? <OrgMembersTable orgId={org.id} /> : <div className="p-6 text-sm text-fg-2">{tt("syncing")}</div>}</Card>
     </div>
   );

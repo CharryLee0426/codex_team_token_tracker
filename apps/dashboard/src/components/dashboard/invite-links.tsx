@@ -9,7 +9,7 @@ import { api } from "@codex-tracker/backend/convex/_generated/api";
 import type { Id } from "@codex-tracker/backend/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CardHeader } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -188,17 +188,24 @@ export function InviteLinksPanel({ invites, onCreate, onRevoke }: PanelProps) {
   );
 }
 
-/** Convex-backed panel for the active organization. */
+/**
+ * Convex-backed panel for the active organization. Renders nothing until the query confirms the
+ * caller is an admin (it answers `null` otherwise), so the panel is gated by the server rather than
+ * by the mirrored membership role the page happens to hold.
+ */
 export function InviteLinks({ orgId }: { orgId: Id<"orgs"> }) {
-  const invites = useQuery(api.orgInvites.listForOrg, { orgId }) as InviteRow[] | undefined;
+  const invites = useQuery(api.orgInvites.listForOrg, { orgId }) as InviteRow[] | null | undefined;
   const create = useMutation(api.orgInvites.create);
   const revoke = useMutation(api.orgInvites.revoke);
+  if (invites === null) return null;
   return (
-    <InviteLinksPanel
-      invites={invites}
-      onCreate={(args) => create({ orgId, ...args })}
-      onRevoke={(inviteId) => void revoke({ inviteId })}
-    />
+    <Card>
+      <InviteLinksPanel
+        invites={invites}
+        onCreate={(args) => create({ orgId, ...args })}
+        onRevoke={(inviteId) => void revoke({ inviteId })}
+      />
+    </Card>
   );
 }
 
