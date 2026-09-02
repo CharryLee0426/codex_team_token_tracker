@@ -28,6 +28,9 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
+# local agent tooling: per-machine settings and the git worktrees Claude Code creates
+.claude/
+
 # logs
 *.log
 npm-debug.log*
