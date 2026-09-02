@@ -1,0 +1,9 @@
+# Copied from ../menubar/assets by scripts/build.mjs so the published tarball is self-contained.
+# The tracked originals live in ../menubar/assets; keeping a second copy in git would just be drift.
+assets/
+
+# Bundled test suites (scripts/test.mjs)
+dist-test/
+
+# npm pack output
+*.tgz

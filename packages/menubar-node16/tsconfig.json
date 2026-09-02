@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "checkJs": false
+  },
+  // No application source of its own: this package type-checks the shared ../menubar/src tree it
+  // builds from, so a change that breaks the Node 16 build is caught here too.
+  "include": ["../menubar/src", "scripts"]
+}

@@ -25,7 +25,7 @@ await build({
   target: "node20",
   sourcemap: "inline",
   external: ["electron", "menubar", "node:*"],
-  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
+  define: { __APP_VERSION__: JSON.stringify(pkg.version), __NPM_PACKAGE__: JSON.stringify(pkg.name) },
   logLevel: "warning",
 });
 const built = globSync("**/*.js", { cwd: outdir }).map((p) => path.join(outdir, p));

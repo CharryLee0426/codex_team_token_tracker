@@ -4,8 +4,14 @@ import { spawn } from "node:child_process";
 import { configDir } from "./config";
 import { APP_VERSION, IS_DEV_BUILD } from "../version";
 
-/** npm package this app is published as. */
-export const NPM_PACKAGE = "codex-token-tracker";
+declare const __NPM_PACKAGE__: string | undefined;
+
+/**
+ * npm package this app is published as, stamped by the build. The Node 16 build is published as
+ * `codex-token-tracker-nodejs16`, and it must check and install *that* package — self-updating to
+ * `codex-token-tracker` would drop it back onto a bundle its Node cannot run.
+ */
+export const NPM_PACKAGE: string = typeof __NPM_PACKAGE__ !== "undefined" ? __NPM_PACKAGE__ : "codex-token-tracker";
 
 const CHECK_TTL_MS = 6 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -125,7 +131,11 @@ export function updateCommand(pm: PackageManager, spec?: string): string {
 }
 
 function cachePath(): string {
-  return path.join(configDir(), "update.json");
+  // Namespaced per npm package. The Node 16 build shares this config directory with the default
+  // build but tracks a different package, so a single update.json would let one build report the
+  // other's published version as its own latest. The default build keeps the original filename.
+  const suffix = NPM_PACKAGE === "codex-token-tracker" ? "" : `-${NPM_PACKAGE}`;
+  return path.join(configDir(), `update${suffix}.json`);
 }
 
 function readCache(): UpdateCache | null {

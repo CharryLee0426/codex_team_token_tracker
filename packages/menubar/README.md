@@ -31,6 +31,8 @@ with whichever package manager you used (npm / pnpm / yarn / bun).
 
 Node.js 20+ is required. Electron is an *optional* dependency: if its binary cannot be downloaded (locked-down servers, WSL without a desktop), the package still installs and runs in agent mode.
 
+> **Stuck on Node 16?** Install [`codex-token-tracker-nodejs16`](https://www.npmjs.com/package/codex-token-tracker-nodejs16) instead — the same app, same features, same version number, built from these same sources for Node 16.8+. Use one or the other on a machine, not both, since they install the same commands.
+
 ## Quick start
 
 ```bash
