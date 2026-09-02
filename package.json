@@ -18,6 +18,8 @@
     "codegen": "pnpm --filter dashboard codegen",
     "release:menubar": "pnpm --filter codex-token-tracker publish --access public",
     "release:menubar16": "pnpm --filter codex-token-tracker-nodejs16 publish --access public",
-    "test:node16": "pnpm --filter codex-token-tracker-nodejs16 test:node16"
+    "test:node16": "pnpm --filter codex-token-tracker-nodejs16 test:node16",
+    "e2e:node16": "pnpm --filter codex-token-tracker-nodejs16 e2e",
+    "e2e:node16:gui": "pnpm --filter codex-token-tracker-nodejs16 e2e:gui"
   }
 }

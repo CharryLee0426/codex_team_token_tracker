@@ -60,6 +60,8 @@
     "start": "node bin/codex-tracker.js",
     "test": "node scripts/test.mjs",
     "test:node16": "node scripts/test.mjs --node16",
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:gui": "node scripts/e2e.mjs --gui",
     "prepublishOnly": "pnpm typecheck",
     "prepack": "node scripts/build.mjs --release",
     "postpack": "node scripts/build.mjs"

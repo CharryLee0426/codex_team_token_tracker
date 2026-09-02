@@ -82,6 +82,28 @@ pnpm --filter codex-token-tracker-nodejs16 test:node16      # suites on a real N
 upstream suites against the node16 bundle, with `node:test` mapped onto a small shim since Node 16 has no
 test runner.
 
+### End-to-end
+
+```bash
+pnpm e2e:node16            # from the repo root
+pnpm e2e:node16:gui        # also downloads Electron (~100 MB) and launches the tray app
+```
+
+This does what a user does: builds a release, packs a tarball, installs it with **Node 16's own npm**
+under `--engine-strict`, and drives the installed binary on a real Node 16 — 35 checks across the
+polyfill, the CLI surface, the self-updater and a headless agent cycle.
+
+The load-bearing assertion is **differential**: the same synthetic Codex fixtures are fed to both the
+Node 16 build (on Node 16) and the Node 20 build (on your Node), and the two `status --json` reports must
+be byte-identical once timestamps are masked. A port that silently drops a source, mis-parses a number or
+takes a different branch cannot pass that.
+
+The run is hermetic — `CODEX_TRACKER_HOME` sends config, state and the update cache to a temp dir (so the
+run is signed out and **nothing can upload**), `CODEX_HOME` and friends point the scanner at fixtures
+rather than your real sessions, and local stub servers stand in for the npm registry and the dashboard, so
+it needs no network. It restores your dev builds and deletes its scratch directory on the way out; pass
+`--keep` to inspect it.
+
 The version is kept identical to `codex-token-tracker` by `scripts/sync-version.mjs`, which every build runs.
 
 ## License
