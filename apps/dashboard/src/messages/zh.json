@@ -40,6 +40,7 @@
     "localTime": "本地时间"
   },
   "nav": {
+    "dashboard": "仪表盘",
     "personal": "个人",
     "team": "团队",
     "members": "成员",
@@ -52,12 +53,28 @@
     "system": "跟随系统",
     "docs": "文档"
   },
+  "shell": {
+    "linkOnline": "实时连接",
+    "linkReconnecting": "正在重连…",
+    "linkConnecting": "正在连接…"
+  },
   "landing": {
+    "eyebrow": "为 Codex 团队打造的实时 token 遥测",
     "badge": "为使用 Codex 订阅的团队打造",
     "title": "清楚了解团队如何使用 Codex",
     "subtitle": "一个读取本地 Codex 会话的菜单栏应用，加上一个实时团队仪表盘：token 用量、缓存命中、模型分布，以及按 API 价格折算的费用。",
     "cta": "开始使用",
     "ctaSecondary": "查看仪表盘",
+    "trust": "macOS · Windows · WSL2 · 使用 Google 或 GitHub 登录",
+    "scroll": "向下滚动",
+    "hud": {
+      "title": "示例会话",
+      "rate": "输出 tokens / 秒",
+      "devices": "设备"
+    },
+    "sampleHint": "示例数据 · 最近 30 天",
+    "featuresEyebrow": "你将获得",
+    "featuresTitle": "从每位开发者的机器，到一块实时看板",
     "install": "安装菜单栏应用",
     "installHint": "支持 macOS 与 Windows（原生及 WSL2）。使用 Google 或 GitHub 登录。",
     "features": {
@@ -78,15 +95,22 @@
         "body": "按 OpenAI 标准 API 价格折算订阅用量，并标出缓存命中带来的节省——让你知道套餐到底值多少钱。"
       }
     },
+    "howEyebrow": "三个步骤",
     "howTitle": "工作原理",
     "how": {
       "1": "安装 npm 包并运行 `codex-tracker login`。",
       "2": "使用 Google 或 GitHub 账号在本仪表盘中授权该设备。",
       "3": "用量从本地 Codex 会话日志读取，每分钟同步一次。"
     },
+    "previewEyebrow": "任务控制中心",
+    "previewTitle": "每个会话、每台设备，尽在一块看板",
+    "previewBody": "这是用示例数据渲染的真实团队仪表盘——切换时间范围、悬停查看图表。你自己的数据看起来就是这样。",
+    "previewCta": "开始追踪",
+    "launching": "正在打开仪表盘…",
     "footer": "为 Codex CLI 打造 · Next.js · Convex · Clerk"
   },
   "ranges": {
+    "label": "时间范围",
     "today": "今天",
     "7d": "7 天",
     "30d": "30 天",
@@ -96,15 +120,18 @@
   "kpi": {
     "totalTokens": "总 token 数",
     "cost": "API 等价费用",
-    "costHint": "按 OpenAI 标准 API 价格计算",
+    "costHint": "按 OpenAI API 标准价格",
     "cacheHit": "缓存命中率",
     "cacheHitHint": "缓存输入 ÷ 总输入",
+    "cachedTokens": "缓存命中 {tokens}",
     "requests": "请求数",
+    "perRequest": "平均每次请求 {tokens}",
     "activeMembers": "活跃成员",
-    "activeMembersHint": "所选范围内有用量的成员",
+    "activeMembersHint": "范围内有用量",
     "liveNow": "当前在线",
-    "liveNowHint": "最近 2 分钟内有上报的设备",
+    "liveNowHint": "最近 2 分钟内有上报",
     "devices": "设备",
+    "devicesHint": "已连接到你的账号",
     "sessions": "会话",
     "inputOutput": "输入 {input} · 输出 {output}"
   },
@@ -113,21 +140,25 @@
     "usageOverTimeHint": "按模型的每日 token 数（本地时间）",
     "heatmap": "贡献热力图",
     "heatmapHint": "每个本地日期的 token 数",
+    "weeksShown": "最近 {count} 周",
     "activeHours": "活跃时段",
     "activeHoursHint": "按星期与小时统计的 token 数（本地时间）",
+    "peak": "峰值",
     "weekday": "周一至周日对比",
     "weekdayHint": "周一到周日的总 token 数",
     "avgPerDay": "每个{weekday}平均",
     "occurrences": "范围内共 {count} 天",
     "modelDist": "模型分布",
     "modelDistHint": "各模型 token 占比",
+    "day": "日期",
     "less": "少",
     "more": "多",
     "noData": "该范围内没有用量",
     "priceEstimated": "价格为估算——该模型不在价格表中",
     "hour": "{hour}:00",
     "tokensPerDay": "tokens / 天",
-    "cacheSavings": "缓存节省"
+    "cacheSavings": "缓存节省",
+    "activeHoursHover": "悬停或点按单元格查看该小时"
   },
   "members": {
     "title": "成员",
@@ -266,5 +297,8 @@
   "sources": {
     "title": "来源",
     "subtitle": "哪些工具消耗了 Codex 订阅额度"
+  },
+  "preview": {
+    "banner": "设计预览 —— 示例数据，并非你的账号"
   }
 }

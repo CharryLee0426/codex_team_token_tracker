@@ -2,45 +2,61 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ------------------------------------------------------------------------------------------------
+   Design tokens. Dark is the primary look ("deep space"); light is a clean daylight variant of the
+   same system. Mirror any change in `src/lib/theme.ts` (charts, canvas scene and Clerk read from it).
+   ------------------------------------------------------------------------------------------------ */
 :root {
   color-scheme: light;
-  --bg: #ffffff;
-  --card: #fafafa;
-  --card-2: #f4f4f5;
-  --border: #e5e5e5;
-  --border-strong: #d4d4d8;
-  --fg: #0a0a0a;
-  --fg-2: #52525b;
-  --muted: #8a8a93;
-  --accent: #6366f1;
+  --bg: #f3f5fa;
+  --bg-2: #ffffff;
+  --card: #ffffff;
+  --card-2: #eef2f8;
+  --border: rgba(16, 24, 40, 0.1);
+  --border-strong: rgba(16, 24, 40, 0.22);
+  --fg: #0b1220;
+  --fg-2: #4b5670;
+  --muted: #6f7a93;
+  --accent: #0369a1;
   --accent-fg: #ffffff;
-  --accent-soft: rgba(99, 102, 241, 0.12);
-  --grid: #ececef;
-  --ring: rgba(99, 102, 241, 0.4);
+  --accent-soft: rgba(3, 105, 161, 0.1);
+  --accent-glow: rgba(3, 105, 161, 0.25);
+  --grid: rgba(16, 24, 40, 0.08);
+  --ring: rgba(3, 105, 161, 0.45);
   --success: #0ca30c;
   --warning: #fab219;
   --danger: #d03b3b;
+  --glass: rgba(255, 255, 255, 0.78);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 32px -18px rgba(16, 24, 40, 0.18);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --header-h: 56px;
+  --tabbar-h: 62px;
 }
 
 .dark {
   color-scheme: dark;
-  --bg: #0f0f10;
-  --card: #141416;
-  --card-2: #1b1b1f;
-  --border: #27272a;
-  --border-strong: #3f3f46;
-  --fg: #fafafa;
-  --fg-2: #a1a1aa;
-  --muted: #71717a;
-  --accent: #818cf8;
-  --accent-fg: #0f0f10;
-  --accent-soft: rgba(129, 140, 248, 0.16);
-  --grid: #232327;
-  --ring: rgba(129, 140, 248, 0.45);
+  --bg: #05070d;
+  --bg-2: #090d16;
+  --card: #0c1220;
+  --card-2: #121a2b;
+  --border: rgba(148, 163, 196, 0.14);
+  --border-strong: rgba(148, 163, 196, 0.3);
+  --fg: #e8edf7;
+  --fg-2: #a7b1c6;
+  --muted: #6f7a93;
+  --accent: #5cc8ff;
+  --accent-fg: #041019;
+  --accent-soft: rgba(92, 200, 255, 0.14);
+  --accent-glow: rgba(92, 200, 255, 0.35);
+  --grid: rgba(148, 163, 196, 0.1);
+  --ring: rgba(92, 200, 255, 0.55);
+  --glass: rgba(9, 13, 22, 0.72);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 16px 40px -24px rgba(0, 0, 0, 0.8);
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
   --color-card: var(--card);
   --color-card-2: var(--card-2);
   --color-border: var(--border);
@@ -55,11 +71,16 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  --radius-card: 12px;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --radius-card: 14px;
+  --ease-out: var(--ease-out);
+  --breakpoint-xs: 30rem;
 }
 
+/* ------------------------------------------------------------------------------------------------
+   Base
+   ------------------------------------------------------------------------------------------------ */
 @layer base {
   * {
     border-color: var(--border);
@@ -67,6 +88,8 @@
   html {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
   }
   body {
     background: var(--bg);
@@ -74,37 +97,192 @@
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.5;
+    min-height: 100dvh;
   }
   ::selection {
     background: var(--accent-soft);
   }
-  button, input, select {
+  button,
+  input,
+  select,
+  textarea {
     font: inherit;
   }
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+    border-radius: 4px;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
   }
 }
 
-.tabular {
+/* The scene canvas sits behind everything; page content paints over it with transparent backgrounds. */
+.scene-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Utilities
+   ------------------------------------------------------------------------------------------------ */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+@utility tabular {
   font-variant-numeric: tabular-nums;
 }
 
-.scrollbar-thin::-webkit-scrollbar {
-  height: 8px;
-  width: 8px;
-}
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 8px;
+@utility glass {
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
 
-@keyframes live-pulse {
-  0% { transform: scale(1); opacity: 0.9; }
-  70% { transform: scale(2.2); opacity: 0; }
-  100% { transform: scale(2.2); opacity: 0; }
+@utility surface {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
+
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility grid-lines {
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  &::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 8px;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Motion
+   ------------------------------------------------------------------------------------------------ */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes live-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(6px);
+  }
+}
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes scan {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(220%);
+  }
+}
+
+.page-enter {
+  animation: fade-up 0.5s var(--ease-out) both;
+}
+
+.stagger > * {
+  animation: fade-up 0.55s var(--ease-out) both;
+}
+.stagger > :nth-child(1) { animation-delay: 0ms; }
+.stagger > :nth-child(2) { animation-delay: 60ms; }
+.stagger > :nth-child(3) { animation-delay: 120ms; }
+.stagger > :nth-child(4) { animation-delay: 180ms; }
+.stagger > :nth-child(5) { animation-delay: 240ms; }
+.stagger > :nth-child(6) { animation-delay: 300ms; }
+.stagger > :nth-child(7) { animation-delay: 360ms; }
+.stagger > :nth-child(8) { animation-delay: 420ms; }
+
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.75s var(--ease-out),
+    transform 0.75s var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
 .live-dot::after {
   content: "";
   position: absolute;
@@ -114,9 +292,157 @@
   animation: live-pulse 1.8s ease-out infinite;
 }
 
+.skeleton {
+  background: linear-gradient(90deg, var(--card-2) 0%, color-mix(in srgb, var(--card-2) 60%, var(--border-strong)) 50%, var(--card-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+.bob {
+  animation: bob 1.8s ease-in-out infinite;
+}
+
+.spin-slow {
+  animation: spin-slow 40s linear infinite;
+}
+
+/* Landing page: forced dark scope, content fades and shrinks while the scene warps into the app. */
+.landing-root {
+  color: var(--fg);
+  overflow-x: clip;
+}
+.launch-fade {
+  transition:
+    opacity 0.45s ease,
+    transform 0.6s var(--ease-out);
+}
+.is-launching .launch-fade {
+  opacity: 0;
+  transform: scale(0.985);
+}
+
+.hero-title {
+  font-size: clamp(2.4rem, 6.4vw, 5.2rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+}
+
+/* Feature cards: pointer-driven tilt with a soft glare that follows the cursor. */
+.tilt-card {
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.35s var(--ease-out), border-color 0.3s;
+  will-change: transform;
+}
+.tilt-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), var(--accent-soft), transparent 65%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.tilt-card:hover::after {
+  opacity: 1;
+}
+
+/* Perspective "device" frame for the product preview: flattens as it scrolls into view. */
+.tilt-frame {
+  transform: perspective(1600px) rotateX(var(--tilt, 14deg)) translateY(var(--lift, 24px));
+  transform-origin: 50% 0%;
+  transition: transform 0.9s var(--ease-out);
+}
+.tilt-frame.is-visible {
+  --tilt: 0deg;
+  --lift: 0px;
+}
+
+/* Reduced motion: keep the layout, drop the movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal,
+  .stagger > * {
+    opacity: 1;
+    transform: none;
+  }
+  .tilt-frame {
+    --tilt: 0deg;
+    --lift: 0px;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Responsive tables: a single markup source that becomes a stack of cards below `md`.
+   Cells opt in to a label with `data-label`; the first cell is marked `data-primary`.
+   ------------------------------------------------------------------------------------------------ */
+@media (max-width: 767.98px) {
+  .table-responsive thead {
+    display: none;
+  }
+  .table-responsive,
+  .table-responsive tbody,
+  .table-responsive tr,
+  .table-responsive td {
+    display: block;
+    width: 100%;
+  }
+  .table-responsive tr {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin: 0 0 8px;
+    background: color-mix(in srgb, var(--card-2) 55%, transparent);
+  }
+  .table-responsive td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 0;
+    border: 0 !important;
+    text-align: right;
+  }
+  .table-responsive td[data-label]::before {
+    content: attr(data-label);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: left;
+    flex: 0 0 auto;
+  }
+  .table-responsive td[data-primary] {
+    display: block;
+    text-align: left;
+    padding: 0 0 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--border) !important;
+  }
+  .table-responsive td[data-primary]::before {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Third-party overrides
+   ------------------------------------------------------------------------------------------------ */
 .recharts-cartesian-grid line {
   stroke: var(--grid);
 }
 .recharts-tooltip-cursor {
   fill: var(--accent-soft);
+}
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
 }

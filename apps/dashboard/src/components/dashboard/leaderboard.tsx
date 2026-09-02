@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { LiveDot } from "@/components/ui/live-dot";
 import { Table, TableWrap, Td, Th } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useChartTheme } from "@/components/charts/use-chart-theme";
 
 interface Props {
   stats: MemberStat[];
@@ -23,6 +24,7 @@ export function Leaderboard({ stats, users, liveUserIds, meId, now }: Props) {
   const t = useTranslations("members");
   const tc = useTranslations("common");
   const locale = useLocale();
+  const theme = useChartTheme();
   if (!stats.length) return <EmptyState title={t("empty")} className="py-8" />;
   const max = stats[0]?.usage.total || 1;
   return (
@@ -31,7 +33,7 @@ export function Leaderboard({ stats, users, liveUserIds, meId, now }: Props) {
         <thead>
           <tr>
             <Th>{t("member")}</Th>
-            <Th className="w-40">{tc("share")}</Th>
+            <Th className="w-44">{tc("share")}</Th>
             <Th right>{tc("tokens")}</Th>
             <Th right>{tc("cost")}</Th>
             <Th right>{tc("cacheHit")}</Th>
@@ -45,9 +47,9 @@ export function Leaderboard({ stats, users, liveUserIds, meId, now }: Props) {
             const live = liveUserIds.has(s.userId);
             return (
               <tr key={s.userId} className="hover:bg-card-2/60">
-                <Td>
-                  <span className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-4 text-right text-xs text-muted tabular">{i + 1}</span>
+                <Td primary>
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <span className="w-4 text-right font-mono text-xs text-muted tabular">{i + 1}</span>
                     <Avatar name={u?.name ?? u?.email} src={u?.imageUrl} size={24} />
                     <span className="min-w-0">
                       <span className="flex items-center gap-1.5">
@@ -63,19 +65,21 @@ export function Leaderboard({ stats, users, liveUserIds, meId, now }: Props) {
                     </span>
                   </span>
                 </Td>
-                <Td>
-                  <span className="flex items-center gap-2">
-                    <span className="h-1.5 flex-1 rounded-full bg-card-2 overflow-hidden">
-                      <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.max(2, (s.usage.total / max) * 100)}%` }} />
+                <Td label={tc("share")}>
+                  <span className="flex items-center gap-2 max-md:w-40">
+                    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-card-2">
+                      <span className="block h-full rounded-full transition-[width] duration-700 ease-[var(--ease-out)]" style={{ width: `${Math.max(2, (s.usage.total / max) * 100)}%`, background: theme.categorical[0] }} />
                     </span>
                     <span className="w-10 text-right text-xs text-muted tabular">{formatPercent(s.share)}</span>
                   </span>
                 </Td>
-                <Td right mono>{formatTokens(s.usage.total)}</Td>
-                <Td right mono>{formatUSD(s.cost)}</Td>
-                <Td right mono>{formatPercent(s.cacheHit)}</Td>
-                <Td right mono>{s.usage.requests}</Td>
-                <Td right className="text-fg-2 text-xs whitespace-nowrap">{s.lastHour ? fmtRelative(s.lastHour, now, locale) : "—"}</Td>
+                <Td right mono label={tc("tokens")}>{formatTokens(s.usage.total)}</Td>
+                <Td right mono label={tc("cost")}>{formatUSD(s.cost)}</Td>
+                <Td right mono label={tc("cacheHit")}>{formatPercent(s.cacheHit)}</Td>
+                <Td right mono label={tc("requests")}>{s.usage.requests}</Td>
+                <Td right label={t("lastActive")} className="text-xs whitespace-nowrap text-fg-2">
+                  {s.lastHour ? fmtRelative(s.lastHour, now, locale) : "—"}
+                </Td>
               </tr>
             );
           })}

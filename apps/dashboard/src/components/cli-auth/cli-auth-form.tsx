@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { ConvexError } from "convex/values";
 import { useLocale, useTranslations } from "next-intl";
-import { CheckCircle2, Laptop, ShieldCheck } from "lucide-react";
+import { CircleCheck, Laptop, ShieldCheck } from "lucide-react";
 import { api } from "@codex-tracker/backend/convex/_generated/api";
 import { useMe } from "@/hooks/use-me";
 import { useNow } from "@/hooks/use-now";
@@ -14,7 +14,7 @@ import { fmtDateTime, fmtRelative } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { PageTitle } from "@/components/ui/page-title";
+import { PageHeader } from "@/components/ui/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
 function formatCode(raw: string): string {
@@ -27,6 +27,7 @@ export function CliAuthForm() {
   const initial = formatCode(params.get("code") ?? "");
   const t = useTranslations("cliAuth");
   const tc = useTranslations("common");
+  const tn = useTranslations("nav");
   const locale = useLocale();
   const now = useNow(15_000);
   const { ready } = useMe();
@@ -68,28 +69,29 @@ export function CliAuthForm() {
   const status = result === "approved" ? "approved" : result === "denied" ? "denied" : req?.status;
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
-      <PageTitle title={t("title")} subtitle={t("subtitle")} />
+    <div className="mx-auto max-w-lg space-y-5">
+      <PageHeader eyebrow={tn("devices")} title={t("title")} subtitle={t("subtitle")} />
 
-      <Card className="p-5 space-y-4">
+      <Card className="space-y-4 p-5">
         <label className="block">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted">{t("codeLabel")}</span>
+          <span className="eyebrow">{t("codeLabel")}</span>
           <input
             value={code}
             onChange={(e) => setCode(formatCode(e.target.value))}
             placeholder={t("codePlaceholder")}
             spellCheck={false}
             autoComplete="off"
-            className="mt-1 h-11 w-full rounded-lg border border-border bg-bg px-3 font-mono text-lg tracking-[0.2em] text-fg outline-none focus:border-accent"
+            inputMode="text"
+            className="mt-1.5 h-12 w-full rounded-xl border border-border bg-bg-2 px-3 font-mono text-lg tracking-[0.22em] text-fg outline-none transition-[border-color,box-shadow] placeholder:text-muted/60 focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-soft)]"
           />
         </label>
 
         {lookup.length !== 9 ? null : !ready || req === undefined ? (
           <Skeleton className="h-24" />
         ) : status === "approved" ? (
-          <div className="rounded-lg border border-[rgba(12,163,12,0.4)] bg-[rgba(12,163,12,0.08)] p-4">
+          <div className="rounded-xl border border-[rgba(12,163,12,0.4)] bg-[rgba(12,163,12,0.08)] p-4">
             <div className="flex items-center gap-2 font-medium text-fg">
-              <CheckCircle2 size={18} className="text-success" /> {t("approvedTitle")}
+              <CircleCheck size={18} className="text-success" /> {t("approvedTitle")}
             </div>
             <p className="mt-1 text-sm text-fg-2">{t("approvedBody")}</p>
             <Link href="/dashboard/devices" className={buttonClasses("secondary", "sm", "mt-3")}>
@@ -106,8 +108,8 @@ export function CliAuthForm() {
           <p className="text-sm text-fg-2">{t("denied")}</p>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-start gap-3 rounded-lg border border-border bg-card-2 p-3">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg text-fg-2">
+            <div className="flex items-start gap-3 rounded-xl border border-border bg-card-2 p-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-bg-2 text-fg-2">
                 <Laptop size={18} />
               </span>
               <dl className="grid flex-1 grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
@@ -130,7 +132,7 @@ export function CliAuthForm() {
               </dl>
               <Badge variant="warning">{t("pending")}</Badge>
             </div>
-            <div className="rounded-lg border border-border p-3 text-sm">
+            <div className="rounded-xl border border-border p-3 text-sm">
               <div className="flex items-center gap-2 font-medium text-fg">
                 <ShieldCheck size={16} className="text-accent" /> {t("accessTitle")}
               </div>
@@ -141,14 +143,14 @@ export function CliAuthForm() {
               </ul>
             </div>
             {error ? <p className="text-sm text-danger">{error}</p> : null}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button variant="primary" disabled={busy} onClick={onApprove}>
                 {t("approve")}
               </Button>
               <Button variant="ghost" disabled={busy} onClick={onDeny}>
                 {t("deny")}
               </Button>
-              <span className="ml-auto self-center text-xs text-muted">{tc("localTime")}</span>
+              <span className="ml-auto text-xs text-muted">{tc("localTime")}</span>
             </div>
           </div>
         )}

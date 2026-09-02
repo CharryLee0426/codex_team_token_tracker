@@ -28,7 +28,7 @@ Production: dashboard **https://codex.chenli.dev** · npm package **`codex-token
 - **Views** — daily contribution heatmap, hour × weekday activity, Mon–Sun comparison, model distribution, member leaderboard, live "coding now", recent sessions, devices.
 - **Sources** — every agent that consumes the Codex subscription is tagged (`codex`, `pi`, `opencode`, `cline`, `roo`, `kilo`, `hermes`, custom dirs); API-key providers inside those agents are excluded by default.
 - **Teams** — Clerk Organizations; membership synced from JWT and webhooks; any number of devices per person.
-- **Time & language** — database in UTC, all views in the viewer's local time; English / Simplified Chinese, auto-detected and persisted; light / dark / system theme (OpenRouter-style UI).
+- **Time & language** — database in UTC, all views in the viewer's local time; English / Simplified Chinese, auto-detected and persisted; light / dark / system theme (mission-control style UI with a particle scene behind the landing page and dashboard).
 - **Privacy** — only counts, model/agent names, project folder names and a path hash leave the machine.
 
 ## Repository layout

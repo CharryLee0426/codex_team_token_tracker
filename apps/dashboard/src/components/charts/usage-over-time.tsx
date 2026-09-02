@@ -6,7 +6,9 @@ import { useLocale, useTranslations } from "next-intl";
 import { formatTokens, formatUSD } from "@codex-tracker/shared/format";
 import { fmtDayKey } from "@/lib/format";
 import { OTHER_KEY, type DailyStackPoint } from "@/lib/analytics";
+import { Table, TableWrap, Td, Th } from "@/components/ui/table";
 import { useChartTheme } from "./use-chart-theme";
+import { useFirstRenderAnimation } from "./use-first-render-animation";
 import { TooltipBox, TooltipRow } from "./chart-tooltip";
 import { SeriesLegend } from "./series-legend";
 
@@ -21,6 +23,7 @@ export function UsageOverTime({ data, series, colorOf }: Props) {
   const theme = useChartTheme();
   const locale = useLocale();
   const t = useTranslations("common");
+  const { animate, duration } = useFirstRenderAnimation();
   const keys = useMemo(() => {
     const k = series.map((m, i) => ({ key: `s${i}`, name: m, color: colorOf(m) }));
     const hasOther = data.some((d) => (d.values[OTHER_KEY] ?? 0) > 0);
@@ -38,12 +41,15 @@ export function UsageOverTime({ data, series, colorOf }: Props) {
     [data, series],
   );
   const dense = data.length > 45;
+  // Gaps scale with the band so 30 bars on a phone stay readable; a 1px surface gap once bands get narrow.
+  const gapPct = dense ? "8%" : data.length > 14 ? "18%" : "28%";
+  const strokeWidth = data.length > 14 ? 1 : 2;
 
   return (
     <div>
-      <div className="h-64 w-full">
+      <div className="h-56 w-full sm:h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barCategoryGap={dense ? 1 : 3}>
+          <BarChart data={rows} margin={{ top: 8, right: 4, left: 0, bottom: 0 }} barCategoryGap={gapPct}>
             <CartesianGrid vertical={false} stroke={theme.grid} />
             <XAxis
               dataKey="day"
@@ -51,18 +57,12 @@ export function UsageOverTime({ data, series, colorOf }: Props) {
               tick={{ fontSize: 11, fill: theme.axis }}
               tickLine={false}
               axisLine={{ stroke: theme.border }}
-              minTickGap={28}
+              minTickGap={36}
               interval="preserveStartEnd"
             />
-            <YAxis
-              tickFormatter={(v: number) => formatTokens(v, 1)}
-              tick={{ fontSize: 11, fill: theme.axis }}
-              tickLine={false}
-              axisLine={false}
-              width={46}
-            />
+            <YAxis tickFormatter={(v: number) => formatTokens(v, 0)} tick={{ fontSize: 11, fill: theme.axis }} tickLine={false} axisLine={false} width={42} />
             <Tooltip
-              cursor={{ fill: theme.dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)" }}
+              cursor={{ fill: theme.dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)" }}
               content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
                 const row = payload[0].payload as Record<string, number>;
@@ -81,12 +81,60 @@ export function UsageOverTime({ data, series, colorOf }: Props) {
               }}
             />
             {keys.map((k) => (
-              <Bar key={k.key} dataKey={k.key} name={k.name} stackId="stack" fill={k.color} stroke={theme.surface} strokeWidth={1} maxBarSize={32} isAnimationActive={false} />
+              <Bar
+                key={k.key}
+                dataKey={k.key}
+                name={k.name}
+                stackId="stack"
+                fill={k.color}
+                stroke={theme.surface}
+                strokeWidth={strokeWidth}
+                maxBarSize={24}
+                isAnimationActive={animate}
+                animationDuration={duration}
+                animationEasing="ease-out"
+              />
             ))}
           </BarChart>
         </ResponsiveContainer>
       </div>
       {keys.length >= 2 ? <SeriesLegend items={keys.map((k) => ({ name: k.name, color: k.color }))} /> : null}
     </div>
+  );
+}
+
+/** Table twin: one row per local day. */
+export function UsageOverTimeTable({ data }: { data: DailyStackPoint[] }) {
+  const locale = useLocale();
+  const t = useTranslations("common");
+  const tc = useTranslations("charts");
+  const rows = [...data].reverse().filter((d) => d.total > 0);
+  return (
+    <TableWrap>
+      <Table>
+        <thead>
+          <tr>
+            <Th>{tc("day")}</Th>
+            <Th right>{t("tokens")}</Th>
+            <Th right>{t("cost")}</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((d) => (
+            <tr key={d.day} className="hover:bg-card-2/60">
+              <Td primary className="font-medium text-fg">
+                {fmtDayKey(d.day, locale, { weekday: "short", month: "short", day: "numeric" })}
+              </Td>
+              <Td right mono label={t("tokens")}>
+                {formatTokens(d.total)}
+              </Td>
+              <Td right mono label={t("cost")}>
+                {formatUSD(d.cost)}
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </TableWrap>
   );
 }
