@@ -1,6 +1,6 @@
 {
   "name": "codex-token-tracker",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Menu bar / system tray app and headless agent that tracks OpenAI Codex token usage, cache hits, model mix and API-equivalent cost — and syncs it to your team dashboard.",
   "license": "MIT",
   "author": "Chen Li",
@@ -59,12 +59,6 @@
     "build:icons": "node scripts/gen-icons.mjs",
     "test": "node scripts/test.mjs"
   },
-  "dependencies": {
-    "menubar": "^9.5.3"
-  },
-  "optionalDependencies": {
-    "electron": "^38.8.6"
-  },
   "devDependencies": {
     "@codex-tracker/backend": "workspace:*",
     "@codex-tracker/shared": "workspace:*",
@@ -72,7 +66,9 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "convex": "^1.45.0",
+    "electron": "^38.8.6",
     "esbuild": "^0.28.2",
+    "menubar": "^9.5.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "typescript": "~5.9.3"

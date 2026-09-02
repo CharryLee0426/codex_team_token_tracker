@@ -2,6 +2,30 @@
 
 All notable changes to `codex-token-tracker`. This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.2.2 — 2026-09-02
+
+Installs on machines that cannot download Electron.
+
+### Fixed
+
+- **`npm install -g` no longer runs Electron's install script.** `electron` was an optional dependency, and
+  `menubar` declared it as a hard peer dependency, so every install ran Electron's `install.js` — a ~100 MB
+  download from GitHub. When that download failed (firewalled build servers, no proxy) npm aborted the
+  **entire** install instead of skipping the optional package — Node 16's npm 8 does so outright, npm 11 does
+  the same once the script runs — and the retry died with
+  `Cannot find module …/node_modules/electron/install.js`, leaving the machine unable to install the tracker
+  even for headless use. Neither package is a dependency any more: `menubar` is bundled into `dist/main.js`,
+  and the CLI downloads the Electron runtime itself on first GUI launch into
+  `~/.codex-tracker/electron/<version>/` — the same downloader 0.1.1 added for package managers that skip
+  install scripts — honouring `ELECTRON_MIRROR` and `HTTPS_PROXY`. A globally installed `electron` is still
+  preferred when present. Headless machines never download Electron at all, and a plain install is ~40
+  packages instead of ~75.
+
+### Changed
+
+- The *Electron download failed* message now points at `ELECTRON_MIRROR` / `HTTPS_PROXY` and
+  `codex-tracker menubar` rather than `npm rebuild electron`.
+
 ## 0.2.1 — 2026-09-01
 
 A manual **Sync** button that recalibrates this device's numbers on the dashboard.

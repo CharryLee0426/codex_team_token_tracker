@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
-import { installElectronBinary } from "./core/electron-install";
+import { binaryFromPackageDir, ensureManagedElectronDir, installElectronBinary, managedElectronDir } from "./core/electron-install";
 import { formatPercent, formatTokens, formatUSD, machineTimeZone } from "@codex-tracker/shared";
 import {
   EDITABLE_KEYS,
@@ -58,14 +58,21 @@ function applyDashboardFlag(flags: Args["flags"]): TrackerConfig {
   return cfg;
 }
 
+/**
+ * The Electron executable, if one is already on disk. Two places are checked, in order:
+ *   1. an `electron` npm package — the one we resolve from our own node_modules chain, which also covers
+ *      a globally installed `npm i -g electron` (useful on an OS too old for the default release);
+ *   2. the runtime this CLI downloaded itself into the tracker's config directory.
+ */
 function electronBinary(): string | null {
   try {
     // Under plain Node, require("electron") resolves to the binary path (string).
     const p = require("electron") as unknown;
-    return typeof p === "string" && p && fs.existsSync(p) ? p : null;
+    if (typeof p === "string" && p && fs.existsSync(p)) return p;
   } catch {
-    return null;
+    /* no electron npm package — fall through */
   }
+  return binaryFromPackageDir(managedElectronDir(configDir()));
 }
 
 function electronPackageDir(): string | null {
@@ -77,16 +84,18 @@ function electronPackageDir(): string | null {
 }
 
 /**
- * The `electron` npm package is installed but its binary was never downloaded — npm ≥ 11 and pnpm ≥ 10
- * block dependency install scripts by default (`npm warn allow-scripts electron`). Install it now with our
- * own downloader/extractor (≈100 MB once; honours ELECTRON_MIRROR / HTTPS_PROXY), falling back to Electron's
- * install.js.
+ * Make sure an Electron binary exists, downloading one when it does not (≈100 MB once; honours
+ * ELECTRON_MIRROR / HTTPS_PROXY). The package is deliberately *not* an npm dependency: npm 8 (Node 16's
+ * npm) aborts the whole global install when an optional dependency's install script fails, and npm ≥ 11 /
+ * pnpm ≥ 10 skip dependency install scripts by default, so relying on Electron's own postinstall either
+ * broke the install on locked-down machines or left the binary missing. The download goes into the
+ * `electron` npm package directory when one is present (so `require("electron")` keeps working), otherwise
+ * into the tracker's config directory.
  */
 async function ensureElectron(): Promise<string | null> {
   const existing = electronBinary();
   if (existing) return existing;
-  const dir = electronPackageDir();
-  if (!dir) return null; // package itself is missing (optional dependency skipped)
+  const dir = electronPackageDir() ?? ensureManagedElectronDir(configDir());
   const t = makeT(lang());
   console.log(t("cliDownloadingElectron"));
   const log = { info: (m: string) => console.log(m), error: (m: string) => console.error(m) };

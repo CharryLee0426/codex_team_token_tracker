@@ -7,6 +7,18 @@ and carries **the same version number**, because it is built from the same sourc
 application itself, see [that package's changelog](https://github.com/CharryLee0426/codex_team_token_tracker/blob/main/packages/menubar/CHANGELOG.md).
 Entries here cover only what is specific to the Node 16 build.
 
+## 0.2.2 — 2026-09-02
+
+### Fixed
+
+- **Installing on Node 16 failed when Electron could not be downloaded.** Node 16's npm (8.x) aborts a
+  global install when an optional dependency's install script fails, and the retry reported
+  `Cannot find module …/codex-token-tracker-nodejs16/node_modules/electron/install.js`. Electron is no longer
+  an npm dependency of this package, nor is `menubar` (which pulled it in as a peer) — see the
+  [main changelog](https://github.com/CharryLee0426/codex_team_token_tracker/blob/main/packages/menubar/CHANGELOG.md)
+  for the mechanics. `npm install -g codex-token-tracker-nodejs16` now installs the same on every machine, and
+  the end-to-end test asserts that a plain install pulls in no `electron` package.
+
 ## 0.2.1 — 2026-09-02
 
 First release. Feature-identical to `codex-token-tracker` 0.2.1, installable on Node 16.8+.

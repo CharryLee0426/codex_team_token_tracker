@@ -13,14 +13,23 @@ const channel = process.argv.includes("--release") ? "prod" : "dev";
 const src = (p) => path.join(root, "src", p);
 const out = (p) => path.join(root, "dist", p);
 
+// The Electron release the CLI downloads itself when no `electron` npm package is around. Taken from
+// codex-token-tracker's devDependency range so the self-managed runtime tracks the one developers run.
+const electronVersion = String(pkg.devDependencies?.electron ?? pkg.optionalDependencies?.electron ?? "").replace(/^[^\d]*/, "");
+if (!electronVersion) throw new Error("[build] cannot determine the Electron version to stamp into __ELECTRON_VERSION__");
 const define = {
   __APP_VERSION__: JSON.stringify(pkg.version),
   __APP_CHANNEL__: JSON.stringify(channel),
   __NPM_PACKAGE__: JSON.stringify(pkg.name),
+  __ELECTRON_VERSION__: JSON.stringify(electronVersion),
 };
 const common = { bundle: true, sourcemap: false, logLevel: "info", legalComments: "none", define };
 
-const nodeCommon = { ...common, platform: "node", format: "cjs", target: "node20", external: ["electron", "menubar"] };
+// `menubar` is bundled rather than depended on: it declares a hard peer dependency on `electron`, which npm ≥ 7
+// would otherwise auto-install (and run the install script of) on every user's machine. `electron` itself is
+// only ever resolved at runtime — inside Electron it is the built-in module, under plain Node the CLI
+// resolves it (or downloads a runtime) itself.
+const nodeCommon = { ...common, platform: "node", format: "cjs", target: "node20", external: ["electron"] };
 const configs = [
   { ...nodeCommon, entryPoints: [src("cli.ts")], outfile: out("cli.js") },
   { ...nodeCommon, entryPoints: [src("main.ts")], outfile: out("main.js") },

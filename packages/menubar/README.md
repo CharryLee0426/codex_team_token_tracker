@@ -27,9 +27,9 @@ This installs two equivalent commands on your PATH: **`codex-token-tracker`** an
 Already installed? `codex-token-tracker update` fetches the newest published version and installs it
 with whichever package manager you used (npm / pnpm / yarn / bun).
 
-> **npm 11+ / pnpm 10+ block Electron's install script by default.** That's fine: the first `codex-tracker` run downloads the Electron runtime itself (~100 MB, once). To do it during install instead: `npm install -g codex-token-tracker --allow-scripts=electron`.
+> **Electron is downloaded on first launch, not during install.** `npm install -g` never runs Electron's install script, so the install succeeds on locked-down servers and headless machines download nothing. The first `codex-tracker` run on a desktop fetches the runtime (~100 MB, once) into `~/.codex-tracker/electron/<version>/`, honouring `ELECTRON_MIRROR` (e.g. `https://npmmirror.com/mirrors/electron/`) and `HTTPS_PROXY`. A globally installed `electron` (`npm i -g electron`) is used instead when present.
 
-Node.js 20+ is required. Electron is an *optional* dependency: if its binary cannot be downloaded (locked-down servers, WSL without a desktop), the package still installs and runs in agent mode.
+Node.js 20+ is required. Electron is not an npm dependency: if the runtime cannot be downloaded (locked-down servers, WSL without a desktop), the package still installs and runs in agent mode.
 
 > **Stuck on Node 16?** Install [`codex-token-tracker-nodejs16`](https://www.npmjs.com/package/codex-token-tracker-nodejs16) instead — the same app, same features, same version number, built from these same sources for Node 16.8+. Use one or the other on a machine, not both, since they install the same commands.
 
@@ -270,6 +270,6 @@ MIT
 
 ## Troubleshooting
 
-- **"Electron is not installed" / tray app does not start** – the Electron binary is downloaded by an install script. If your package manager skipped or cached it incompletely, run `npm rebuild electron` (or `node "$(npm root -g)/codex-token-tracker/node_modules/electron/install.js"`). With pnpm, allow the build script (`pnpm approve-builds`). The headless `codex-tracker agent` and `codex-tracker status` work without Electron.
+- **"Electron download failed" / tray app does not start** – the CLI downloads the Electron runtime on first launch from GitHub releases into `~/.codex-tracker/electron/<version>/`. Behind a firewall set `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` (or `HTTPS_PROXY`) and run `codex-tracker menubar` again; a half-finished download can be cleared by deleting that directory. A manually installed `npm i -g electron` is also picked up. The headless `codex-tracker agent` and `codex-tracker status` work without Electron.
 - **Nothing is tracked** – run `codex-tracker paths`; Codex must have written rollouts under `~/.codex/sessions` (or set `CODEX_HOME`). Add other locations with `codex-tracker config set extraSessionDirs '["/path/to/sessions"]'`.
 - **Uploads fail with BAD_TOKEN** – the device was revoked in the dashboard; run `codex-tracker login` again.
