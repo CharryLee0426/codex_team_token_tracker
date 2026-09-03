@@ -2,6 +2,23 @@
 
 All notable changes to `codex-token-tracker`. This project follows [Semantic Versioning](https://semver.org/).
 
+## 0.3.1 — 2026-09-02
+
+oh-my-pi sessions are tracked.
+
+### Fixed
+
+- **oh-my-pi usage was never collected.** [oh-my-pi](https://github.com/can1357/oh-my-pi) (the `omp`
+  command) is a pi fork that writes the same session transcripts as pi, but under `~/.omp/agent/sessions`
+  instead of `~/.pi/agent/sessions` — a directory the tracker never looked at, so the Codex-subscription
+  usage it produced was missing from every view. A new `omp` source (`sources.omp`, on by default) scans
+  that directory, every oh-my-pi profile (`~/.omp/profiles/<name>/agent/sessions`), the XDG data
+  directory oh-my-pi switches to when `$XDG_DATA_HOME/omp` exists, and `$PI_CODING_AGENT_SESSION_DIR`;
+  `$PI_CONFIG_DIR` is honoured in place of `~/.omp`. The transcripts go through the pi reader, so only
+  `openai-codex` messages count (every provider with `trackAllProviders`), and they appear tagged
+  **oh-my-pi** (`omp`) in the popover, `codex-tracker status`, `codex-tracker paths` and on the
+  dashboard. An `extraSessionDirs` entry with `"agent": "omp"` now defaults to the pi format.
+
 ## 0.3.0 — 2026-09-02
 
 Approve a headless login from your phone, one device per machine, and a dashboard that stays live.

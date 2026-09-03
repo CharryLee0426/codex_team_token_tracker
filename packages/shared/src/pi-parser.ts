@@ -28,7 +28,8 @@ interface PiUsage {
 }
 
 /**
- * pi coding agent (`~/.pi/agent/sessions/<cwd>/<ts>_<uuid>.jsonl`).
+ * pi coding agent (`~/.pi/agent/sessions/<cwd>/<ts>_<uuid>.jsonl`); oh-my-pi writes the same format under
+ * `~/.omp/agent/sessions` and is tagged `omp` by its own source.
  * Line 1: {type:"session", version, id, timestamp, cwd}; assistant messages carry per-request
  * `message.usage` = {input, output, cacheRead, cacheWrite, reasoning, totalTokens, cost} where
  * `input` EXCLUDES cached tokens (totalTokens = input + output + cacheRead) and `output` includes reasoning.

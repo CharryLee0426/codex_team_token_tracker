@@ -112,7 +112,7 @@ export const zh: Record<MessageKey, string> = {
   logout            断开本设备
   status            打印今日用量、实时会话与限额
   sync              重新扫描所有智能体并重新上传本设备完整历史（校准）
-  paths             显示检测到的会话目录（Codex、pi、OpenCode、Cline/Roo/Kilo、Hermes、自定义）
+  paths             显示检测到的会话目录（Codex、pi、oh-my-pi、OpenCode、Cline/Roo/Kilo、Hermes、自定义）
   update            安装最新发布版本（--check 只检查不安装）
   config get|set    读取或修改设置（config set uploadIntervalSec 30，config set sources.pi false）
   lang <en|zh|auto> 设置显示语言

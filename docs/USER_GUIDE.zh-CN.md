@@ -67,7 +67,7 @@ codex-tracker status                # today's usage, live limits, sources
 | 区块 | 含义 |
 |---|---|
 | **Today（今日）** | token、API 等价费用、缓存命中率、请求数 —— 本地日期，仅本机 |
-| **Sources（来源）** | 哪些工具消耗了你的 Codex 订阅（Codex、pi 等） |
+| **Sources（来源）** | 哪些工具消耗了你的 Codex 订阅（Codex、pi、oh-my-pi 等） |
 | **Live（实时）** | 当前会话的项目、模型、每秒 token 数、上下文窗口占用 |
 | **Rate limits（用量限额）** | 来自你 Codex 账户的**实时**每周 / 5 小时限额（与 Codex 应用数值一致）、额外的按模型限额、套餐、“…后重置”。琥珀色的 *From logs*（来自日志）表示实时查询失败（离线 / Codex 登录已过期），当前显示的是日志中最后记录的数值 |
 | **Heatmap（热力图）** | 最近 16 周，包含本机和你的其他设备 |
@@ -90,6 +90,7 @@ codex-tracker status                # today's usage, live limits, sources
 |---|---|
 | Codex CLI / Codex Desktop | 精确数值，来自 `~/.codex/sessions` |
 | pi | `~/.pi/agent/sessions`；只统计 `openai-codex` 调用 —— 使用 API Key 的 provider 会被忽略，除非执行 `codex-tracker config set trackAllProviders true` |
+| oh-my-pi（`omp`） | `~/.omp/agent/sessions`（另含 `~/.omp/profiles/<name>/agent/sessions` 与 `$XDG_DATA_HOME/omp/sessions`）；会话格式与统计规则均与 pi 相同，标签为 `omp` |
 | OpenCode、Cline / Roo Code / Kilo Code、Hermes | 尽力支持的读取器；如果你的用量没有显示，请运行 `codex-tracker paths` 并告知管理员 |
 | 其他工具 | `codex-tracker config set extraSessionDirs '[{"path":"/path/to/logs","agent":"mytool","format":"generic"}]'` |
 

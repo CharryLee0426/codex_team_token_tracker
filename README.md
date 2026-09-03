@@ -2,7 +2,7 @@
 
 *中文说明：[README.zh-CN.md](./README.zh-CN.md)*
 
-Team-wide token tracking for an OpenAI **Codex** subscription: a menu bar / tray app that reads the local transcripts of every Codex-OAuth agent on a developer's machine (Codex CLI/Desktop, pi, and best-effort OpenCode, Cline/Roo/Kilo, Hermes), and a Next.js dashboard that shows team and personal usage in real time.
+Team-wide token tracking for an OpenAI **Codex** subscription: a menu bar / tray app that reads the local transcripts of every Codex-OAuth agent on a developer's machine (Codex CLI/Desktop, pi, oh-my-pi, and best-effort OpenCode, Cline/Roo/Kilo, Hermes), and a Next.js dashboard that shows team and personal usage in real time.
 
 | Audience | Read |
 |---|---|
@@ -26,7 +26,7 @@ Production: dashboard **https://codex.chenli.dev** · npm package **`codex-token
 - **Metrics** — input / cached / output / reasoning tokens, requests, cache-hit rate, model mix, API-equivalent cost (public API list prices), tokens-per-second of the running session.
 - **Live rate limits** — weekly / 5-hour Codex windows straight from the account (same endpoint the Codex app uses), plus per-model limits, plan and credits; falls back to log values when offline.
 - **Views** — daily contribution heatmap, hour × weekday activity, Mon–Sun comparison, model distribution, member leaderboard, live "coding now", recent sessions, devices.
-- **Sources** — every agent that consumes the Codex subscription is tagged (`codex`, `pi`, `opencode`, `cline`, `roo`, `kilo`, `hermes`, custom dirs); API-key providers inside those agents are excluded by default.
+- **Sources** — every agent that consumes the Codex subscription is tagged (`codex`, `pi`, `omp` = oh-my-pi, `opencode`, `cline`, `roo`, `kilo`, `hermes`, custom dirs); API-key providers inside those agents are excluded by default.
 - **Teams** — Clerk Organizations; membership synced from JWT and webhooks; any number of devices per person — and exactly one device per machine, however often it logs in (tray app + headless agent, re-logins).
 - **Headless login** — `codex-tracker login` prints the approval link and a QR code, so a WSL2 box, a server or an SSH session is approved from a phone or any other computer.
 - **Time & language** — database in UTC, all views in the viewer's local time; English / Simplified Chinese, auto-detected and persisted; light / dark / system theme (mission-control style UI with a particle scene behind the landing page and dashboard).
@@ -46,7 +46,7 @@ Tech stack: Node ≥ 20, TypeScript, pnpm workspaces, Next.js, Clerk, Convex, El
 
 ## How it works
 
-1. Every Codex-OAuth agent keeps a local transcript with per-request usage. The tracker's source registry (`packages/menubar/src/core/sources`) discovers and parses them: Codex rollouts (`~/.codex/sessions`, cumulative `token_count` counters turned into per-request deltas), pi (`~/.pi/agent/sessions`), OpenCode storage, Cline-family task folders, Hermes sessions, custom directories.
+1. Every Codex-OAuth agent keeps a local transcript with per-request usage. The tracker's source registry (`packages/menubar/src/core/sources`) discovers and parses them: Codex rollouts (`~/.codex/sessions`, cumulative `token_count` counters turned into per-request deltas), pi (`~/.pi/agent/sessions`), oh-my-pi (`~/.omp/agent/sessions`, pi's format), OpenCode storage, Cline-family task folders, Hermes sessions, custom directories.
 2. Usage is bucketed by **UTC hour × model × agent**, priced, and upserted to Convex (idempotent — rescans never double count). Sessions are summarized (project folder name + path hash only).
 3. A heartbeat every 15 s carries the live snapshot (current session, output tokens/sec) for the dashboard's "live now".
 4. The dashboard subscribes to Convex queries and converts UTC buckets to the viewer's local time for every day / hour / weekday view.

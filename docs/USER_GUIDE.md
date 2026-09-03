@@ -68,7 +68,7 @@ Keep the agent running (tmux, `nohup`, or a `systemd --user` service).
 | Section | Meaning |
 |---|---|
 | **Today** | Tokens, API-equivalent cost, cache-hit %, requests — local day, this machine |
-| **Sources** | Which tools consumed your Codex subscription (Codex, pi, …) |
+| **Sources** | Which tools consumed your Codex subscription (Codex, pi, oh-my-pi, …) |
 | **Live** | Current session's project, model, generation speed (output tokens/second), context window use |
 | **Rate limits** | **Live** weekly / 5-hour limits from your Codex account (same numbers as the Codex app), extra per-model limits, plan, "resets in …". Amber *From logs* means the live query failed (offline / expired Codex login) and the last logged value is shown |
 | **Heatmap** | Last 16 weeks, this machine plus your other devices |
@@ -91,6 +91,7 @@ Everything that consumes your Codex subscription and keeps a local transcript:
 |---|---|
 | Codex CLI / Codex Desktop | exact numbers from `~/.codex/sessions` |
 | pi | `~/.pi/agent/sessions`; only `openai-codex` calls count — API-key providers are ignored unless `codex-tracker config set trackAllProviders true` |
+| oh-my-pi (`omp`) | `~/.omp/agent/sessions` (also `~/.omp/profiles/<name>/agent/sessions` and `$XDG_DATA_HOME/omp/sessions`); same transcript format and same rule as pi, tagged `omp` |
 | OpenCode, Cline / Roo Code / Kilo Code, Hermes | best-effort readers; if your usage is missing run `codex-tracker paths` and tell your admin |
 | Other tools | `codex-tracker config set extraSessionDirs '[{"path":"/path/to/logs","agent":"mytool","format":"generic"}]'` |
 

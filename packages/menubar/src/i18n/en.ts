@@ -113,7 +113,7 @@ Commands:
   logout            Disconnect this device
   status            Print today's usage, live session and rate limits
   sync              Rescan every agent and re-upload this device's full history (calibrate)
-  paths             Show detected session directories (Codex, pi, OpenCode, Cline/Roo/Kilo, Hermes, custom)
+  paths             Show detected session directories (Codex, pi, oh-my-pi, OpenCode, Cline/Roo/Kilo, Hermes, custom)
   update            Install the newest published version (--check only reports)
   config get|set    Read or change settings (config set uploadIntervalSec 30, config set sources.pi false)
   lang <en|zh|auto> Set the display language

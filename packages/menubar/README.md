@@ -112,7 +112,7 @@ Press the **⟳** button in the popover header (or *Sync now* in the Account car
 
 1. re-reads the config, so agents enabled since the app started are picked up;
 2. re-discovers **every** session directory and re-parses **every** transcript from scratch — Codex plus
-   the coding agents running on your Codex subscription (pi, OpenCode, Cline / Roo / Kilo, Hermes) and any
+   the coding agents running on your Codex subscription (pi, oh-my-pi, OpenCode, Cline / Roo / Kilo, Hermes) and any
    `extraSessionDirs` you configured — instead of skipping files whose size and mtime are unchanged;
 3. recomputes all aggregates with the current pricing table;
 4. re-uploads **everything**, not just what changed, so the dashboard's totals for this device are
@@ -207,6 +207,7 @@ and as a tag on live sessions / model rows). Only Codex-subscription providers a
 |---|---|---|
 | `codex` – Codex CLI / Codex Desktop | `$CODEX_HOME` or `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, `archived_sessions/` | Reference format; also carries rate-limit snapshots and context-window size |
 | `pi` – [pi coding agent](https://github.com/badlogic/pi-mono) | `$PI_CODING_AGENT_DIR` or `~/.pi/agent/sessions/<project>/*.jsonl` | Counts messages whose `provider` is `openai-codex` (Codex OAuth); other providers (API keys) only with `trackAllProviders` |
+| `omp` – [oh-my-pi](https://github.com/can1357/oh-my-pi) | `~/.omp/agent/sessions/<project>/*.jsonl` (`$PI_CONFIG_DIR` replaces `~/.omp`), every profile's `~/.omp/profiles/<name>/agent/sessions`, `$XDG_DATA_HOME/omp/sessions` (+ `profiles/<name>/sessions`) on macOS / Linux, and `$PI_CODING_AGENT_SESSION_DIR` | pi's transcript format, so the same rule as `pi`. A `$PI_CODING_AGENT_DIR` shared by both agents is scanned once and tagged `pi` |
 | `opencode` – [OpenCode](https://github.com/sst/opencode) | `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode/storage/` (Windows: `%LOCALAPPDATA%\opencode`, `%APPDATA%\opencode`) | One JSON file per message; `providerID` `openai` counts when `auth.json` shows an OAuth login. *Best-effort – format inferred, not verified on a real install* |
 | `cline`, `roo`, `kilo` – Cline / Roo Code / Kilo Code (VS Code, Cursor, Windsurf, VSCodium, Trae, VS Code Remote) | `<globalStorage>/<extension id>/tasks/<task>/ui_messages.json` + `task_metadata.json` | Per-request `api_req_started` entries; model/provider from `model_usage`. *Best-effort* |
 | `hermes` – Hermes agent | `$HERMES_HOME` or `~/.hermes/sessions/**/*.json\|jsonl` (+ `state.db` via `node:sqlite` when available) | Generic parser: any JSON/JSONL with per-request `usage` objects. *Best-effort* |
@@ -226,7 +227,7 @@ The popover and `codex-tracker status` show your account's rate-limit windows (e
 `https://chatgpt.com/backend-api/wham/usage`, the same endpoint the official Codex client uses. The request is
 made with the access token from your local Codex login (`~/.codex/auth.json`); the token is read fresh each time,
 never written, never refreshed by the tracker, and is sent **only to chatgpt.com** – never to the dashboard.
-Because every Codex-subscription consumer (pi, OpenCode, …) draws from the same account, this is the only
+Because every Codex-subscription consumer (pi, oh-my-pi, OpenCode, …) draws from the same account, this is the only
 accurate number; the values inside Codex logs are just snapshots from Codex's own last request.
 
 - Refreshed every `usageRefreshSec` (default 60 s) and ~10 s after new local usage is seen.

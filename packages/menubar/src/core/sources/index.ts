@@ -7,6 +7,7 @@ import { normalizeExtraDir, type ExtraSessionDir, type SourceFormat, type Source
 import type { SessionRoot, SourceContext, SourceDefinition, UserHome } from "./types";
 import { codexSource } from "./codex";
 import { piSource } from "./pi";
+import { ompSource } from "./omp";
 import { genericSource } from "./generic";
 import { hermesSource } from "./hermes";
 import { opencodeSource } from "./opencode";
@@ -16,11 +17,12 @@ import { listDirs } from "./util";
 export type { SessionRoot, SourceContext, SourceDefinition, SourceFile, ParseOptions, UserHome, RootKind, RootOrigin } from "./types";
 export { codexHome } from "./codex";
 export { piHome } from "./pi";
+export { ompSessionDirs } from "./omp";
 export { hermesHome } from "./hermes";
 export { mergeSessions } from "./util";
 
 /** Registry of all sources. Adding an agent = one module + one entry here (+ a `sources` config key). */
-export const SOURCES: SourceDefinition[] = [codexSource, piSource, hermesSource, opencodeSource, clineSource, rooSource, kiloSource, genericSource];
+export const SOURCES: SourceDefinition[] = [codexSource, piSource, ompSource, hermesSource, opencodeSource, clineSource, rooSource, kiloSource, genericSource];
 
 const byId = new Map(SOURCES.map((s) => [s.id, s]));
 const byFormat: Record<SourceFormat, SourceDefinition> = {
@@ -93,7 +95,7 @@ export interface DiscoverOptions {
 
 /** Discover existing session roots for every enabled source plus user-configured extra dirs. */
 export function discoverSessionRoots(opts: DiscoverOptions = {}): SessionRoot[] {
-  const enabled: Record<string, boolean> = { codex: true, pi: true, hermes: true, opencode: true, cline: true, roo: true, kilo: true, ...(opts.sources ?? {}) };
+  const enabled: Record<string, boolean> = { codex: true, pi: true, omp: true, hermes: true, opencode: true, cline: true, roo: true, kilo: true, ...(opts.sources ?? {}) };
   const ctx: SourceContext = { homes: opts.homes ?? userHomes(), platform: platformKind(), env: opts.env ?? process.env };
   const roots: SessionRoot[] = [];
   const seen = new Set<string>();
