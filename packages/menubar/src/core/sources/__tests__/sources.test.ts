@@ -7,10 +7,12 @@ import { discoverSessionRoots, sourceFor, walkFiles } from "../index";
 import { opencodeSource } from "../opencode";
 import { clineSource } from "../cline";
 import { piSource } from "../pi";
+import { ompSource } from "../omp";
 import { codexSource } from "../codex";
 import { hermesSource } from "../hermes";
 import { mergeSessions } from "../util";
 import type { UserHome } from "../types";
+import { normalizeExtraDir } from "../../config";
 
 const scratch = process.env.CODEX_TRACKER_TEST_DIR || fs.mkdtempSync(path.join(os.tmpdir(), "ctrack-sources-"));
 const home = path.join(scratch, "home");
@@ -58,6 +60,20 @@ write(path.join(piDir, "2026-09-01T10-00-00-000Z_01a05bf2-a72b-7ce9-ae2e-0677c61
   JSON.stringify({ type: "message", id: "b", timestamp: "2026-09-01T10:02:00.000Z", message: { role: "assistant", content: "x", api: "openai-completions", provider: "deepseek", model: "deepseek-chat", usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 15 } } }),
 ].join("\n"));
 
+// oh-my-pi: pi's transcript format under ~/.omp — the default agent dir, a profile, and the XDG data dir
+const OMP_ID = "01a05bf2-0000-7ce9-ae2e-0677c61a6c1d";
+const ompHeader = (id: string, cwd: string) => JSON.stringify({ type: "session", version: 3, id, timestamp: "2026-09-01T11:00:00.000Z", cwd });
+const ompCodexMsg = JSON.stringify({ type: "message", id: "a", timestamp: "2026-09-01T11:01:00.000Z", message: { role: "assistant", content: "x", api: "openai-codex-responses", provider: "openai-codex", model: "gpt-5.6-sol", usage: { input: 54, output: 134, cacheRead: 1792, cacheWrite: 0, reasoning: 26, totalTokens: 1980, cost: 0 } } });
+const ompClaudeMsg = JSON.stringify({ type: "message", id: "b", timestamp: "2026-09-01T11:02:00.000Z", message: { role: "assistant", content: "x", api: "anthropic-messages", provider: "anthropic", model: "claude-opus-5", usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, reasoning: 0, totalTokens: 15, cost: 0 } } });
+write(path.join(home, ".omp", "agent", "sessions", "-work-demo", `2026-09-01T11-00-00-000Z_${OMP_ID}.jsonl`), [
+  ompHeader(OMP_ID, "/work/demo"),
+  JSON.stringify({ type: "model_change", id: "m", parentId: null, timestamp: "2026-09-01T11:00:01.000Z", provider: "openai-codex", modelId: "gpt-5.6-sol" }),
+  ompCodexMsg,
+  ompClaudeMsg,
+].join("\n"));
+write(path.join(home, ".omp", "profiles", "work", "agent", "sessions", "-work-p", "2026-09-01T11-00-00-000Z_01a05bf2-1111-7ce9-ae2e-0677c61a6c1d.jsonl"), [ompHeader("01a05bf2-1111-7ce9-ae2e-0677c61a6c1d", "/work/p"), ompCodexMsg].join("\n"));
+write(path.join(home, ".local", "share", "omp", "sessions", "-work-x", "2026-09-01T11-00-00-000Z_01a05bf2-2222-7ce9-ae2e-0677c61a6c1d.jsonl"), [ompHeader("01a05bf2-2222-7ce9-ae2e-0677c61a6c1d", "/work/x"), ompCodexMsg].join("\n"));
+
 // codex: minimal rollout
 const codexDay = path.join(home, ".codex", "sessions", "2026", "09", "01");
 write(path.join(codexDay, "rollout-2026-09-01T10-00-00-01a058dc-c4fa-7972-8ff5-77ccfd3de86f.jsonl"), [
@@ -79,15 +95,18 @@ test("discovers every source root under a synthetic home", () => {
     "cline:.config/Code/User/globalStorage/saoudrizwan.claude-dev/tasks",
     "codex:.codex/sessions",
     "hermes:.hermes/sessions",
+    "omp:.local/share/omp/sessions",
+    "omp:.omp/agent/sessions",
+    "omp:.omp/profiles/work/agent/sessions",
     "opencode:.local/share/opencode/storage",
     "pi:.pi/agent/sessions",
   ]);
-  const off = discoverSessionRoots({ homes, env, sources: { pi: false, cline: false } });
+  const off = discoverSessionRoots({ homes, env, sources: { pi: false, omp: false, cline: false } });
   assert.deepEqual(off.map((r) => r.agent).sort(), ["codex", "hermes", "opencode"]);
 });
 
 test("extra dirs with agent/format", () => {
-  const roots = discoverSessionRoots({ homes, env, sources: { codex: false, pi: false, hermes: false, opencode: false, cline: false, roo: false, kilo: false }, extraSessionDirs: [{ path: piDir, agent: "mypi", format: "pi" }, path.join(home, ".codex", "sessions")] });
+  const roots = discoverSessionRoots({ homes, env, sources: { codex: false, pi: false, omp: false, hermes: false, opencode: false, cline: false, roo: false, kilo: false }, extraSessionDirs: [{ path: piDir, agent: "mypi", format: "pi" }, path.join(home, ".codex", "sessions")] });
   assert.deepEqual(roots.map((r) => [r.agent, r.format]), [["mypi", "pi"], ["codex", "codex"]]);
 });
 
@@ -152,6 +171,35 @@ test("pi, codex and hermes parse through the registry", () => {
   assert.equal(hermes.agent, "hermes");
   assert.equal(hermes.events[0].usage.cached, 40);
   assert.equal(hermesSource.format, "generic");
+});
+
+test("omp (oh-my-pi): pi format under ~/.omp, tagged omp, codex provider only", () => {
+  const all = parseAll("omp");
+  assert.deepEqual(all.map((s) => s.cwd).sort(), ["/work/demo", "/work/p", "/work/x"]);
+  const main = all.find((s) => s.sessionId === OMP_ID)!;
+  assert.ok(main);
+  assert.equal(main.agent, "omp");
+  assert.equal(main.source, "omp");
+  assert.equal(main.originator, "omp");
+  assert.equal(main.projectName, "demo");
+  assert.equal(main.events.length, 1); // anthropic message excluded
+  assert.equal(main.events[0].agent, "omp");
+  assert.equal(main.events[0].model, "gpt-5.6-sol");
+  assert.equal(main.events[0].usage.input, 54 + 1792);
+  assert.equal(main.events[0].usage.cached, 1792);
+  assert.equal(main.events[0].usage.total, 1980);
+  assert.equal(main.cumulative.requests, 1);
+  assert.equal(parseAll("omp", true).find((s) => s.sessionId === OMP_ID)!.events.length, 2);
+  assert.equal(ompSource.format, "pi");
+  assert.equal(ompSource.label, "oh-my-pi");
+  const root = discoverSessionRoots({ homes, env }).find((r) => r.dir.endsWith(path.join(".omp", "agent", "sessions")))!;
+  assert.equal(sourceFor(root).id, "omp");
+  assert.ok(ompSource.hotDirs(root).length >= 2); // root + the project subdir touched just now
+  // env overrides (local homes only): $PI_CONFIG_DIR replaces ~/.omp, $PI_CODING_AGENT_SESSION_DIR adds a dir
+  const custom = discoverSessionRoots({ homes, env: { ...env, PI_CONFIG_DIR: path.join(home, ".omp"), PI_CODING_AGENT_SESSION_DIR: piDir }, sources: { pi: false } });
+  assert.deepEqual(custom.filter((r) => r.agent === "omp").map((r) => path.relative(home, r.dir)).sort(), [".local/share/omp/sessions", ".omp/agent/sessions", ".omp/profiles/work/agent/sessions", ".pi/agent/sessions/--work-demo--"]);
+  // an extra dir declared as agent "omp" defaults to the pi format
+  assert.deepEqual(normalizeExtraDir({ path: "~/omp-logs", agent: "omp" }), { path: "~/omp-logs", agent: "omp", format: "pi" });
 });
 
 test("registry: missing dirs never throw and unknown agents fall back to generic", () => {

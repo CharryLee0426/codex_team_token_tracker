@@ -31,6 +31,8 @@ export default defineSchema({
     email: v.optional(v.string()),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
+    /** When the dashboard's guided tour was finished or skipped; unset = it opens on the next visit. */
+    onboardedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_clerkId", ["clerkId"]),

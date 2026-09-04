@@ -95,11 +95,13 @@ export const zh: Record<MessageKey, string> = {
   updateChecking: "检查中…",
   updateInstalling: "安装中…",
   updateInstalled: "已更新到 v{version} — 重启后生效",
+  updateInstalledNpx: "请退出，然后重新运行 `npx codex-token-tracker` 以启动 v{version}",
   updateFailed: "更新失败 — 请手动执行：",
   updateCheckFailed: "检查更新失败：{message}",
   checkForUpdates: "检查更新",
   releaseNotes: "更新日志",
   cliUsage: `用法：codex-token-tracker [命令] [选项]      （别名：codex-tracker）
+      npx codex-token-tracker [命令]            （无需安装；始终是最新版本）
 
 命令：
   (无)              启动菜单栏应用（无显示环境时自动切换为 agent 模式）
@@ -112,7 +114,7 @@ export const zh: Record<MessageKey, string> = {
   logout            断开本设备
   status            打印今日用量、实时会话与限额
   sync              重新扫描所有智能体并重新上传本设备完整历史（校准）
-  paths             显示检测到的会话目录（Codex、pi、OpenCode、Cline/Roo/Kilo、Hermes、自定义）
+  paths             显示检测到的会话目录（Codex、pi、oh-my-pi、OpenCode、Cline/Roo/Kilo、Hermes、自定义）
   update            安装最新发布版本（--check 只检查不安装）
   config get|set    读取或修改设置（config set uploadIntervalSec 30，config set sources.pi false）
   lang <en|zh|auto> 设置显示语言
@@ -169,6 +171,7 @@ export const zh: Record<MessageKey, string> = {
   cliUpdateAvailable: "发现新版本：{current} → {latest}",
   cliUpdateRunning: "正在执行：{command}",
   cliUpdateDone: "已更新到 {version}。请重启菜单栏应用（或重新运行 CLI）以生效。",
+  cliUpdateNpx: "这份副本通过 npx 运行，每次启动都会获取最新版本——无需安装。退出应用并重新运行 `{command}` 即可得到 {version}。",
   cliUpdateFailed: "更新失败（退出码 {code}）。请手动执行：{command}",
   cliUpdateCheckFailed: "无法访问 npm registry：{message}",
   cliSyncStart: "完整同步：正在重新扫描本设备上的所有智能体…",

@@ -12,7 +12,8 @@ export interface SegmentedOption<T extends string> {
 
 interface Props<T extends string> {
   options: SegmentedOption<T>[];
-  value: T;
+  /** `null` = none of these is selected (a sibling control holds the choice): the pill hides. */
+  value: T | null;
   onChange: (value: T) => void;
   ariaLabel: string;
   size?: "sm" | "md";
@@ -28,7 +29,8 @@ interface Props<T extends string> {
  */
 export function Segmented<T extends string>({ options, value, onChange, ariaLabel, size = "sm", mode = "radio", disabled, className }: Props<T>) {
   const id = useId();
-  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const index = options.findIndex((o) => o.value === value);
+  const selected = index >= 0;
   const n = options.length;
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -36,7 +38,7 @@ export function Segmented<T extends string>({ options, value, onChange, ariaLabe
     const dir = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
     if (!dir) return;
     e.preventDefault();
-    const next = options[(index + dir + n) % n];
+    const next = options[selected ? (index + dir + n) % n : dir > 0 ? 0 : n - 1];
     onChange(next.value);
     const el = document.getElementById(`${id}-${next.value}`);
     el?.focus();
@@ -52,11 +54,13 @@ export function Segmented<T extends string>({ options, value, onChange, ariaLabe
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 rounded-md bg-accent-soft transition-transform duration-300 ease-[var(--ease-out)]"
-        style={{ width: `calc((100% - 4px) / ${n})`, transform: `translateX(${index * 100}%)` }}
+        className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 rounded-md bg-accent-soft transition-[transform,opacity] duration-300 ease-[var(--ease-out)]"
+        style={{ width: `calc((100% - 4px) / ${n})`, transform: `translateX(${Math.max(0, index) * 100}%)`, opacity: selected ? 1 : 0 }}
       />
-      {options.map((o) => {
+      {options.map((o, i) => {
         const active = o.value === value;
+        // With nothing selected the first segment takes the tab stop so the group stays reachable.
+        const tabStop = active || (!selected && i === 0);
         return (
           <button
             key={o.value}
@@ -67,7 +71,7 @@ export function Segmented<T extends string>({ options, value, onChange, ariaLabe
             aria-pressed={mode === "group" ? active : undefined}
             aria-label={o.label ? undefined : o.title}
             title={o.title}
-            tabIndex={mode === "radio" ? (active ? 0 : -1) : 0}
+            tabIndex={mode === "radio" ? (tabStop ? 0 : -1) : 0}
             disabled={disabled}
             onClick={() => onChange(o.value)}
             className={cn(

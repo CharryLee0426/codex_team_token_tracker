@@ -17,7 +17,7 @@ import {
   type UsageRow,
   type WeekdayPoint,
 } from "./analytics";
-import type { RangeBounds, RangeKey } from "./ranges";
+import { activeHoursWindow, type ActiveHoursWindow, type RangeBounds } from "./ranges";
 
 /** Everything a usage view renders, derived from raw hourly rows. Pure: shared by live data and the demo preview. */
 export interface UsageModel {
@@ -31,14 +31,17 @@ export interface UsageModel {
   dailyTotals: number[];
   weekday: WeekdayPoint[];
   active: { weekday: number; hours: number[] }[];
+  /** Days behind `active`: the range, or the trailing week when the range is shorter. */
+  activeWindow: ActiveHoursWindow;
   heat: HeatmapGrid;
   members: MemberStat[];
   /** Rows inside the selected range (the heatmap uses the longer span). */
   rangeRows: UsageRow[];
 }
 
-export function heatmapWeeksFor(range: RangeKey): number {
-  return range === "365d" ? 53 : 26;
+/** Calendar heatmap depth: at least half a year, growing with the range up to a full year of weeks. */
+export function heatmapWeeksFor(bounds: RangeBounds): number {
+  return Math.min(53, Math.max(26, Math.ceil(bounds.days / 7)));
 }
 
 /** Start of the subscription span: the range or the heatmap window, whichever is longer. */
@@ -49,7 +52,10 @@ export function spanStart(bounds: RangeBounds, weeks: number): { fromKey: string
 }
 
 export function deriveUsageModel(rows: UsageRow[], bounds: RangeBounds, weeks: number, previousSeries: string[], includeMembers: boolean): UsageModel {
-  const rangeRows = rows.filter((r) => r.hourStart >= bounds.fromMs);
+  const spanRows = rows.filter((r) => r.hourStart < bounds.toMs);
+  const rangeRows = spanRows.filter((r) => r.hourStart >= bounds.fromMs);
+  const activeWindow = activeHoursWindow(bounds);
+  const activeRows = activeWindow.widened ? spanRows.filter((r) => r.hourStart >= activeWindow.fromMs) : rangeRows;
   const stats = modelBreakdown(rangeRows);
   const series = orderModels(stats, previousSeries);
   const daily = dailyStack(rangeRows, bounds.fromKey, bounds.toKey, series);
@@ -62,8 +68,9 @@ export function deriveUsageModel(rows: UsageRow[], bounds: RangeBounds, weeks: n
     daily,
     dailyTotals: daily.map((d) => d.total),
     weekday: weekdaySeries(rangeRows, bounds.fromKey, bounds.toKey),
-    active: activeHoursRows(rangeRows),
-    heat: buildHeatmap(groupByLocalDay(rows), bounds.toKey, weeks),
+    active: activeHoursRows(activeRows),
+    activeWindow,
+    heat: buildHeatmap(groupByLocalDay(spanRows), bounds.toKey, weeks),
     members: includeMembers ? memberStats(rangeRows) : [],
     rangeRows,
   };

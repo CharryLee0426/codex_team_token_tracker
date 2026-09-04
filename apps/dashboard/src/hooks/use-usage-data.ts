@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import type { Id } from "@codex-tracker/backend/convex/_generated/dataModel";
 import { hourStartOf } from "@codex-tracker/shared/time";
-import { rangeBounds, type RangeKey } from "@/lib/ranges";
+import { rangeBounds, type RangeSelection } from "@/lib/ranges";
 import { deriveUsageModel, heatmapWeeksFor, spanStart, type UsageModel } from "@/lib/usage-model";
 import { useHourlyRange, type PublicUser, type Scope } from "./use-hourly-range";
 
@@ -25,10 +25,10 @@ export interface UsageData {
  * window, derived into a render-ready model. Holds the last good model across range changes so charts
  * dim instead of flashing skeletons.
  */
-export function useUsageData(scope: Scope, orgId: Id<"orgs"> | undefined, range: RangeKey, nowMs: number, enabled: boolean): UsageData {
+export function useUsageData(scope: Scope, orgId: Id<"orgs"> | undefined, range: RangeSelection, nowMs: number, enabled: boolean): UsageData {
   const hourTick = hourStartOf(nowMs);
   const bounds = useMemo(() => rangeBounds(range, hourTick), [range, hourTick]);
-  const weeks = heatmapWeeksFor(range);
+  const weeks = heatmapWeeksFor(bounds);
   const span = useMemo(() => spanStart(bounds, weeks), [bounds, weeks]);
   const data = useHourlyRange(scope, orgId, span.fromMs, bounds.toMs, enabled);
 

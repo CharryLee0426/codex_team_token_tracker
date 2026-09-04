@@ -32,6 +32,8 @@ export interface ExtraSessionDir {
 export interface SourcesConfig {
   codex: boolean;
   pi: boolean;
+  /** oh-my-pi (`omp`): pi's transcript format under ~/.omp. */
+  omp: boolean;
   hermes: boolean;
   opencode: boolean;
   cline: boolean;
@@ -39,7 +41,7 @@ export interface SourcesConfig {
   kilo: boolean;
 }
 
-export const DEFAULT_SOURCES: SourcesConfig = { codex: true, pi: true, hermes: true, opencode: true, cline: true, roo: true, kilo: true };
+export const DEFAULT_SOURCES: SourcesConfig = { codex: true, pi: true, omp: true, hermes: true, opencode: true, cline: true, roo: true, kilo: true };
 export const SOURCE_IDS = Object.keys(DEFAULT_SOURCES) as Array<keyof SourcesConfig>;
 
 export interface TrackerConfig {
@@ -158,7 +160,7 @@ export function normalizeExtraDir(entry: unknown): ExtraSessionDir | null {
   const agent = typeof o.agent === "string" && o.agent.trim() ? o.agent.trim().toLowerCase() : "codex";
   if (!AGENT_NAME_RE.test(agent)) return null;
   let format = SOURCE_FORMATS.includes(o.format as SourceFormat) ? (o.format as SourceFormat) : undefined;
-  if (!format) format = SOURCE_FORMATS.includes(agent as SourceFormat) ? (agent as SourceFormat) : ["roo", "kilo"].includes(agent) ? "cline" : "generic";
+  if (!format) format = SOURCE_FORMATS.includes(agent as SourceFormat) ? (agent as SourceFormat) : agent === "omp" ? "pi" : ["roo", "kilo"].includes(agent) ? "cline" : "generic";
   return { path: o.path.trim(), agent, format };
 }
 

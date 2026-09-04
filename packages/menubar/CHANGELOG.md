@@ -2,6 +2,39 @@
 
 All notable changes to `codex-token-tracker`. This project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+Run it with `npx` — nothing to install.
+
+### Changed
+
+- **`npx codex-token-tracker` is the documented way to run the tracker.** `npx codex-token-tracker login`
+  the first time on a computer, `npx codex-token-tracker` every day after (or *Launch at login*): npx
+  resolves the newest published version on every start, so there is nothing to keep up to date. A global
+  `npm i -g codex-token-tracker` still works and still provides the short `codex-tracker` alias.
+- **`update` knows when it was started with npx.** A copy running out of npm's exec cache used to answer
+  `update` (and the popover's *Update* button) with a global install it never asked for. It now reports
+  the newer version and says to quit and run `npx codex-token-tracker` again, which fetches it; `--check`
+  is unchanged. `UpdateInfo` carries an `installMethod` (`global` | `npx`) and `command` is the start
+  command under npx. `--help` mentions the npx form.
+
+## 0.3.1 — 2026-09-02
+
+oh-my-pi sessions are tracked.
+
+### Fixed
+
+- **oh-my-pi usage was never collected.** [oh-my-pi](https://github.com/can1357/oh-my-pi) (the `omp`
+  command) is a pi fork that writes the same session transcripts as pi, but under `~/.omp/agent/sessions`
+  instead of `~/.pi/agent/sessions` — a directory the tracker never looked at, so the Codex-subscription
+  usage it produced was missing from every view. A new `omp` source (`sources.omp`, on by default) scans
+  that directory, every oh-my-pi profile (`~/.omp/profiles/<name>/agent/sessions`), the XDG data
+  directory oh-my-pi switches to when `$XDG_DATA_HOME/omp` exists, and `$PI_CODING_AGENT_SESSION_DIR`;
+  `$PI_CONFIG_DIR` is honoured in place of `~/.omp`. The transcripts go through the pi reader, so only
+  `openai-codex` messages count (every provider with `trackAllProviders`), and they appear tagged
+  **oh-my-pi** (`omp`) in the popover, `codex-tracker status`, `codex-tracker paths` and on the
+  dashboard. An `extraSessionDirs` entry with `"agent": "omp"` now defaults to the pi format.
+
 ## 0.3.0 — 2026-09-02
 
 Approve a headless login from your phone, one device per machine, and a dashboard that stays live.

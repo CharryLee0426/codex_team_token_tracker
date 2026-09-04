@@ -60,6 +60,7 @@ In the Convex dashboard (Settings → Environment Variables) for each deployment
 ## Structure
 
 - `src/app` – routes: `/` landing, `/dashboard/{personal,team,members,devices}`, `/cli-auth` (device approval), `/settings`, `/sign-in`, `/sign-up`, `/preview/*` (design harness, dev only), `/api/config`, `/api/health`
+- `src/components/onboarding` – the guided tour (see below)
 - `src/app/globals.css` + `src/lib/theme.ts` – design tokens (dark-first palette with a light variant); the TS copy feeds charts, the canvas scene and Clerk's appearance
 - `src/components/scene` – the canvas particle engine (starfield, landing constellation, warp transition) mounted once in the root layout so it persists across navigation
 - `src/components/landing` – hero, telemetry strip, feature cards, how-it-works, product preview (the real board on sample data)
@@ -71,6 +72,29 @@ In the Convex dashboard (Settings → Environment Variables) for each deployment
 - `src/hooks/use-usage-data.ts` – live usage → render model (`src/lib/usage-model.ts`); `use-hourly-range.ts` – chunked subscription to `usage.hourly` (UTC hour buckets → local time on the client)
 - `src/lib/demo-data.ts` – deterministic sample data for the landing preview and the `/preview` harness
 - `src/i18n` + `src/messages` – next-intl (cookie `NEXT_LOCALE`, defaults to the browser language)
+
+## Guided tour (onboarding)
+
+The first time an account opens `/dashboard/*` a guided tour runs: three briefing stages (what the
+tracker does, `npx codex-token-tracker login`, keeping it running) and then spotlights over the real
+rail — Personal, Team, Members, Devices, the range picker, Settings — ending in a systems check. Finishing
+or skipping it sets `users.onboardedAt`, so it never opens by itself again on that account (any browser,
+any device). It can be replayed from **Settings → Guided tour**, or by opening any dashboard page with
+`?tour=1`.
+
+Working on it:
+
+| | |
+| --- | --- |
+| `pnpm dev:tour` | dev server with `NEXT_PUBLIC_ONBOARDING_TOUR=force`: the tour opens on every dashboard load |
+| `NEXT_PUBLIC_ONBOARDING_TOUR=off` | never opens by itself (Settings and `?tour=1` still work) |
+| `/dashboard/personal?tour=1` | replay once, no restart needed |
+| `/preview/personal?tour=1` | the tour over the sample board, without an account |
+
+Code: `src/components/onboarding` — `steps.ts` (the stages and their `data-tour` targets), `onboarding-tour.tsx`
+(overlay, spotlight geometry, keyboard and focus handling), `tour-art.tsx` (illustrations), and
+`onboarding-controller.tsx` (when it opens; `users.completeOnboarding`). Copy lives under `onboarding` in
+`src/messages/*.json`.
 
 ## Design preview harness
 

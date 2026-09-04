@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { OrganizationSwitcher, UserButton } from "@clerk/nextjs";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { Logo } from "@/components/header/logo";
+import { Logo, LogoMark } from "@/components/header/logo";
 import { LanguageSwitcher } from "@/components/header/language-switcher";
 import { ThemeToggle } from "@/components/header/theme-toggle";
 import { Avatar } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ConnectionStatus } from "./connection-status";
 import { PRIMARY_NAV, SETTINGS_NAV, defaultHrefFor, isSegmentActive, type NavItem, type NavSegment } from "./nav-items";
+import { type SidebarState } from "./sidebar-cookie";
+import { useSidebar } from "./sidebar-state";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -20,28 +24,36 @@ interface AppShellProps {
   demo?: boolean;
   /** Optional banner rendered between the top bar and the page. */
   banner?: React.ReactNode;
+  /** Stored fold preference, read from the `sidebar` cookie so the rail's first paint is final. */
+  initialSidebar?: SidebarState;
 }
 
 /**
- * Dashboard chrome: a left rail on desktop (icon-only from `md`, labelled from `xl`), a glass top bar,
- * and a bottom tab bar on phones. The page area scrolls with the document so the browser chrome behaves.
+ * Dashboard chrome: a foldable left rail on desktop, a glass top bar, and a bottom tab bar on phones.
+ * The rail folds between labels and an icon-only strip the way a `NavigationSplitView` sidebar does —
+ * toolbar button, ⌃⌘S, and the choice remembered. The page area scrolls with the document so the
+ * browser chrome behaves.
  */
-export function AppShell({ children, hrefFor = defaultHrefFor, demo = false, banner }: AppShellProps) {
+export function AppShell({ children, hrefFor = defaultHrefFor, demo = false, banner, initialSidebar = "auto" }: AppShellProps) {
   const pathname = usePathname();
   const t = useTranslations("nav");
+  const tShell = useTranslations("shell");
   const homeHref = hrefFor("personal");
+  const { state, expanded, toggle, shortcut } = useSidebar(initialSidebar);
+  const toggleLabel = expanded ? tShell("collapseSidebar") : tShell("expandSidebar");
 
   const renderRailLink = (item: NavItem) => {
     const href = hrefFor(item.segment);
     const active = isSegmentActive(pathname, href);
+    const label = t(item.key);
     return (
       <Link
         key={item.segment}
         href={href}
         aria-current={active ? "page" : undefined}
-        title={t(item.key)}
+        data-tour={`nav-${item.segment}`}
         className={cn(
-          "group relative flex h-11 items-center gap-3 rounded-xl px-3 text-[13px] font-medium transition-colors xl:pr-4",
+          "group relative flex h-11 items-center rounded-xl px-3 text-[13px] font-medium transition-colors",
           active ? "bg-accent-soft text-accent" : "text-fg-2 hover:bg-card-2 hover:text-fg",
         )}
       >
@@ -50,32 +62,54 @@ export function AppShell({ children, hrefFor = defaultHrefFor, demo = false, ban
           className={cn("absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r bg-accent transition-opacity", active ? "opacity-100" : "opacity-0")}
         />
         <item.Icon size={18} className="shrink-0" />
-        <span className="hidden truncate xl:inline">{t(item.key)}</span>
+        <span className="rail-label">{label}</span>
+        {/* Only painted while folded; the visible label above already names the link for AT. */}
+        <span className="rail-tip" aria-hidden>
+          {label}
+        </span>
       </Link>
     );
   };
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="app-shell flex min-h-dvh" data-sidebar={state}>
       {/* Desktop rail */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[68px] flex-col border-r border-border bg-bg-2/70 backdrop-blur-xl md:flex xl:w-[232px]" aria-label={t("dashboard")}>
-        <div className="flex h-[var(--header-h)] items-center px-4 xl:px-5">
-          <Logo href={homeHref} compact className="xl:hidden" />
-          <Logo href={homeHref} className="hidden xl:inline-flex" />
-        </div>
-        <nav className="flex flex-1 flex-col gap-1 px-2.5 pt-2 xl:px-3">{PRIMARY_NAV.map(renderRailLink)}</nav>
-        <div className="flex flex-col gap-1 px-2.5 pb-4 xl:px-3">
+      <aside
+        id="app-rail"
+        className="app-rail fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border bg-bg-2/70 backdrop-blur-xl md:flex"
+        aria-label={t("dashboard")}
+      >
+        <Link href={homeHref} aria-label="Codex Tracker" className="flex h-[var(--header-h)] shrink-0 items-center px-4 text-fg">
+          <LogoMark />
+          <span className="rail-label text-[15px] font-semibold tracking-tight">
+            Codex <span className="font-normal text-fg-2">Tracker</span>
+          </span>
+        </Link>
+        <nav className="flex flex-1 flex-col gap-1 px-2.5 pt-2">{PRIMARY_NAV.map(renderRailLink)}</nav>
+        <div className="flex flex-col gap-1 px-2.5 pb-4">
           {renderRailLink(SETTINGS_NAV)}
-          <ConnectionStatus compact className="h-9 justify-center xl:hidden" />
-          <ConnectionStatus className="hidden h-9 px-3 xl:flex" />
+          <ConnectionStatus className="h-9 px-3" labelClassName="rail-label" />
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col md:pl-[68px] xl:pl-[232px]">
+      <div className="app-rail-shift flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
         <header className="glass sticky top-0 z-20 border-b border-border">
           <div className="mx-auto flex h-[var(--header-h)] w-full max-w-[1400px] items-center justify-between gap-3 px-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
+              {/* `max-md:hidden`, not `hidden md:inline-flex`: `cn` is plain clsx, so a bare `hidden` would lose to the button's own `inline-flex`. */}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 max-md:hidden"
+                aria-controls="app-rail"
+                aria-expanded={expanded}
+                aria-label={toggleLabel}
+                title={shortcut ? `${toggleLabel} (${shortcut})` : toggleLabel}
+                onClick={toggle}
+              >
+                {expanded ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+              </Button>
               <Logo href={homeHref} compact className="md:hidden" />
               {demo ? (
                 <span className="hidden items-center gap-2 rounded-lg border border-border bg-card px-2.5 py-1 text-xs text-fg-2 sm:inline-flex">
@@ -123,6 +157,7 @@ export function AppShell({ children, hrefFor = defaultHrefFor, demo = false, ban
                 <Link
                   href={href}
                   aria-current={active ? "page" : undefined}
+                  data-tour={`nav-${item.segment}`}
                   className={cn("relative flex h-full flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors", active ? "text-accent" : "text-muted")}
                 >
                   <span aria-hidden className={cn("absolute top-0 h-0.5 w-8 rounded-b bg-accent transition-opacity", active ? "opacity-100" : "opacity-0")} />

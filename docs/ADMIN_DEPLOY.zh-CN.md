@@ -53,6 +53,7 @@ npm: codex-token-tracker (menu bar app; default dashboard = https://codex.chenli
    | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` / `…_SIGN_UP_URL` | `/sign-in` / `/sign-up` | 相同 |
    | `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` / `…_SIGN_UP_…` | `/dashboard` | 相同 |
    | `NEXT_PUBLIC_APP_URL` | `https://codex.chenli.dev` | — |
+   | `NEXT_PUBLIC_TEAM_PLAN_START` | 可选 —— 团队 Codex 套餐的开始时间，供 **自团队套餐开始** 范围使用（带时区偏移的 ISO 8601；默认 `2026-08-25T00:00:00-07:00`） | 相同 |
    | `ENABLE_EXPERIMENTAL_COREPACK` | `1` —— 让 Vercel 遵循 `packageManager: pnpm@11` | 相同 |
    | `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` —— 安装时跳过 Electron 下载 | 相同 |
 
@@ -96,7 +97,7 @@ npm: codex-token-tracker (menu bar app; default dashboard = https://codex.chenli
 ## 4. 部署后检查清单
 
 1. 打开 https://codex.chenli.dev → 使用 Google/GitHub 登录 → **Create organization**（这就是团队）→ 邀请成员（成员也可以通过组织切换器自助加入）。
-2. 在你的电脑上：`npm i -g codex-token-tracker && codex-tracker login` → 批准 → `codex-tracker agent --once` → 数据先出现在 **Personal**，再出现在 **Team**。
+2. 在你的电脑上：`npx codex-token-tracker login` → 批准 → `npx codex-token-tracker agent --once` → 数据先出现在 **Personal**，再出现在 **Team**。第一次登录还会运行仪表盘的新手引导（可跳过，也可在 **设置** 中重看）。
 3. Convex 控制台 → Production → Data：`users`、`orgs`、`memberships`、`devices`、`hourlyUsage`、`sessions` 开始有数据。Logs 中会显示所有 `ConvexError`。
 4. Clerk → Webhooks → 检查投递记录是否返回 200。
 
@@ -127,7 +128,7 @@ git push origin main --tags
 
 因此开发者在本地测试时，数据会用开发环境的设备令牌上传到开发部署，并且该构建可以与已安装的生产版本**同时运行**。弹窗中会用橙色 **DEV** 标记标识开发版构建。
 
-用户通过 `npm i -g codex-token-tracker@latest` 升级。Electron 是*可选*依赖，因此即使其二进制下载被拦截，无界面 / WSL 环境下的安装也能成功。
+使用 `npx codex-token-tracker`（文档推荐的方式）运行的用户会在下次启动时自动获得新版本；全局安装的用户通过 `codex-tracker update` 或 `npm i -g codex-token-tracker@latest` 升级。Electron 在第一次启动时下载，而不是在安装时，因此即使其二进制下载被拦截，无界面 / WSL 环境下的安装也能成功。
 
 ## 6. 运维
 

@@ -2,7 +2,7 @@
 
 *English version: [README.md](./README.md)*
 
-面向团队的 OpenAI **Codex** 订阅 token 用量追踪系统：一个菜单栏 / 托盘应用，读取开发者电脑上所有通过 Codex OAuth 登录的智能体的本地会话记录（Codex CLI/Desktop、pi，以及尽力支持的 OpenCode、Cline/Roo/Kilo、Hermes）；加上一个 Next.js 仪表盘，实时展示团队与个人用量。
+面向团队的 OpenAI **Codex** 订阅 token 用量追踪系统：一个菜单栏 / 托盘应用，读取开发者电脑上所有通过 Codex OAuth 登录的智能体的本地会话记录（Codex CLI/Desktop、pi、oh-my-pi，以及尽力支持的 OpenCode、Cline/Roo/Kilo、Hermes）；加上一个 Next.js 仪表盘，实时展示团队与个人用量。
 
 | 读者 | 阅读 |
 |---|---|
@@ -11,6 +11,15 @@
 | 开发者 | 本文件、`packages/*/README.md`、`apps/dashboard/README.md` |
 
 生产环境：仪表盘 **https://codex.chenli.dev** · npm 包 **`codex-token-tracker`**
+
+团队成员只需要两条命令（Node.js 20+；无需安装——`npx` 每次启动都会获取最新版本）：
+
+```bash
+npx codex-token-tracker login   # 每台电脑的第一次：在自动打开的浏览器中登录并授权该设备
+npx codex-token-tracker         # 之后每天：启动菜单栏应用并让它一直运行（右键 → 开机自启动）
+```
+
+然后打开仪表盘：**Personal（个人）** 会在一分钟内出现数据。第一次登录会有一个简短的新手引导；可在 **设置** 中随时重看。
 
 ```
 ┌──────────────────────────────┐        ┌──────────────────────┐        ┌───────────────────────────┐
@@ -26,9 +35,9 @@
 - **指标** — 输入 / 缓存 / 输出 / 推理 token、请求数、缓存命中率、模型分布、API 等价费用（按公开 API 标价计算）、当前会话的每秒 token 数。
 - **实时用量限额** — 直接从账户获取 Codex 的每周 / 5 小时窗口（与 Codex 应用使用同一接口），另含按模型的限额、套餐与额度；离线时回退到日志中的数值。
 - **视图** — 每日贡献热力图、小时 × 星期活跃度、周一至周日对比、模型分布、成员排行榜、实时“正在编码”、最近会话、设备列表。
-- **来源** — 所有消耗 Codex 订阅的智能体都会被打上标签（`codex`、`pi`、`opencode`、`cline`、`roo`、`kilo`、`hermes`、自定义目录）；这些智能体内部使用 API Key 的 provider 默认不计入。
+- **来源** — 所有消耗 Codex 订阅的智能体都会被打上标签（`codex`、`pi`、`omp` 即 oh-my-pi、`opencode`、`cline`、`roo`、`kilo`、`hermes`、自定义目录）；这些智能体内部使用 API Key 的 provider 默认不计入。
 - **团队** — 基于 Clerk 组织（团队）；成员关系通过 JWT 与 Webhook 同步；每人可绑定任意数量的设备 —— 但每台机器只算一个设备，无论登录多少次（托盘应用 + 无界面 agent、重新登录）。
-- **无界面登录** — `codex-tracker login` 会打印批准链接和二维码，WSL2、服务器或 SSH 会话可以用手机或任意其他电脑完成批准。
+- **无界面登录** — `npx codex-token-tracker login` 会打印批准链接和二维码，WSL2、服务器或 SSH 会话可以用手机或任意其他电脑完成批准。
 - **时间与语言** — 数据库以 UTC 存储，所有视图按查看者的本机本地时间显示；英文 / 简体中文自动检测并持久化；浅色 / 深色 / 跟随系统主题（任务控制风格 UI，落地页与仪表盘背后有粒子场景）。
 - **隐私** — 离开本机的只有计数、模型/智能体名称、项目文件夹名和路径哈希。
 
@@ -46,7 +55,7 @@
 
 ## 工作原理
 
-1. 每个通过 Codex OAuth 登录的智能体都会在本地保留带有逐请求用量的会话记录。追踪器的来源注册表（`packages/menubar/src/core/sources`）负责发现并解析它们：Codex rollout（`~/.codex/sessions`，把累计的 `token_count` 计数转换为逐请求增量）、pi（`~/.pi/agent/sessions`）、OpenCode 存储、Cline 系列任务目录、Hermes 会话、自定义目录。
+1. 每个通过 Codex OAuth 登录的智能体都会在本地保留带有逐请求用量的会话记录。追踪器的来源注册表（`packages/menubar/src/core/sources`）负责发现并解析它们：Codex rollout（`~/.codex/sessions`，把累计的 `token_count` 计数转换为逐请求增量）、pi（`~/.pi/agent/sessions`）、oh-my-pi（`~/.omp/agent/sessions`，与 pi 格式相同）、OpenCode 存储、Cline 系列任务目录、Hermes 会话、自定义目录。
 2. 用量按 **UTC 小时 × 模型 × 智能体** 分桶、计价后 upsert 到 Convex（幂等 —— 重复扫描不会重复计数）。会话仅保存摘要（只含项目文件夹名 + 路径哈希）。
 3. 每 15 秒发送一次心跳，携带实时快照（当前会话、每秒 token 数），供仪表盘展示“正在编码”。
 4. 仪表盘订阅 Convex 查询，并把 UTC 分桶转换为查看者的本机本地时间，用于所有按日 / 小时 / 星期的视图。
@@ -72,6 +81,7 @@ Convex 部署），状态保存在 `~/.codex-tracker-dev`，不进行自动更�
 
 | 命令 | 作用 |
 |---|---|
+| `pnpm dev:tour` | 仪表盘开发服务器，且每次打开仪表盘都强制显示新手引导 |
 | `pnpm test` | 单元测试（shared 的解析器/定价/聚合，menubar 的来源模块） |
 | `pnpm -r typecheck` | 所有 workspace 的类型检查 |
 | `pnpm build` | 先构建各 package，再构建仪表盘 |

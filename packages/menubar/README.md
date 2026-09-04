@@ -4,7 +4,7 @@ Menu bar / system tray app **and** headless agent that tracks your [OpenAI Codex
 
 - macOS menu bar app and native Windows tray app (Electron)
 - `codex-token-tracker agent` headless mode for **WSL2**, Linux and servers
-- Self-update: `codex-token-tracker update`, plus an in-app "Update" button when a newer version is published
+- Nothing to install: `npx codex-token-tracker` fetches the newest version every time it starts; global installs self-update with `codex-token-tracker update` or the in-app "Update" button
 - Reads Codex CLI / Codex Desktop rollout logs (`~/.codex/sessions`) locally — no API keys, no proxies
 - Real-time: today's totals, the live session's generation speed (tokens/s), context window use, weekly / 5-hour rate limits
 - Activity heatmap merged from **local data + your other devices** (realtime database)
@@ -15,17 +15,26 @@ Menu bar / system tray app **and** headless agent that tracks your [OpenAI Codex
 
 ## Install
 
+There is nothing to install — run it with `npx` (Node.js 20+):
+
 ```bash
-npm install -g codex-token-tracker
-# or run without installing
-npx codex-token-tracker
+npx codex-token-tracker login   # the first time on this computer: sign in and approve the device in the browser that opens
+npx codex-token-tracker         # every day after: start the menu bar app (agent mode where there is no display)
 ```
 
-This installs two equivalent commands on your PATH: **`codex-token-tracker`** and the shorter alias
-`codex-tracker`. Every example below works with either name.
+`npx` resolves the newest published version every time it starts, so there is nothing to keep up to
+date; turn on *Launch at login* from the tray menu and the command is never typed again. Prefer a
+permanent install?
 
-Already installed? `codex-token-tracker update` fetches the newest published version and installs it
-with whichever package manager you used (npm / pnpm / yarn / bun).
+```bash
+npm install -g codex-token-tracker
+codex-tracker login             # then just `codex-tracker`
+```
+
+That puts two equivalent commands on your PATH: **`codex-token-tracker`** and the shorter alias
+`codex-tracker`, upgraded with `codex-token-tracker update`, which installs the newest version with
+whichever package manager you used (npm / pnpm / yarn / bun). Every example below uses the short form;
+read `codex-tracker <command>` as `npx codex-token-tracker <command>` if you did not install globally.
 
 > **Electron is downloaded on first launch, not during install.** `npm install -g` never runs Electron's install script, so the install succeeds on locked-down servers and headless machines download nothing. The first `codex-tracker` run on a desktop fetches the runtime (~100 MB, once) into `~/.codex-tracker/electron/<version>/`, honouring `ELECTRON_MIRROR` (e.g. `https://npmmirror.com/mirrors/electron/`) and `HTTPS_PROXY`. A globally installed `electron` (`npm i -g electron`) is used instead when present.
 
@@ -112,7 +121,7 @@ Press the **⟳** button in the popover header (or *Sync now* in the Account car
 
 1. re-reads the config, so agents enabled since the app started are picked up;
 2. re-discovers **every** session directory and re-parses **every** transcript from scratch — Codex plus
-   the coding agents running on your Codex subscription (pi, OpenCode, Cline / Roo / Kilo, Hermes) and any
+   the coding agents running on your Codex subscription (pi, oh-my-pi, OpenCode, Cline / Roo / Kilo, Hermes) and any
    `extraSessionDirs` you configured — instead of skipping files whose size and mtime are unchanged;
 3. recomputes all aggregates with the current pricing table;
 4. re-uploads **everything**, not just what changed, so the dashboard's totals for this device are
@@ -127,7 +136,7 @@ action, never on a timer.
 
 ## Windows and WSL2
 
-**Native Windows**: `npm i -g codex-token-tracker` in PowerShell, then `codex-tracker`. The tray app also scans every WSL distro (`\\wsl$\<distro>\home\*\.codex\sessions`) so sessions run inside WSL are counted.
+**Native Windows**: `npx codex-token-tracker login`, then `npx codex-token-tracker`, in PowerShell. The tray app also scans every WSL distro (`\\wsl$\<distro>\home\*\.codex\sessions`) so sessions run inside WSL are counted.
 
 **Inside WSL2**: Electron cannot show a Windows tray from WSL, so run the agent:
 
@@ -138,7 +147,8 @@ codex-tracker agent    # keep running (tmux / nohup / systemd --user)
 
 The agent also scans `/mnt/c/Users/*/.codex/sessions`, so one agent covers both sides. WSLg can display the Electron window but tray support is limited; the Windows tray app is the recommended UI. Running both the Windows tray app and a WSL agent on one PC is fine since 0.3.0: they identify as the same machine and the dashboard counts it once.
 
-Example `systemd --user` unit (`~/.config/systemd/user/codex-tracker.service`):
+Example `systemd --user` unit (`~/.config/systemd/user/codex-tracker.service`) for a global install — with
+npx use `ExecStart=/usr/bin/npx codex-token-tracker agent` (needs the registry reachable at start):
 
 ```ini
 [Service]
@@ -167,6 +177,8 @@ Config lives in `~/.codex-tracker/` (override with `CODEX_TRACKER_HOME`):
 
 ### Updates
 
+Started with `npx`, the tracker is the newest version every time it launches — `update` and the in-app
+button then only ask you to quit and run `npx codex-token-tracker` again. For global installs,
 `checkUpdates` (default on) asks `registry.npmjs.org` for the package's `latest` dist-tag at most once
 every 6 hours and caches the answer in `~/.codex-tracker/update.json`. Nothing else is sent — the request
 carries no usage data and no identifiers. Turn it off with `codex-tracker config set checkUpdates false`;
@@ -207,6 +219,7 @@ and as a tag on live sessions / model rows). Only Codex-subscription providers a
 |---|---|---|
 | `codex` – Codex CLI / Codex Desktop | `$CODEX_HOME` or `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`, `archived_sessions/` | Reference format; also carries rate-limit snapshots and context-window size |
 | `pi` – [pi coding agent](https://github.com/badlogic/pi-mono) | `$PI_CODING_AGENT_DIR` or `~/.pi/agent/sessions/<project>/*.jsonl` | Counts messages whose `provider` is `openai-codex` (Codex OAuth); other providers (API keys) only with `trackAllProviders` |
+| `omp` – [oh-my-pi](https://github.com/can1357/oh-my-pi) | `~/.omp/agent/sessions/<project>/*.jsonl` (`$PI_CONFIG_DIR` replaces `~/.omp`), every profile's `~/.omp/profiles/<name>/agent/sessions`, `$XDG_DATA_HOME/omp/sessions` (+ `profiles/<name>/sessions`) on macOS / Linux, and `$PI_CODING_AGENT_SESSION_DIR` | pi's transcript format, so the same rule as `pi`. A `$PI_CODING_AGENT_DIR` shared by both agents is scanned once and tagged `pi` |
 | `opencode` – [OpenCode](https://github.com/sst/opencode) | `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode/storage/` (Windows: `%LOCALAPPDATA%\opencode`, `%APPDATA%\opencode`) | One JSON file per message; `providerID` `openai` counts when `auth.json` shows an OAuth login. *Best-effort – format inferred, not verified on a real install* |
 | `cline`, `roo`, `kilo` – Cline / Roo Code / Kilo Code (VS Code, Cursor, Windsurf, VSCodium, Trae, VS Code Remote) | `<globalStorage>/<extension id>/tasks/<task>/ui_messages.json` + `task_metadata.json` | Per-request `api_req_started` entries; model/provider from `model_usage`. *Best-effort* |
 | `hermes` – Hermes agent | `$HERMES_HOME` or `~/.hermes/sessions/**/*.json\|jsonl` (+ `state.db` via `node:sqlite` when available) | Generic parser: any JSON/JSONL with per-request `usage` objects. *Best-effort* |
@@ -226,7 +239,7 @@ The popover and `codex-tracker status` show your account's rate-limit windows (e
 `https://chatgpt.com/backend-api/wham/usage`, the same endpoint the official Codex client uses. The request is
 made with the access token from your local Codex login (`~/.codex/auth.json`); the token is read fresh each time,
 never written, never refreshed by the tracker, and is sent **only to chatgpt.com** – never to the dashboard.
-Because every Codex-subscription consumer (pi, OpenCode, …) draws from the same account, this is the only
+Because every Codex-subscription consumer (pi, oh-my-pi, OpenCode, …) draws from the same account, this is the only
 accurate number; the values inside Codex logs are just snapshots from Codex's own last request.
 
 - Refreshed every `usageRefreshSec` (default 60 s) and ~10 s after new local usage is seen.
@@ -256,7 +269,7 @@ A build knows which environment it belongs to, so a local test run can never wri
 is what `prepack` runs — so every tarball and every `npm publish` is prod, and every `pnpm build`,
 `pnpm dev` and watch-mode rebuild is dev.
 
-| | dev build (`pnpm build`) | published build (`npm i -g codex-token-tracker`) |
+| | dev build (`pnpm build`) | published build (`npx codex-token-tracker` / `npm i -g`) |
 | --- | --- | --- |
 | Dashboard default | `http://localhost:3000` | `https://codex.chenli.dev` |
 | Convex deployment | whatever the local dashboard's `/api/config` advertises — the **dev** one | production |

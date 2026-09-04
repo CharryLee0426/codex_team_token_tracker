@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 export const AGENT_LABELS: Record<string, string> = {
   codex: "Codex",
   pi: "pi",
+  omp: "oh-my-pi",
   hermes: "Hermes",
   opencode: "OpenCode",
   cline: "Cline",
