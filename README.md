@@ -2,13 +2,13 @@
 
 *中文说明：[README.zh-CN.md](./README.zh-CN.md)*
 
-Team-wide token tracking for an OpenAI **Codex** subscription: a menu bar / tray app that reads local usage records from current, audited Codex-OAuth agents (Codex CLI/Desktop, pi, oh-my-pi, Cline, Kilo Code, Hermes Agent, OpenClaw and DeepSeek Harness), plus retained best-effort readers, and a Next.js dashboard that shows team and personal usage in real time.
+Team-wide token tracking for an OpenAI **Codex** subscription: a menu bar / tray app that reads local usage records from current, audited Codex-OAuth agents (Codex CLI/Desktop, pi, oh-my-pi, Cline, Kilo Code, Hermes Agent, OpenClaw and DeepSeek Harness), plus retained best-effort readers, and web/native dashboards that show team and personal usage in real time.
 
 | Audience | Read |
 |---|---|
 | Team members (install the tool, use the dashboard) | **[User Guide](docs/USER_GUIDE.md)** · [用户指南](docs/USER_GUIDE.zh-CN.md) |
 | Admin (deploy dashboard, Convex, Clerk, publish npm) | **[Admin Deployment Guide](docs/ADMIN_DEPLOY.md)** · [管理员部署指南](docs/ADMIN_DEPLOY.zh-CN.md) |
-| Developers | this file, `packages/*/README.md`, `apps/dashboard/README.md` |
+| Developers | this file, `packages/*/README.md`, `apps/dashboard/README.md`, [native mobile guide](apps/mobile/README.md) |
 
 Production: dashboard **https://codex.chenli.dev** · npm package **`codex-token-tracker`**
 
@@ -35,6 +35,7 @@ Then open the dashboard: **Personal** fills within a minute. The first sign-in s
 - **Metrics** — input / cached / output / reasoning tokens, requests, cache-hit rate, model mix, API-equivalent cost (public API list prices), tokens-per-second of the running session.
 - **Live rate limits** — weekly / 5-hour Codex windows straight from the account (same endpoint the Codex app uses), plus per-model limits, plan and credits; falls back to log values when offline.
 - **Views** — daily contribution heatmap, hour × weekday activity, Mon–Sun comparison, model distribution, member leaderboard, live "coding now", recent sessions, devices.
+- **Native viewers** — read-only SwiftUI and Kotlin/Compose apps mirror the dashboard on iOS and Android; collection remains on desktop machines.
 - **Sources** — current audited integrations are tagged `codex`, `pi`, `omp` (oh-my-pi), `cline`, `kilo`, `hermes`, `openclaw` and `dsh` (DeepSeek Harness); retained OpenCode / Roo readers and custom directories remain available. API-key providers inside multi-provider agents never enter displayed, priced, or uploaded totals.
 - **Teams** — Clerk Organizations; membership synced from JWT and webhooks; any number of devices per person — and exactly one device per machine, however often it logs in (tray app + headless agent, re-logins).
 - **Headless login** — `npx codex-token-tracker login` prints the approval link and a QR code, so a WSL2 box, a server or an SSH session is approved from a phone or any other computer.
@@ -47,12 +48,13 @@ Then open the dashboard: **Personal** fills within a minute. The first sign-in s
 | Path | What | Publish target |
 |---|---|---|
 | `apps/dashboard` | Next.js 15 dashboard (Clerk, Convex, next-intl, next-themes, Tailwind v4, recharts) | Vercel |
+| `apps/mobile` | Read-only native viewers (SwiftUI on iOS, Kotlin/Compose on Android) | Local/App Store builds |
 | `packages/menubar` | `codex-token-tracker` – Electron tray app + headless agent + CLI (source registry per agent) | npm |
 | `packages/backend` | Convex schema & functions (deployed from `apps/dashboard`) | Convex |
 | `packages/shared` | Parsers (Codex, pi, generic), pricing, aggregation, time & palette helpers, `wham/usage` parser — unit-tested | – |
 | `docs/` | User guide and admin deployment guide (EN / 中文), Clerk JWT template | – |
 
-Tech stack: Node ≥ 20, TypeScript, pnpm workspaces, Next.js, Clerk, Convex, Electron.
+Tech stack: Node ≥ 20, TypeScript, pnpm workspaces, Next.js, Clerk, Convex, Electron, SwiftUI, Kotlin, Jetpack Compose.
 
 ## How it works
 
@@ -61,6 +63,7 @@ Tech stack: Node ≥ 20, TypeScript, pnpm workspaces, Next.js, Clerk, Convex, El
 3. A heartbeat every 15 s carries the live snapshot (current session, output tokens/sec) for the dashboard's "live now".
 4. The dashboard subscribes to Convex queries and converts UTC buckets to the viewer's local time for every day / hour / weekday view.
 5. Teams are Clerk Organizations; the team view aggregates all members' devices.
+6. Native mobile apps authenticate with Clerk and subscribe to the same Convex read queries. They do not scan files, collect usage or upload buckets.
 
 ## Agent compatibility
 

@@ -2,13 +2,13 @@
 
 *English version: [README.md](./README.md)*
 
-面向团队的 OpenAI **Codex** 订阅 token 用量追踪系统：一个菜单栏 / 托盘应用，读取已审计且支持当前格式的 Codex OAuth 智能体本地用量记录（Codex CLI/Desktop、pi、oh-my-pi、Cline、Kilo Code、Hermes Agent、OpenClaw、DeepSeek Harness），同时保留尽力兼容的读取器；再由 Next.js 仪表盘实时展示团队与个人用量。
+面向团队的 OpenAI **Codex** 订阅 token 用量追踪系统：一个菜单栏 / 托盘应用，读取已审计且支持当前格式的 Codex OAuth 智能体本地用量记录（Codex CLI/Desktop、pi、oh-my-pi、Cline、Kilo Code、Hermes Agent、OpenClaw、DeepSeek Harness），同时保留尽力兼容的读取器；再由网页与原生移动端仪表盘实时展示团队与个人用量。
 
 | 读者 | 阅读 |
 |---|---|
 | 团队成员（安装工具、使用仪表盘） | **[用户指南](docs/USER_GUIDE.zh-CN.md)** · [User Guide](docs/USER_GUIDE.md) |
 | 管理员（部署仪表盘、Convex、Clerk，发布 npm） | **[管理员部署指南](docs/ADMIN_DEPLOY.zh-CN.md)** · [Admin Deployment Guide](docs/ADMIN_DEPLOY.md) |
-| 开发者 | 本文件、`packages/*/README.md`、`apps/dashboard/README.md` |
+| 开发者 | 本文件、`packages/*/README.md`、`apps/dashboard/README.md`、[原生移动端指南](apps/mobile/README.zh-CN.md) |
 
 生产环境：仪表盘 **https://codex.chenli.dev** · npm 包 **`codex-token-tracker`**
 
@@ -35,6 +35,7 @@ npx codex-token-tracker         # 之后每天：启动菜单栏应用并让它�
 - **指标** — 输入 / 缓存 / 输出 / 推理 token、请求数、缓存命中率、模型分布、API 等价费用（按公开 API 标价计算）、当前会话的每秒 token 数。
 - **实时用量限额** — 直接从账户获取 Codex 的每周 / 5 小时窗口（与 Codex 应用使用同一接口），另含按模型的限额、套餐与额度；离线时回退到日志中的数值。
 - **视图** — 每日贡献热力图、小时 × 星期活跃度、周一至周日对比、模型分布、成员排行榜、实时“正在编码”、最近会话、设备列表。
+- **原生查看器** — iOS 的 SwiftUI 与 Android 的 Kotlin/Compose 只读应用复现仪表盘；数据采集仍只发生在桌面机器上。
 - **来源** — 当前已审计的集成会标记为 `codex`、`pi`、`omp`（oh-my-pi）、`cline`、`kilo`、`hermes`、`openclaw`、`dsh`（DeepSeek Harness）；原有 OpenCode / Roo 读取器与自定义目录仍可使用。多 provider 智能体中使用 API Key 的调用永远不会进入展示、定价或上传汇总。
 - **团队** — 基于 Clerk 组织（团队）；成员关系通过 JWT 与 Webhook 同步；每人可绑定任意数量的设备 —— 但每台机器只算一个设备，无论登录多少次（托盘应用 + 无界面 agent、重新登录）。
 - **无界面登录** — `npx codex-token-tracker login` 会打印批准链接和二维码，WSL2、服务器或 SSH 会话可以用手机或任意其他电脑完成批准。
@@ -46,12 +47,13 @@ npx codex-token-tracker         # 之后每天：启动菜单栏应用并让它�
 | 路径 | 内容 | 发布目标 |
 |---|---|---|
 | `apps/dashboard` | Next.js 15 仪表盘（Clerk、Convex、next-intl、next-themes、Tailwind v4、recharts） | Vercel |
+| `apps/mobile` | 只读原生查看器（iOS SwiftUI、Android Kotlin/Compose） | 本地 / 应用商店构建 |
 | `packages/menubar` | `codex-token-tracker` —— Electron 托盘应用 + 无界面代理模式 + CLI（每个智能体一个来源模块） | npm |
 | `packages/backend` | Convex schema 与函数（从 `apps/dashboard` 部署） | Convex |
 | `packages/shared` | 解析器（Codex、pi、通用）、定价、聚合、时间与配色工具、`wham/usage` 解析器 —— 含单元测试 | – |
 | `docs/` | 用户指南与管理员部署指南（EN / 中文）、Clerk JWT 模板 | – |
 
-技术栈：Node ≥ 20、TypeScript、pnpm workspaces、Next.js、Clerk、Convex、Electron。
+技术栈：Node ≥ 20、TypeScript、pnpm workspaces、Next.js、Clerk、Convex、Electron、SwiftUI、Kotlin、Jetpack Compose。
 
 ## 工作原理
 
@@ -60,6 +62,7 @@ npx codex-token-tracker         # 之后每天：启动菜单栏应用并让它�
 3. 每 15 秒发送一次心跳，携带实时快照（当前会话、每秒 token 数），供仪表盘展示“正在编码”。
 4. 仪表盘订阅 Convex 查询，并把 UTC 分桶转换为查看者的本机本地时间，用于所有按日 / 小时 / 星期的视图。
 5. 团队即 Clerk 组织（团队）；团队视图汇总所有成员的全部设备。
+6. 原生移动应用通过 Clerk 登录并订阅相同的 Convex 只读查询；它们不会扫描文件、采集用量或上传分桶数据。
 
 ## 智能体兼容性
 

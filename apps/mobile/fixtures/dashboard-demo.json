@@ -1,0 +1,400 @@
+{
+  "now": 1788544800000,
+  "expected": {
+    "personal": {
+      "input": 495000,
+      "cached": 310000,
+      "cacheWrite": 20000,
+      "output": 103000,
+      "reasoning": 27000,
+      "total": 620000,
+      "requests": 15,
+      "cost": 7.17,
+      "activeUsers": 1,
+      "models": 4
+    },
+    "team": {
+      "input": 895000,
+      "cached": 570000,
+      "cacheWrite": 45000,
+      "output": 223000,
+      "reasoning": 57000,
+      "total": 1170000,
+      "requests": 30,
+      "cost": 13.47,
+      "activeUsers": 2,
+      "models": 6
+    }
+  },
+  "users": [
+    {
+      "id": "user-alex",
+      "name": "Alex Chen",
+      "email": "alex@example.test",
+      "imageUrl": null
+    },
+    {
+      "id": "user-sam",
+      "name": "Sam Rivera",
+      "email": "sam@example.test",
+      "imageUrl": null
+    }
+  ],
+  "organizations": [
+    {
+      "id": "org-orbital",
+      "clerkOrgId": "org_demo_orbital",
+      "name": "Orbital Labs",
+      "slug": "orbital-labs",
+      "imageUrl": null,
+      "role": "org:admin"
+    }
+  ],
+  "rows": [
+    {
+      "h": 1788285600000,
+      "u": "user-alex",
+      "d": "device-mac",
+      "i": 205000,
+      "c": 120000,
+      "w": 10000,
+      "o": 45000,
+      "r": 15000,
+      "t": 250000,
+      "q": 6,
+      "usd": 2.77,
+      "m": [
+        {
+          "model": "gpt-5.6-sol",
+          "agent": "codex",
+          "i": 150000,
+          "c": 100000,
+          "w": 5000,
+          "o": 25000,
+          "r": 5000,
+          "t": 180000,
+          "q": 4,
+          "usd": 2.35
+        },
+        {
+          "model": "gpt-5.4",
+          "agent": "cline",
+          "i": 55000,
+          "c": 20000,
+          "w": 5000,
+          "o": 20000,
+          "r": 10000,
+          "t": 70000,
+          "q": 2,
+          "usd": 0.42
+        }
+      ]
+    },
+    {
+      "h": 1788328800000,
+      "u": "user-alex",
+      "d": "device-mac",
+      "i": 250000,
+      "c": 180000,
+      "w": 10000,
+      "o": 50000,
+      "r": 10000,
+      "t": 320000,
+      "q": 8,
+      "usd": 4.1,
+      "m": [
+        {
+          "model": "openai/gpt-5.6-sol-2026-08-28",
+          "agent": "codex",
+          "i": 250000,
+          "c": 180000,
+          "w": 10000,
+          "o": 50000,
+          "r": 10000,
+          "t": 320000,
+          "q": 8,
+          "usd": 4.1
+        }
+      ]
+    },
+    {
+      "h": 1788332400000,
+      "u": "user-alex",
+      "d": "device-mac",
+      "i": 40000,
+      "c": 10000,
+      "w": 0,
+      "o": 8000,
+      "r": 2000,
+      "t": 50000,
+      "q": 1,
+      "usd": 0.3,
+      "m": []
+    },
+    {
+      "h": 1788454800000,
+      "u": "user-alex",
+      "d": "device-mac",
+      "i": 900000,
+      "c": 0,
+      "w": 0,
+      "o": 99999,
+      "r": 0,
+      "t": 999999,
+      "q": 99,
+      "usd": 99,
+      "m": [
+        {
+          "model": "claude-sonnet-4",
+          "agent": "cline",
+          "i": 900000,
+          "c": 0,
+          "w": 0,
+          "o": 99999,
+          "r": 0,
+          "t": 999999,
+          "q": 99,
+          "usd": 99
+        }
+      ]
+    },
+    {
+      "h": 1788033600000,
+      "u": "user-sam",
+      "d": "device-linux",
+      "i": 300000,
+      "c": 210000,
+      "w": 20000,
+      "o": 80000,
+      "r": 20000,
+      "t": 400000,
+      "q": 10,
+      "usd": 5.2,
+      "m": [
+        {
+          "model": "gpt-5.5",
+          "agent": "omp",
+          "i": 300000,
+          "c": 210000,
+          "w": 20000,
+          "o": 80000,
+          "r": 20000,
+          "t": 400000,
+          "q": 10,
+          "usd": 5.2
+        }
+      ]
+    },
+    {
+      "h": 1788541200000,
+      "u": "user-sam",
+      "d": "device-linux",
+      "i": 100000,
+      "c": 50000,
+      "w": 5000,
+      "o": 40000,
+      "r": 10000,
+      "t": 150000,
+      "q": 5,
+      "usd": 1.1,
+      "m": [
+        {
+          "model": "gpt-5.4-mini",
+          "agent": "codex",
+          "i": 100000,
+          "c": 50000,
+          "w": 5000,
+          "o": 40000,
+          "r": 10000,
+          "t": 150000,
+          "q": 5,
+          "usd": 1.1
+        }
+      ]
+    }
+  ],
+  "sessions": [
+    {
+      "id": "session-alex-1",
+      "user": {
+        "id": "user-alex",
+        "name": "Alex Chen",
+        "email": "alex@example.test",
+        "imageUrl": null
+      },
+      "deviceId": "device-mac",
+      "sessionId": "demo-alex-codex",
+      "agent": "codex",
+      "model": "gpt-5.6-sol",
+      "projectName": "mobile-viewer",
+      "startedAt": 1788325200000,
+      "lastActivityAt": 1788544500000,
+      "input": 250000,
+      "cached": 180000,
+      "cacheWrite": 10000,
+      "output": 50000,
+      "reasoning": 10000,
+      "total": 320000,
+      "requests": 8,
+      "cost": 4.1,
+      "source": "codex",
+      "cliVersion": "0.3.1"
+    },
+    {
+      "id": "session-alex-filtered",
+      "user": {
+        "id": "user-alex",
+        "name": "Alex Chen",
+        "email": "alex@example.test",
+        "imageUrl": null
+      },
+      "deviceId": "device-mac",
+      "sessionId": "demo-non-openai",
+      "agent": "cline",
+      "model": "claude-sonnet-4",
+      "projectName": "not-codex",
+      "startedAt": 1788447600000,
+      "lastActivityAt": 1788454800000,
+      "input": 900000,
+      "cached": 0,
+      "cacheWrite": 0,
+      "output": 99999,
+      "reasoning": 0,
+      "total": 999999,
+      "requests": 99,
+      "cost": 99,
+      "source": "cline",
+      "cliVersion": null
+    },
+    {
+      "id": "session-sam-1",
+      "user": {
+        "id": "user-sam",
+        "name": "Sam Rivera",
+        "email": "sam@example.test",
+        "imageUrl": null
+      },
+      "deviceId": "device-linux",
+      "sessionId": "demo-sam-omp",
+      "agent": "omp",
+      "model": "gpt-5.5",
+      "projectName": "token-tracker",
+      "startedAt": 1788026400000,
+      "lastActivityAt": 1788544680000,
+      "input": 300000,
+      "cached": 210000,
+      "cacheWrite": 20000,
+      "output": 80000,
+      "reasoning": 20000,
+      "total": 400000,
+      "requests": 10,
+      "cost": 5.2,
+      "source": "omp",
+      "cliVersion": "0.3.1"
+    }
+  ],
+  "members": [
+    {
+      "id": "user-alex",
+      "name": "Alex Chen",
+      "email": "alex@example.test",
+      "imageUrl": null,
+      "role": "org:admin",
+      "joinedAt": 1785945600000,
+      "deviceCount": 1,
+      "lastSeenAt": 1788544500000,
+      "live": {
+        "sessionId": "demo-alex-codex",
+        "model": "gpt-5.6-sol",
+        "tokensPerSecond": 42.6,
+        "lastEventAt": 1788544500000,
+        "todayTotal": 320000,
+        "todayCost": 4.1,
+        "updatedAt": 1788544680000
+      }
+    },
+    {
+      "id": "user-sam",
+      "name": "Sam Rivera",
+      "email": "sam@example.test",
+      "imageUrl": null,
+      "role": "org:member",
+      "joinedAt": 1786032000000,
+      "deviceCount": 1,
+      "lastSeenAt": 1788544680000,
+      "live": {
+        "sessionId": "demo-sam-omp",
+        "model": "gpt-5.5",
+        "tokensPerSecond": 27.3,
+        "lastEventAt": 1788544680000,
+        "todayTotal": 150000,
+        "todayCost": 1.1,
+        "updatedAt": 1788544680000
+      }
+    }
+  ],
+  "devices": [
+    {
+      "id": "device-mac",
+      "name": "Alex's MacBook Pro",
+      "platform": "darwin",
+      "hostname": "alex-mac",
+      "appVersion": "0.3.1",
+      "timezone": "America/Los_Angeles",
+      "createdAt": 1785945600000,
+      "lastSeenAt": 1788544680000,
+      "live": {
+        "sessionId": "demo-alex-codex",
+        "model": "gpt-5.6-sol",
+        "tokensPerSecond": 42.6,
+        "lastEventAt": 1788544500000,
+        "todayTotal": 320000,
+        "todayCost": 4.1,
+        "updatedAt": 1788544680000
+      },
+      "logins": 2
+    }
+  ],
+  "live": [
+    {
+      "user": {
+        "id": "user-alex",
+        "name": "Alex Chen",
+        "email": "alex@example.test",
+        "imageUrl": null
+      },
+      "deviceId": "device-mac",
+      "deviceName": "Alex's MacBook Pro",
+      "platform": "darwin",
+      "live": {
+        "sessionId": "demo-alex-codex",
+        "model": "gpt-5.6-sol",
+        "tokensPerSecond": 42.6,
+        "lastEventAt": 1788544500000,
+        "todayTotal": 320000,
+        "todayCost": 4.1,
+        "updatedAt": 1788544680000
+      }
+    },
+    {
+      "user": {
+        "id": "user-sam",
+        "name": "Sam Rivera",
+        "email": "sam@example.test",
+        "imageUrl": null
+      },
+      "deviceId": "device-linux",
+      "deviceName": "Sam's Workstation",
+      "platform": "linux",
+      "live": {
+        "sessionId": "demo-sam-omp",
+        "model": "gpt-5.5",
+        "tokensPerSecond": 27.3,
+        "lastEventAt": 1788544680000,
+        "todayTotal": 150000,
+        "todayCost": 1.1,
+        "updatedAt": 1788544680000
+      }
+    }
+  ]
+}
