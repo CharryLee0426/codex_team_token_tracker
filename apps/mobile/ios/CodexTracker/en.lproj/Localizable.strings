@@ -1,0 +1,115 @@
+"app.name" = "Codex Tracker";
+"app.version" = "Version %@";
+"demo.badge" = "DEMO DATA";
+"common.unknownUser" = "Unknown user";
+"common.unknown" = "Unknown";
+"common.other" = "Other";
+"common.retry" = "Retry";
+"common.viewData" = "Accessible data";
+"common.today" = "Today";
+
+"tab.personal" = "Personal";
+"tab.team" = "Team";
+"tab.members" = "Members";
+"tab.devices" = "Devices";
+"tab.settings" = "Settings";
+
+"personal.title" = "Personal usage";
+"personal.subtitle" = "Your Codex activity, translated into local time.";
+"team.title" = "Team usage";
+"team.subtitle" = "A read-only view of your organization.";
+
+"range.label" = "Date range";
+"range.today" = "Today";
+"range.7d" = "7 days";
+"range.30d" = "30 days";
+"range.90d" = "90 days";
+"range.365d" = "1 year";
+"range.planStart" = "Plan start";
+"range.custom" = "Custom";
+"range.customTitle" = "Custom range";
+"range.from" = "From";
+"range.to" = "To";
+"range.apply" = "Apply range";
+
+"kpi.totalTokens" = "Total tokens";
+"kpi.cost" = "API-equivalent cost";
+"kpi.cacheHit" = "Cache hit";
+"kpi.requests" = "Requests";
+"kpi.devices" = "Devices";
+"kpi.activeMembers" = "Active members";
+"kpi.liveNow" = "Live now";
+
+"charts.usage" = "Usage over time";
+"charts.contribution" = "Contribution history";
+"charts.activeHours" = "Active hours";
+"charts.weekday" = "Weekday comparison";
+"charts.models" = "Model distribution";
+"charts.sources" = "Sources";
+"charts.memberContribution" = "Member contribution";
+"charts.tokens" = "%@ tokens";
+"charts.noActivity" = "No activity";
+
+"sessions.title" = "Recent sessions";
+"sessions.project" = "Project";
+"sessions.requests" = "%@ requests";
+
+"members.title" = "Members";
+"members.subtitle" = "Roles, activity, and connected-device totals.";
+"members.admin" = "Admin";
+"members.member" = "Member";
+"members.live" = "Live · %@ · %@ tok/s";
+"members.offline" = "Offline";
+"members.devices" = "%@ devices";
+"members.joined" = "Joined %@";
+
+"devices.title" = "Devices";
+"devices.subtitle" = "Read-only status for your connected computers.";
+"devices.live" = "Live · %@ · %@ tok/s";
+"devices.idle" = "Idle";
+"devices.logins" = "%@ logins";
+"devices.today" = "Today %@ · %@";
+"devices.lastSeen" = "Last seen %@";
+"devices.added" = "Added %@";
+
+"settings.title" = "Settings";
+"settings.subtitle" = "Account, display, and app information.";
+"settings.organization" = "Organization";
+"settings.organizationHint" = "Choose which team data to review.";
+"settings.personalAccount" = "No active organization";
+"settings.appearance" = "Appearance";
+"settings.language" = "Language";
+"settings.connection" = "Realtime connection";
+"settings.pricing" = "Pricing";
+"settings.pricingBody" = "Costs are API-equivalent estimates from values calculated before upload; they are not a bill.";
+"settings.privacy" = "Privacy";
+"settings.privacyBody" = "This app only displays aggregated usage already stored in your account. It does not collect activity on this device.";
+"settings.about" = "About";
+"settings.signOut" = "Sign out";
+"theme.system" = "System";
+"theme.light" = "Light";
+"theme.dark" = "Dark";
+"language.en" = "English";
+"language.zh" = "简体中文";
+
+"connection.live" = "Connected";
+"connection.offline" = "Offline · showing saved in-memory data";
+"connection.reconnecting" = "Reconnecting · showing previous data";
+"connection.simulateOffline" = "Simulate offline";
+"connection.reconnect" = "Reconnect";
+"state.stale" = "Updating · previous data remains visible";
+"state.loading" = "Loading usage";
+"state.initializing" = "Starting secure services";
+"state.signedOut" = "Sign in to review usage";
+"state.signInBody" = "Continue in a secure browser with an enabled sign-in method.";
+"state.signIn" = "Sign in";
+"state.authCancelled" = "Sign-in was canceled or could not be completed.";
+"state.syncing" = "Syncing your account";
+"state.signingOut" = "Signing out securely";
+"state.noOrganization" = "Choose an organization to review team data.";
+"state.noOrganizations" = "No organizations are available for this account.";
+"state.teamUnavailable" = "Team data is unavailable until the selected Clerk organization is active and securely synchronized.";
+"state.emptyUsage" = "No usage is available for the selected range.";
+"state.emptyMembers" = "No members are available.";
+"state.emptyDevices" = "No devices are available.";
+"error.load" = "Usage could not be loaded. Your previous data remains available.";

@@ -1,0 +1,4 @@
+CLERK_PUBLISHABLE_KEY = pk_test_REPLACE_ME
+CONVEX_URL = https:/$()/example.convex.cloud
+
+#include? "Local.xcconfig"
