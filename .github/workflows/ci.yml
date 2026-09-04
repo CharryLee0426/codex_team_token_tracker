@@ -24,6 +24,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @codex-tracker/shared test
+      - run: pnpm --filter @codex-tracker/backend test
       - run: pnpm -r typecheck
       - run: pnpm --filter codex-token-tracker build
       - run: pnpm --filter dashboard build
