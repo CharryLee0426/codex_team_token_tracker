@@ -37,7 +37,8 @@
     "lastActive": "Last active",
     "justNow": "just now",
     "ago": "{time} ago",
-    "localTime": "Local time"
+    "localTime": "Local time",
+    "done": "Done"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -56,7 +57,9 @@
   "shell": {
     "linkOnline": "Realtime link",
     "linkReconnecting": "Reconnecting…",
-    "linkConnecting": "Connecting…"
+    "linkConnecting": "Connecting…",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar"
   },
   "landing": {
     "eyebrow": "Realtime token telemetry for Codex teams",
@@ -98,7 +101,7 @@
     "howEyebrow": "Three steps",
     "howTitle": "How it works",
     "how": {
-      "1": "Install the npm package and run `codex-tracker login`.",
+      "1": "Run `npx codex-token-tracker login` — nothing to install (Node.js 20+).",
       "2": "Approve the device in this dashboard with your Google or GitHub account.",
       "3": "Usage is read from local Codex session logs and synced every minute."
     },
@@ -115,7 +118,23 @@
     "7d": "7 days",
     "30d": "30 days",
     "90d": "90 days",
-    "365d": "1 year"
+    "365d": "1 year",
+    "presets": "Preset ranges",
+    "plan": "Since team plan starts",
+    "planHint": "Everything since the team's Codex plan started on {date}",
+    "planSummary": "Since {date} · {count, plural, =1 {1 day} other {# days}}",
+    "custom": "Custom",
+    "customHint": "Pick a start and an end day (up to a year)",
+    "from": "Start day",
+    "to": "End day",
+    "days": "{count, plural, =1 {1 day} other {# days}}",
+    "customTitle": "Custom range",
+    "rangeJoin": "–",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "month": "Month",
+    "day": "Day",
+    "year": "Year"
   },
   "kpi": {
     "totalTokens": "Total tokens",
@@ -158,7 +177,9 @@
     "hour": "{hour}:00",
     "tokensPerDay": "tokens / day",
     "cacheSavings": "Cache savings",
-    "activeHoursHover": "Hover or tap a cell for its hour"
+    "activeHoursHover": "Hover or tap a cell for its hour",
+    "lastDays": "Last {count} days",
+    "activeHoursWidened": "Ranges shorter than a week show the last {count} days here, so every weekday row has data"
   },
   "members": {
     "title": "Members",
@@ -192,7 +213,7 @@
     "revokeConfirm": "Revoke this device? It will stop syncing until you log in again.",
     "revoked": "Device revoked",
     "empty": "No devices connected yet.",
-    "connectHint": "Run `codex-tracker login` on a machine to connect it.",
+    "connectHint": "Run `npx codex-token-tracker login` on a machine to connect it, then `npx codex-token-tracker` to keep it reporting.",
     "liveSession": "Live session",
     "idle": "Idle",
     "count": "{count, plural, =1 {1 device} other {# devices}}",
@@ -268,8 +289,8 @@
       "2": "Read your own usage across devices (to merge its heatmap).",
       "3": "It cannot read other members' data or change your organization."
     },
-    "notFound": "No pending request for this code. Run `codex-tracker login` again to get a fresh code.",
-    "expired": "This code has expired. Run `codex-tracker login` again.",
+    "notFound": "No pending request for this code. Run `npx codex-token-tracker login` again to get a fresh code.",
+    "expired": "This code has expired. Run `npx codex-token-tracker login` again.",
     "consumed": "This code was already used.",
     "denied": "This request was denied.",
     "approvedTitle": "Device connected",
@@ -285,10 +306,10 @@
     "theme": "Appearance",
     "themeHint": "Light, dark or follow the system",
     "connectTitle": "Connect the menu bar app",
-    "connectBody": "Install the npm package on each machine and point it at this dashboard:",
-    "connectStep1": "Install",
-    "connectStep2": "Sign in (opens this dashboard to approve the device)",
-    "connectStep3": "Run in the background — the tray icon shows today's usage; on WSL2 use the headless agent",
+    "connectBody": "Run the tracker with npx on each machine — nothing to install, and every start picks up the newest version (Node.js 20+):",
+    "connectStep1": "First time — sign in; this dashboard opens so you can approve the device",
+    "connectStep2": "Every day after — the tray icon shows today's usage; on WSL2 or a server use the headless agent",
+    "connectStep3": "Tip — right-click the tray icon → Launch at login. Prefer a global install? Then the short `codex-tracker` command works too",
     "pricingTitle": "Pricing",
     "pricingBody": "Costs are computed on each device from standard OpenAI API list prices, including the long-context tier above 272K input tokens. Only Codex (OpenAI) usage is reported — other providers your agents may use are not counted. Newer models fall back to the closest known family and are marked as estimated."
   },
@@ -385,5 +406,96 @@
   },
   "preview": {
     "banner": "Design preview — sample data, not your account"
+  },
+  "onboarding": {
+    "eyebrow": "Mission plan",
+    "stage": "Stage {current} / {total}",
+    "skip": "Skip the tour",
+    "skipShort": "Skip",
+    "back": "Back",
+    "next": "Next",
+    "start": "Begin",
+    "finish": "Go to my board",
+    "escHint": "Esc to skip · ← → to move",
+    "replayHint": "Replay it anytime from Settings.",
+    "phases": {
+      "briefing": "Briefing",
+      "connect": "Connect",
+      "run": "Run",
+      "board": "The board",
+      "go": "Go"
+    },
+    "steps": {
+      "welcome": {
+        "title": "Welcome aboard, {name}",
+        "titleAnon": "Welcome aboard",
+        "body": "Codex Tracker turns the Codex sessions on every teammate's machine into one live board — tokens, cache hits, model mix and what it would all cost at API prices. Three stages and you are live; it takes about two minutes."
+      },
+      "connect": {
+        "title": "Connect this computer",
+        "body": "Run this in a terminal — it needs Node.js 20 or newer and installs nothing. It prints a short code and opens this dashboard: sign in with the same account and press <code>Approve</code>. No browser on that machine? Scan the QR code it prints with your phone.",
+        "command": "Copy · paste · approve"
+      },
+      "run": {
+        "title": "Keep the tracker running",
+        "body": "The same command without <code>login</code> starts the menu bar app. It reads your local Codex, pi and other agent transcripts, shows today's usage in the tray and uploads hourly totals every minute. Right-click the tray icon → <code>Launch at login</code> and forget about it. On WSL2 or a server run <code>npx codex-token-tracker agent</code> instead.",
+        "hint": "Only counts leave the machine — never prompts, code or file paths. npx fetches the newest version every time it starts."
+      },
+      "personal": {
+        "title": "Personal",
+        "body": "Every device you connected, rolled into one view: total tokens, API-equivalent cost, cache-hit rate, the daily heatmap, active hours and model mix."
+      },
+      "team": {
+        "title": "Team",
+        "body": "The same board for everyone in your organization, plus a leaderboard and who is coding right now. Pick or create the organization from the switcher in the top bar."
+      },
+      "members": {
+        "title": "Members",
+        "body": "The roster — role, devices, last seen, who is live. Admins mint invite links here: one link anyone can open to join the team."
+      },
+      "devices": {
+        "title": "Devices",
+        "body": "Every machine that uploads with your account, tray app or headless agent. Lost a laptop? Revoke it here and it stops syncing at once."
+      },
+      "range": {
+        "title": "Time range",
+        "body": "Today, 7, 30, 90 days or a year, everything since the team plan started, or any custom days — the range scopes every card on the board. Everything is shown in your local time."
+      },
+      "settings": {
+        "title": "Settings",
+        "body": "Language, theme, the connect instructions, pricing notes — and this tour, whenever you want it again."
+      },
+      "done": {
+        "title": "All systems nominal",
+        "body": "Numbers land within a minute of your next Codex session, and every chart updates live — no reload needed. Welcome to mission control.",
+        "devicesNone": "No device connected yet — run the command from stage 2 whenever you are ready.",
+        "devicesSome": "{count, plural, =1 {1 device} other {# devices}} connected to your account."
+      }
+    },
+    "art": {
+      "machine": "Your machine",
+      "machineSub": "menu bar app",
+      "sync": "Realtime sync",
+      "syncSub": "hourly buckets",
+      "board": "Team board",
+      "boardSub": "personal + team",
+      "flowCaption": "Only counts travel — never prompts or code",
+      "terminalTitle": "terminal",
+      "connecting": "Connecting this device to {url}",
+      "yourCode": "Your code:",
+      "openLink": "Open this link on any device, sign in and approve:",
+      "waiting": "Waiting for approval…",
+      "connected": "Connected as {name}. Uploads are enabled.",
+      "you": "you",
+      "tokPerSec": "tok/s",
+      "checkTracker": "Tracker · device connected",
+      "checkLink": "Realtime link",
+      "checkBoard": "Board",
+      "ok": "Nominal",
+      "pending": "Pending"
+    },
+    "settingsTitle": "Guided tour",
+    "settingsBody": "A two-minute walkthrough: connect a machine, keep the tracker running, and where everything lives on the board.",
+    "settingsCta": "Take the tour"
   }
 }

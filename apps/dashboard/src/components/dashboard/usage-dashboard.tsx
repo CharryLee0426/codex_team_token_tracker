@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@codex-tracker/backend/convex/_generated/api";
 import type { Id } from "@codex-tracker/backend/convex/_generated/dataModel";
 import { isOpenAIModel } from "@codex-tracker/shared/pricing";
-import { RANGE_KEYS, type RangeKey } from "@/lib/ranges";
+import { DEFAULT_RANGE, parseRange, serializeRange, type RangeSelection } from "@/lib/ranges";
 import type { Scope } from "@/hooks/use-hourly-range";
 import { useMe } from "@/hooks/use-me";
 import { useNow } from "@/hooks/use-now";
@@ -25,19 +25,19 @@ export function UsageDashboard({ scope, orgId, orgName }: Props) {
   const now = useNow(60_000);
   const { me, ready } = useMe();
 
-  const [range, setRange] = useState<RangeKey>("30d");
+  const [range, setRange] = useState<RangeSelection>(DEFAULT_RANGE);
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(RANGE_STORAGE);
-      if (saved && (RANGE_KEYS as string[]).includes(saved)) setRange(saved as RangeKey);
+      const saved = parseRange(localStorage.getItem(RANGE_STORAGE));
+      if (saved) setRange(saved);
     } catch {
       /* ignore */
     }
   }, []);
-  const changeRange = useCallback((k: RangeKey) => {
-    setRange(k);
+  const changeRange = useCallback((next: RangeSelection) => {
+    setRange(next);
     try {
-      localStorage.setItem(RANGE_STORAGE, k);
+      localStorage.setItem(RANGE_STORAGE, serializeRange(next));
     } catch {
       /* ignore */
     }

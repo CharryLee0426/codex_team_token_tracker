@@ -28,7 +28,7 @@ export async function HowItWorks() {
         </ol>
         <Reveal className="mx-auto mt-14 max-w-2xl" delay={150}>
           <p className="eyebrow mb-2">{t("install")}</p>
-          <CodeBlock code={"npm i -g codex-token-tracker\ncodex-tracker login --dashboard https://your-dashboard.vercel.app\ncodex-tracker            # menu bar / tray app\ncodex-tracker agent      # headless (WSL2, servers)"} />
+          <CodeBlock code={"npx codex-token-tracker login --dashboard https://your-dashboard.vercel.app   # first time: sign in + approve\nnpx codex-token-tracker            # then: menu bar / tray app (nothing to install)\nnpx codex-token-tracker agent      # headless (WSL2, servers)"} />
           <p className="mt-3 text-xs text-muted">{t("installHint")}</p>
         </Reveal>
       </div>

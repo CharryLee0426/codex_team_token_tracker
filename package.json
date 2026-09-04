@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter dashboard dev",
+    "dev:tour": "pnpm --filter dashboard dev:tour",
     "dev:convex": "pnpm --filter dashboard dev:convex",
     "dev:menubar": "pnpm --filter codex-token-tracker dev",
     "dev:menubar16": "pnpm --filter codex-token-tracker-nodejs16 dev",

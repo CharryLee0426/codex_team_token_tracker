@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Inbox, ArrowUpRight } from "lucide-react";
 import type { PublicUser, Scope } from "@/hooks/use-hourly-range";
-import type { RangeKey } from "@/lib/ranges";
+import type { RangeSelection } from "@/lib/ranges";
 import type { UsageModel } from "@/lib/usage-model";
 import { useChartTheme } from "@/components/charts/use-chart-theme";
 import { ChartCard } from "@/components/charts/chart-card";
@@ -13,6 +13,7 @@ import { ContributionHeatmap } from "@/components/charts/contribution-heatmap";
 import { ActiveHoursHeatmap } from "@/components/charts/active-hours-heatmap";
 import { WeekdayComparison, WeekdayTable } from "@/components/charts/weekday-comparison";
 import { ModelDistribution, ModelTable } from "@/components/charts/model-distribution";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -29,8 +30,8 @@ import { SourcesBreakdown } from "./sources-breakdown";
 export interface UsageDashboardViewProps {
   scope: Scope;
   orgName?: string;
-  range: RangeKey;
-  onRangeChange: (k: RangeKey) => void;
+  range: RangeSelection;
+  onRangeChange: (next: RangeSelection) => void;
   model: UsageModel | null;
   users: Map<string, PublicUser>;
   loading: boolean;
@@ -59,6 +60,9 @@ export function UsageDashboardView(p: UsageDashboardViewProps) {
   const series = model?.series ?? [];
   const colorOf = (m: string) => theme.colorAt(series.indexOf(m));
   const hasRows = !!model && model.rangeRows.length > 0;
+  // The active-hours grid may look past a short range (at least the trailing week); say so on the card.
+  const activeWidened = !!model?.activeWindow.widened;
+  const hasActive = !!model && model.active.some((r) => r.hours.some((v) => v > 0));
 
   return (
     <div className={cn("@container space-y-4", !p.preview && "space-y-5")}>
@@ -67,11 +71,17 @@ export function UsageDashboardView(p: UsageDashboardViewProps) {
           eyebrow={scope === "team" ? (p.orgName ?? t("nav.team")) : t("nav.personal")}
           title={scope === "team" ? t("team.title") : t("personal.title")}
           subtitle={scope === "team" ? t("team.subtitle", { org: p.orgName ?? "" }) : t("personal.subtitle")}
-          actions={<RangeControl value={p.range} onChange={p.onRangeChange} />}
+          actions={
+            <div data-tour="range" className="w-full md:w-auto">
+              <RangeControl value={p.range} onChange={p.onRangeChange} nowMs={p.now} />
+            </div>
+          }
         />
       ) : (
         <div className="flex items-center justify-end">
-          <RangeControl value={p.range} onChange={p.onRangeChange} />
+          <div data-tour="range" className="w-full">
+            <RangeControl value={p.range} onChange={p.onRangeChange} nowMs={p.now} />
+          </div>
         </div>
       )}
 
@@ -112,7 +122,20 @@ export function UsageDashboardView(p: UsageDashboardViewProps) {
       </ChartCard>
 
       <div className="grid gap-4 @4xl:grid-cols-3">
-        <ChartCard className="@4xl:col-span-2" title={t("charts.activeHours")} hint={t("charts.activeHoursHint")} loading={loading} stale={stale} hasData={hasRows} skeletonClassName="h-44">
+        <ChartCard
+          className="@4xl:col-span-2"
+          title={t("charts.activeHours")}
+          hint={t("charts.activeHoursHint")}
+          action={
+            activeWidened && model ? (
+              <Badge title={t("charts.activeHoursWidened", { count: model.activeWindow.days })}>{t("charts.lastDays", { count: model.activeWindow.days })}</Badge>
+            ) : undefined
+          }
+          loading={loading}
+          stale={stale}
+          hasData={hasActive}
+          skeletonClassName="h-44"
+        >
           {model ? <ActiveHoursHeatmap rows={model.active} /> : null}
         </ChartCard>
         <ChartCard

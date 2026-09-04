@@ -37,7 +37,8 @@
     "lastActive": "最近活动",
     "justNow": "刚刚",
     "ago": "{time}前",
-    "localTime": "本地时间"
+    "localTime": "本地时间",
+    "done": "完成"
   },
   "nav": {
     "dashboard": "仪表盘",
@@ -56,7 +57,9 @@
   "shell": {
     "linkOnline": "实时连接",
     "linkReconnecting": "正在重连…",
-    "linkConnecting": "正在连接…"
+    "linkConnecting": "正在连接…",
+    "collapseSidebar": "折叠侧边栏",
+    "expandSidebar": "展开侧边栏"
   },
   "landing": {
     "eyebrow": "为 Codex 团队打造的实时 token 遥测",
@@ -98,7 +101,7 @@
     "howEyebrow": "三个步骤",
     "howTitle": "工作原理",
     "how": {
-      "1": "安装 npm 包并运行 `codex-tracker login`。",
+      "1": "运行 `npx codex-token-tracker login`——无需安装（需要 Node.js 20+）。",
       "2": "使用 Google 或 GitHub 账号在本仪表盘中授权该设备。",
       "3": "用量从本地 Codex 会话日志读取，每分钟同步一次。"
     },
@@ -115,7 +118,23 @@
     "7d": "7 天",
     "30d": "30 天",
     "90d": "90 天",
-    "365d": "1 年"
+    "365d": "1 年",
+    "presets": "预设范围",
+    "plan": "自团队套餐开始",
+    "planHint": "团队 Codex 套餐自 {date} 起的全部用量",
+    "planSummary": "自 {date} 起 · 共 {count} 天",
+    "custom": "自定义",
+    "customHint": "选择开始与结束日期（最长一年）",
+    "from": "开始日期",
+    "to": "结束日期",
+    "days": "共 {count} 天",
+    "customTitle": "自定义范围",
+    "rangeJoin": "至",
+    "prevMonth": "上个月",
+    "nextMonth": "下个月",
+    "month": "月",
+    "day": "日",
+    "year": "年"
   },
   "kpi": {
     "totalTokens": "总 token 数",
@@ -158,7 +177,9 @@
     "hour": "{hour}:00",
     "tokensPerDay": "tokens / 天",
     "cacheSavings": "缓存节省",
-    "activeHoursHover": "悬停或点按单元格查看该小时"
+    "activeHoursHover": "悬停或点按单元格查看该小时",
+    "lastDays": "最近 {count} 天",
+    "activeHoursWidened": "不足一周的范围在此处显示最近 {count} 天，让每一行星期都有数据"
   },
   "members": {
     "title": "成员",
@@ -192,7 +213,7 @@
     "revokeConfirm": "撤销此设备？在重新登录之前它将停止同步。",
     "revoked": "设备已撤销",
     "empty": "还没有连接任何设备。",
-    "connectHint": "在机器上运行 `codex-tracker login` 即可连接。",
+    "connectHint": "在机器上运行 `npx codex-token-tracker login` 即可连接，再运行 `npx codex-token-tracker` 让它持续上报。",
     "liveSession": "当前会话",
     "idle": "空闲",
     "count": "{count} 台设备",
@@ -268,8 +289,8 @@
       "2": "读取你自己在各设备上的用量（用于合并热力图）。",
       "3": "它无法读取其他成员的数据，也不能更改你的组织。"
     },
-    "notFound": "没有与此代码对应的待处理请求。请重新运行 `codex-tracker login` 获取新代码。",
-    "expired": "此代码已过期。请重新运行 `codex-tracker login`。",
+    "notFound": "没有与此代码对应的待处理请求。请重新运行 `npx codex-token-tracker login` 获取新代码。",
+    "expired": "此代码已过期。请重新运行 `npx codex-token-tracker login`。",
     "consumed": "此代码已被使用。",
     "denied": "此请求已被拒绝。",
     "approvedTitle": "设备已连接",
@@ -285,10 +306,10 @@
     "theme": "外观",
     "themeHint": "浅色、深色或跟随系统",
     "connectTitle": "连接菜单栏应用",
-    "connectBody": "在每台机器上安装 npm 包，并将其指向本仪表盘：",
-    "connectStep1": "安装",
-    "connectStep2": "登录（会打开本仪表盘以授权设备）",
-    "connectStep3": "在后台运行——托盘图标显示今日用量；在 WSL2 中请使用无界面代理",
+    "connectBody": "在每台机器上用 npx 运行追踪器——无需安装，每次启动都会获取最新版本（需要 Node.js 20+）：",
+    "connectStep1": "第一次——登录；本仪表盘会自动打开，授权该设备即可",
+    "connectStep2": "之后每天——托盘图标显示今日用量；在 WSL2 或服务器上请使用无界面代理",
+    "connectStep3": "小提示——右键托盘图标 → 开机自启动。想全局安装？之后也可以用更短的 `codex-tracker` 命令",
     "pricingTitle": "价格",
     "pricingBody": "费用在每台设备上按 OpenAI 标准 API 价格计算，并包含输入超过 272K token 时的长上下文档位。仅统计 Codex（OpenAI）用量 —— 其他提供商的用量不计入。较新的模型会回退到最接近的已知系列并标记为估算。"
   },
@@ -385,5 +406,96 @@
   },
   "preview": {
     "banner": "设计预览 —— 示例数据，并非你的账号"
+  },
+  "onboarding": {
+    "eyebrow": "任务计划",
+    "stage": "阶段 {current} / {total}",
+    "skip": "跳过引导",
+    "skipShort": "跳过",
+    "back": "上一步",
+    "next": "下一步",
+    "start": "开始",
+    "finish": "进入我的看板",
+    "escHint": "Esc 跳过 · ← → 切换",
+    "replayHint": "随时可以在“设置”里再看一遍。",
+    "phases": {
+      "briefing": "简报",
+      "connect": "连接",
+      "run": "运行",
+      "board": "看板",
+      "go": "出发"
+    },
+    "steps": {
+      "welcome": {
+        "title": "欢迎登舰，{name}",
+        "titleAnon": "欢迎登舰",
+        "body": "Codex Tracker 把每位队友电脑上的 Codex 会话汇成一块实时看板——token、缓存命中、模型分布，以及按 API 价格折算的费用。三个阶段即可上线，大约两分钟。"
+      },
+      "connect": {
+        "title": "连接这台电脑",
+        "body": "在终端里运行这条命令——需要 Node.js 20 或更新版本，无需安装任何东西。它会打印一个短代码并打开本仪表盘：用同一个账号登录，点击<code>授权</code>即可。那台机器没有浏览器？用手机扫描它打印的二维码。",
+        "command": "复制 · 粘贴 · 授权"
+      },
+      "run": {
+        "title": "让追踪器一直运行",
+        "body": "同一条命令去掉 <code>login</code> 就会启动菜单栏应用。它读取本机 Codex、pi 等智能体的会话记录，在托盘显示今日用量，并每分钟上传按小时汇总的数据。右键托盘图标 → <code>开机自启动</code>，之后就不用再管它了。在 WSL2 或服务器上请改用 <code>npx codex-token-tracker agent</code>。",
+        "hint": "离开你电脑的只有计数——绝不包含提示词、代码或文件路径。npx 每次启动都会获取最新版本。"
+      },
+      "personal": {
+        "title": "个人",
+        "body": "你连接的所有设备汇成一个视图：总 token、API 等价费用、缓存命中率、每日热力图、活跃时段与模型分布。"
+      },
+      "team": {
+        "title": "团队",
+        "body": "同一块看板，覆盖组织里的每个人，外加排行榜和谁正在编码。在顶栏的切换器中选择或创建组织。"
+      },
+      "members": {
+        "title": "成员",
+        "body": "成员名单——角色、设备数、最近上线、谁在线。管理员可以在这里生成邀请链接：任何人打开即可加入团队。"
+      },
+      "devices": {
+        "title": "设备",
+        "body": "所有用你的账号上传用量的机器，无论是托盘应用还是无界面代理。笔记本丢了？在这里撤销，它会立刻停止同步。"
+      },
+      "range": {
+        "title": "时间范围",
+        "body": "今天、7 天、30 天、90 天、1 年、自团队套餐开始，或任意自定义日期——时间范围对看板上的每个卡片都生效。所有内容都按你的本地时间显示。"
+      },
+      "settings": {
+        "title": "设置",
+        "body": "语言、主题、连接说明、价格说明——还有这个引导，想再看随时都可以。"
+      },
+      "done": {
+        "title": "各系统正常",
+        "body": "下一次 Codex 会话开始后一分钟内数据就会出现，所有图表实时更新——无需刷新。欢迎来到任务控制中心。",
+        "devicesNone": "还没有连接设备——准备好后运行第 2 阶段的命令即可。",
+        "devicesSome": "已有 {count} 台设备连接到你的账号。"
+      }
+    },
+    "art": {
+      "machine": "你的电脑",
+      "machineSub": "菜单栏应用",
+      "sync": "实时同步",
+      "syncSub": "按小时汇总",
+      "board": "团队看板",
+      "boardSub": "个人 + 团队",
+      "flowCaption": "只传输计数——绝不包含提示词或代码",
+      "terminalTitle": "终端",
+      "connecting": "正在将本设备连接到 {url}",
+      "yourCode": "你的代码：",
+      "openLink": "在任意设备上打开此链接，登录并授权：",
+      "waiting": "等待授权…",
+      "connected": "已连接为 {name}。上传已启用。",
+      "you": "你",
+      "tokPerSec": "tok/s",
+      "checkTracker": "追踪器 · 设备已连接",
+      "checkLink": "实时连接",
+      "checkBoard": "看板",
+      "ok": "正常",
+      "pending": "待完成"
+    },
+    "settingsTitle": "新手引导",
+    "settingsBody": "两分钟的导览：连接一台机器、让追踪器保持运行，以及看板上各个功能的位置。",
+    "settingsCta": "开始引导"
   }
 }

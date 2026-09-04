@@ -31,6 +31,7 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --header-h: 56px;
   --tabbar-h: 62px;
+  --tour-dim: rgba(11, 18, 32, 0.55);
 }
 
 .dark {
@@ -52,6 +53,7 @@
   --ring: rgba(92, 200, 255, 0.55);
   --glass: rgba(9, 13, 22, 0.72);
   --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02) inset, 0 16px 40px -24px rgba(0, 0, 0, 0.8);
+  --tour-dim: rgba(3, 5, 10, 0.8);
 }
 
 @theme inline {
@@ -254,8 +256,51 @@
   }
 }
 
-.page-enter {
+.page-enter,
+.fade-up {
   animation: fade-up 0.5s var(--ease-out) both;
+}
+.fade-in {
+  animation: fade-in 0.4s var(--ease-out) both;
+}
+
+/* Floating layers of the date picker: a popover that settles in from its anchor, a sheet that rises. */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+.pop-in {
+  transform-origin: top right;
+  animation: pop-in 0.18s var(--ease-out) both;
+}
+.sheet-up {
+  animation: sheet-up 0.32s var(--ease-out) both;
+}
+/* A picker drum: rows fade toward the edges, as on the system wheel. */
+.wheel {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 30%, #000 70%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-in,
+  .sheet-up,
+  .fade-in {
+    animation-duration: 1ms;
+  }
 }
 
 .stagger > * {
@@ -304,6 +349,100 @@
 
 .spin-slow {
   animation: spin-slow 40s linear infinite;
+}
+
+/* ------------------------------------------------------------------------------------------------
+   App shell rail. `--rail-w` drives the aside width and the page offset together, so a fold reads as
+   one movement rather than two. `data-sidebar` on `.app-shell` carries the stored preference; `auto`
+   (nothing stored yet) keeps the original breakpoint behaviour: icons from `md`, labels from `xl`.
+   Labels stay in the DOM while folded so the links keep their accessible names.
+   ------------------------------------------------------------------------------------------------ */
+.app-shell {
+  --rail-w: 0px;
+}
+
+.app-rail {
+  width: var(--rail-w);
+  transition: width 0.28s var(--ease-out);
+}
+
+.app-rail-shift {
+  padding-left: var(--rail-w);
+  transition: padding-left 0.28s var(--ease-out);
+}
+
+/* Owns the gap to its icon as well as its width, so nothing is left holding space when folded. */
+.rail-label {
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    max-width 0.28s var(--ease-out),
+    margin-left 0.28s var(--ease-out),
+    opacity 0.18s var(--ease-out);
+}
+
+/* Hover label for the folded rail, the way macOS names a row in an icon-only sidebar. */
+.rail-tip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  z-index: 40;
+  translate: 0 -50%;
+  scale: 0.96;
+  transform-origin: left center;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--fg);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.15s var(--ease-out),
+    scale 0.15s var(--ease-out);
+}
+
+@media (min-width: 768px) {
+  .app-shell {
+    --rail-w: 68px;
+  }
+  .app-shell[data-sidebar="expanded"] {
+    --rail-w: 232px;
+  }
+  .app-shell[data-sidebar="expanded"] .rail-label {
+    max-width: 160px;
+    margin-left: 12px;
+    opacity: 1;
+  }
+  .app-shell[data-sidebar="collapsed"] a:is(:hover, :focus-visible) > .rail-tip {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@media (min-width: 1280px) {
+  .app-shell[data-sidebar="auto"] {
+    --rail-w: 232px;
+  }
+  .app-shell[data-sidebar="auto"] .rail-label {
+    max-width: 160px;
+    margin-left: 12px;
+    opacity: 1;
+  }
+}
+
+/* `auto` below `xl` is folded too, so its rows get the hover label as well. */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  .app-shell[data-sidebar="auto"] a:is(:hover, :focus-visible) > .rail-tip {
+    opacity: 1;
+    scale: 1;
+  }
 }
 
 /* Landing page: forced dark scope, content fades and shrinks while the scene warps into the app. */
@@ -431,6 +570,109 @@
   --lift: 0px;
 }
 
+/* ------------------------------------------------------------------------------------------------
+   Guided tour. Briefing cards sit on a veil; spotlight steps swap it for a ring whose oversized
+   shadow darkens everything but the target. Both use `--tour-dim`, so the crossfade between them
+   reads as one surface. Docked cards glide between targets rather than jump.
+   ------------------------------------------------------------------------------------------------ */
+.tour-veil {
+  position: absolute;
+  inset: 0;
+  background: var(--tour-dim);
+  transition: opacity 0.35s var(--ease-out);
+}
+
+.tour-spot {
+  position: fixed;
+  border-radius: 12px;
+  box-shadow:
+    0 0 0 9999px var(--tour-dim),
+    0 0 0 1px var(--accent),
+    0 0 0 5px var(--accent-soft),
+    0 0 32px var(--accent-glow);
+  pointer-events: none;
+  transition:
+    top 0.4s var(--ease-out),
+    left 0.4s var(--ease-out),
+    width 0.4s var(--ease-out),
+    height 0.4s var(--ease-out),
+    opacity 0.35s var(--ease-out);
+}
+
+.tour-docked {
+  transition:
+    top 0.4s var(--ease-out),
+    left 0.4s var(--ease-out);
+}
+
+/* Stage ticks: done, current (breathing), upcoming. */
+.tour-progress {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 4px;
+}
+.tour-progress > span {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  transition: background-color 0.3s var(--ease-out);
+}
+.tour-progress > .done {
+  background: var(--accent);
+  opacity: 0.5;
+}
+.tour-progress > .current {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+  animation: tour-breathe 1.6s ease-in-out infinite;
+}
+@keyframes tour-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Dashed telemetry link between the flow diagram's nodes, flowing left to right. */
+.tour-link {
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 8px, transparent 8px 16px);
+  background-size: 16px 2px;
+  opacity: 0.75;
+  animation: tour-flow 0.8s linear infinite;
+}
+@keyframes tour-flow {
+  to {
+    background-position: 16px 0;
+  }
+}
+
+/* The systems-check ring draws itself in; the transcript's last line keeps a cursor. */
+.tour-ring {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: tour-draw 1.1s var(--ease-out) 0.15s forwards;
+}
+@keyframes tour-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.tour-cursor::after {
+  content: "▍";
+  margin-left: 2px;
+  animation: tour-blink 1s steps(2, start) infinite;
+}
+@keyframes tour-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
 /* Reduced motion: keep the layout, drop the movement. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -453,6 +695,9 @@
   .auth-aperture {
     animation: none;
     transform: none;
+  }
+  .tour-ring {
+    stroke-dashoffset: 0;
   }
 }
 

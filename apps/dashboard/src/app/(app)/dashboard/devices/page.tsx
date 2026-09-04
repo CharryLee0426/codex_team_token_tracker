@@ -15,7 +15,7 @@ export default async function DevicesPage() {
       <MyDevices />
       <div className="max-w-xl">
         <p className="eyebrow mb-2">{t("connectHint")}</p>
-        <CodeBlock code="npm i -g codex-token-tracker && codex-tracker login" />
+        <CodeBlock code={"npx codex-token-tracker login    # first time: sign in and approve this device\nnpx codex-token-tracker          # every day after: start the menu bar app"} />
       </div>
     </div>
   );

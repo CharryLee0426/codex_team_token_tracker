@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  * Realtime link indicator: the Convex WebSocket state, rendered as a quiet telemetry readout. A socket
  * that is open but unauthenticated delivers nothing, so that counts as reconnecting, not online.
  */
-export function ConnectionStatus({ compact = false, className }: { compact?: boolean; className?: string }) {
+export function ConnectionStatus({ className, labelClassName }: { className?: string; labelClassName?: string }) {
   const t = useTranslations("shell");
   const state = useConvexConnectionState();
   const stuck = useAuthStuck();
@@ -19,11 +19,12 @@ export function ConnectionStatus({ compact = false, className }: { compact?: boo
   const online = mounted && state.isWebSocketConnected && !stuck;
   const label = !mounted ? t("linkConnecting") : online ? t("linkOnline") : state.hasEverConnected || stuck ? t("linkReconnecting") : t("linkConnecting");
   return (
-    <div className={cn("flex items-center gap-2 text-[11px] text-muted", className)} role="status" aria-live="polite" title={label}>
+    <div className={cn("flex items-center text-[11px] text-muted", className)} role="status" aria-live="polite" title={label}>
       <span className="relative inline-flex h-2 w-2 shrink-0">
         <span className={cn("absolute inset-0 rounded-full", online ? "bg-success live-dot text-success" : "bg-warning")} />
       </span>
-      {!compact ? <span className="eyebrow truncate">{label}</span> : <span className="sr-only">{label}</span>}
+      {/* The rail passes `rail-label`, which folds this readout down to its dot. */}
+      <span className={cn("eyebrow ml-2 truncate", labelClassName)}>{label}</span>
     </div>
   );
 }

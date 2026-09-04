@@ -5,6 +5,7 @@
   "description": "Team Codex token usage dashboard (Next.js + Clerk + Convex)",
   "scripts": {
     "dev": "next dev",
+    "dev:tour": "node scripts/dev-tour.mjs",
     "dev:convex": "convex dev",
     "build": "next build",
     "build:vercel": "node scripts/build-vercel.mjs",
