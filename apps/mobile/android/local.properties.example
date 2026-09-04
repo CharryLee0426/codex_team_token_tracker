@@ -1,0 +1,4 @@
+# Copy to local.properties. Keep real values out of version control.
+sdk.dir=/absolute/path/to/Android/sdk
+CODEX_TRACKER_CLERK_PUBLISHABLE_KEY=pk_test_replace_me
+CODEX_TRACKER_CONVEX_URL=https://replace-me.convex.cloud

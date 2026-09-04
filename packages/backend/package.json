@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "echo 'backend: deployed via convex deploy from apps/dashboard'",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit -p convex/tsconfig.json",
     "codegen": "convex codegen",
     "dev": "convex dev",
@@ -17,6 +18,10 @@
     "svix": "^1.45.0"
   },
   "devDependencies": {
-    "typescript": "~5.9.3"
+    "@edge-runtime/vm": "5.0.0",
+    "convex-test": "0.0.56",
+    "typescript": "~5.9.3",
+    "vite": "8.2.2",
+    "vitest": "5.0.0"
   }
 }

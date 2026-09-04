@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { isOrgAdmin, requireOrgAdmin, requireOrgMember, upsertIdentityUser } from "./lib/auth";
+import { isOrgAdmin, requireOrgAdmin, upsertIdentityUser } from "./lib/auth";
 
 /**
  * Reusable organization invite links.
@@ -245,7 +245,7 @@ export const usesForInvite = query({
   handler: async (ctx, { inviteId }) => {
     const invite = await ctx.db.get(inviteId);
     if (!invite) throw new ConvexError({ code: "NOT_FOUND", message: "Invite not found" });
-    await requireOrgMember(ctx, invite.orgId);
+    await requireOrgAdmin(ctx, invite.orgId);
     const uses = await ctx.db
       .query("orgInviteUses")
       .withIndex("by_invite", (q) => q.eq("inviteId", inviteId))

@@ -39,3 +39,15 @@ dist-test/
 
 # npm pack output
 *.tgz
+
+# native mobile local configuration, caches, and generated test artifacts
+apps/mobile/ios/Config/Local.xcconfig
+apps/mobile/ios/DerivedData/
+apps/mobile/ios/*.xcworkspace/xcuserdata/
+apps/mobile/ios/*.xcodeproj/xcuserdata/
+apps/mobile/ios/*.xcuserstate
+apps/mobile/android/local.properties
+apps/mobile/android/.gradle/
+apps/mobile/android/.kotlin/
+apps/mobile/android/**/build/
+artifacts/mobile/

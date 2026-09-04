@@ -73,14 +73,19 @@ export function identityOrg(identity: Record<string, unknown> | null | undefined
 
 export async function requireOrgMember(ctx: Ctx, orgId: Id<"orgs">) {
   const user = await requireUser(ctx);
+  const org = await ctx.db.get(orgId);
+  if (!org) throw new ConvexError({ code: "NOT_FOUND", message: "Organization not found" });
+  const identity = await ctx.auth.getUserIdentity();
+  const claim = identityOrg(identity as unknown as Record<string, unknown>);
+  if (!claim || claim.clerkOrgId !== org.clerkOrgId) {
+    throw new ConvexError({ code: "ORG_MISMATCH", message: "Switch to this organization before viewing it" });
+  }
   const membership = await ctx.db
     .query("memberships")
     .withIndex("by_org_user", (q) => q.eq("orgId", orgId).eq("userId", user._id))
     .unique();
   if (!membership) throw new ConvexError({ code: "FORBIDDEN", message: "Not a member of this organization" });
-  const org = await ctx.db.get(orgId);
-  if (!org) throw new ConvexError({ code: "NOT_FOUND", message: "Organization not found" });
-  return { user, membership, org };
+  return { user, membership, org, claim };
 }
 
 /**
@@ -89,12 +94,7 @@ export async function requireOrgMember(ctx: Ctx, orgId: Id<"orgs">) {
  * the one being acted on.
  */
 export async function requireOrgAdmin(ctx: Ctx, orgId: Id<"orgs">) {
-  const { user, membership, org } = await requireOrgMember(ctx, orgId);
-  const identity = await ctx.auth.getUserIdentity();
-  const claim = identityOrg(identity as unknown as Record<string, unknown>);
-  if (!claim || claim.clerkOrgId !== org.clerkOrgId) {
-    throw new ConvexError({ code: "ORG_MISMATCH", message: "Switch to this organization before managing it" });
-  }
+  const { user, membership, org, claim } = await requireOrgMember(ctx, orgId);
   if (claim.role !== "org:admin") {
     throw new ConvexError({ code: "FORBIDDEN", message: "Only organization admins can manage invite links" });
   }

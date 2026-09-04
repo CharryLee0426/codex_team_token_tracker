@@ -1,0 +1,115 @@
+"app.name" = "Codex 用量追踪";
+"app.version" = "版本 %@";
+"demo.badge" = "演示数据";
+"common.unknownUser" = "未知用户";
+"common.unknown" = "未知";
+"common.other" = "其他";
+"common.retry" = "重试";
+"common.viewData" = "无障碍数据";
+"common.today" = "今天";
+
+"tab.personal" = "个人";
+"tab.team" = "团队";
+"tab.members" = "成员";
+"tab.devices" = "设备";
+"tab.settings" = "设置";
+
+"personal.title" = "个人用量";
+"personal.subtitle" = "按本地时间查看你的 Codex 活动。";
+"team.title" = "团队用量";
+"team.subtitle" = "只读查看组织数据。";
+
+"range.label" = "日期范围";
+"range.today" = "今天";
+"range.7d" = "7 天";
+"range.30d" = "30 天";
+"range.90d" = "90 天";
+"range.365d" = "1 年";
+"range.planStart" = "套餐开始";
+"range.custom" = "自定义";
+"range.customTitle" = "自定义范围";
+"range.from" = "开始";
+"range.to" = "结束";
+"range.apply" = "应用范围";
+
+"kpi.totalTokens" = "总令牌";
+"kpi.cost" = "API 等值成本";
+"kpi.cacheHit" = "缓存命中";
+"kpi.requests" = "请求";
+"kpi.devices" = "设备";
+"kpi.activeMembers" = "活跃成员";
+"kpi.liveNow" = "正在使用";
+
+"charts.usage" = "用量趋势";
+"charts.contribution" = "贡献记录";
+"charts.activeHours" = "活跃时段";
+"charts.weekday" = "星期对比";
+"charts.models" = "模型分布";
+"charts.sources" = "来源";
+"charts.memberContribution" = "成员贡献";
+"charts.tokens" = "%@ 令牌";
+"charts.noActivity" = "无活动";
+
+"sessions.title" = "最近会话";
+"sessions.project" = "项目";
+"sessions.requests" = "%@ 次请求";
+
+"members.title" = "成员";
+"members.subtitle" = "查看角色、活动和已连接设备数量。";
+"members.admin" = "管理员";
+"members.member" = "成员";
+"members.live" = "在线 · %@ · %@ 令牌/秒";
+"members.offline" = "离线";
+"members.devices" = "%@ 台设备";
+"members.joined" = "%@ 加入";
+
+"devices.title" = "设备";
+"devices.subtitle" = "只读查看已连接电脑的状态。";
+"devices.live" = "在线 · %@ · %@ 令牌/秒";
+"devices.idle" = "空闲";
+"devices.logins" = "%@ 次登录";
+"devices.today" = "今天 %@ · %@";
+"devices.lastSeen" = "最后在线 %@";
+"devices.added" = "%@ 添加";
+
+"settings.title" = "设置";
+"settings.subtitle" = "账户、显示与应用信息。";
+"settings.organization" = "组织";
+"settings.organizationHint" = "选择要查看的团队数据。";
+"settings.personalAccount" = "无活跃组织";
+"settings.appearance" = "外观";
+"settings.language" = "语言";
+"settings.connection" = "实时连接";
+"settings.pricing" = "价格";
+"settings.pricingBody" = "成本是上传前计算的 API 等值估算，并非账单。";
+"settings.privacy" = "隐私";
+"settings.privacyBody" = "此应用仅显示账户中已有的汇总用量，不会收集本设备上的活动。";
+"settings.about" = "关于";
+"settings.signOut" = "退出登录";
+"theme.system" = "跟随系统";
+"theme.light" = "浅色";
+"theme.dark" = "深色";
+"language.en" = "English";
+"language.zh" = "简体中文";
+
+"connection.live" = "已连接";
+"connection.offline" = "离线 · 显示内存中的已有数据";
+"connection.reconnecting" = "正在重连 · 显示之前的数据";
+"connection.simulateOffline" = "模拟离线";
+"connection.reconnect" = "重新连接";
+"state.stale" = "正在更新 · 继续显示之前的数据";
+"state.loading" = "正在加载用量";
+"state.initializing" = "正在启动安全服务";
+"state.signedOut" = "登录后查看用量";
+"state.signInBody" = "使用已启用的登录方式在安全浏览器中继续。";
+"state.signIn" = "登录";
+"state.authCancelled" = "登录已取消或无法完成。";
+"state.syncing" = "正在同步账户";
+"state.signingOut" = "正在安全退出登录";
+"state.noOrganization" = "选择一个组织以查看团队数据。";
+"state.noOrganizations" = "此账户没有可用组织。";
+"state.teamUnavailable" = "所选 Clerk 组织启用并安全同步后才能查看团队数据。";
+"state.emptyUsage" = "所选日期范围内没有可用用量。";
+"state.emptyMembers" = "没有可用成员。";
+"state.emptyDevices" = "没有可用设备。";
+"error.load" = "无法加载用量。之前的数据仍会保留。";

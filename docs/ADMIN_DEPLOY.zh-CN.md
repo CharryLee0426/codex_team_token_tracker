@@ -91,7 +91,7 @@ npm: codex-token-tracker (menu bar app; default dashboard = https://codex.chenli
    **邀请链接。** Clerk 自带的邀请绑定单个邮箱，因此仪表盘在其之上做了可复用的链接：*Members → 邀请链接*（仅管理员）可生成 `https://codex.chenli.dev/j/<code>`，有效期可选 1/3/5/7 天，并可限制名额。邀请台账存放在 Convex（`orgInvites` 表）；兑换时由 Next.js 服务端用 `CLERK_SECRET_KEY` 调用 Clerk Backend API，所以该密钥必须配置在 Vercel 上，`/api/join` 才能工作。在面板中撤销链接会立即失效。链接使用复制时所在的域名 —— 开发环境是 `localhost:3000`，生产环境是 `codex.chenli.dev`。
 4. **API keys**：`pk_live_…` / `sk_live_…` 已写入 Vercel 的 Production 环境（`clerk env pull --instance prod --file <tmp>` 可再次取得）。更换后需重新部署。
 5. **JWT 模板** `convex` 已存在于生产实例（克隆而来）；claims 需与 `docs/clerk-jwt-template.json` 一致。检查：`clerk api /jwt_templates --instance prod`。issuer `https://clerk.codex.chenli.dev` 已设置到 Convex 生产环境（第 1.2 节）。
-6. **Webhook**（可选 —— 即使成员从未打开仪表盘也能同步团队名单）：Clerk 控制台 → *Webhooks → Add endpoint* → `https://grandiose-seal-712.convex.site/clerk-webhook`，事件选择 `user.*`、`organization.*`、`organizationMembership.*` → 复制签名密钥 → `npx convex env set CLERK_WEBHOOK_SECRET whsec_… --prod`。
+6. **Webhook**（可选 —— 即使成员从未打开仪表盘也能同步团队名单）：Clerk 控制台 → *Webhooks → Add endpoint* → `https://grandiose-seal-712.convex.site/clerk-webhook`，事件选择 `user.*`、`organization.*`、`organizationMembership.*` → 复制签名密钥 → `npx convex env set CLERK_WEBHOOK_SECRET whsec_… --prod`。Webhook 用于保持名单新鲜，并不是唯一授权关卡；团队读取同时要求镜像 membership 与 Clerk 签名的当前 `org_id` 匹配，因此即使删除 webhook 延迟或遗漏，成员移除后的访问也只会持续到 JWT 到期。
 7. **收尾**：DNS 生效且 OAuth 应用填好后，`clerk deploy status` 会显示 `complete: true`；Clerk 控制台中 `clerk.codex.chenli.dev` 的 SSL 证书显示已签发。此时 `https://codex.chenli.dev/sign-in` 即可登录。
 
 ## 4. 部署后检查清单
