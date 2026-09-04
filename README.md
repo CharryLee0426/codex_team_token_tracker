@@ -12,6 +12,15 @@ Team-wide token tracking for an OpenAI **Codex** subscription: a menu bar / tray
 
 Production: dashboard **https://codex.chenli.dev** · npm package **`codex-token-tracker`**
 
+Team members need two commands (Node.js 20+; nothing to install — `npx` fetches the newest version each start):
+
+```bash
+npx codex-token-tracker login   # the first time on a computer: sign in and approve the device in the browser that opens
+npx codex-token-tracker         # every day after: start the menu bar app and leave it running (right-click → Launch at login)
+```
+
+Then open the dashboard: **Personal** fills within a minute. The first sign-in starts a short guided tour; replay it from **Settings**.
+
 ```
 ┌──────────────────────────────┐        ┌──────────────────────┐        ┌───────────────────────────┐
 │  codex-token-tracker (npm)   │ upload │  Convex (realtime)   │ live   │  Dashboard (Next.js)      │
@@ -28,8 +37,9 @@ Production: dashboard **https://codex.chenli.dev** · npm package **`codex-token
 - **Views** — daily contribution heatmap, hour × weekday activity, Mon–Sun comparison, model distribution, member leaderboard, live "coding now", recent sessions, devices.
 - **Sources** — every agent that consumes the Codex subscription is tagged (`codex`, `pi`, `omp` = oh-my-pi, `opencode`, `cline`, `roo`, `kilo`, `hermes`, custom dirs); API-key providers inside those agents are excluded by default.
 - **Teams** — Clerk Organizations; membership synced from JWT and webhooks; any number of devices per person — and exactly one device per machine, however often it logs in (tray app + headless agent, re-logins).
-- **Headless login** — `codex-tracker login` prints the approval link and a QR code, so a WSL2 box, a server or an SSH session is approved from a phone or any other computer.
+- **Headless login** — `npx codex-token-tracker login` prints the approval link and a QR code, so a WSL2 box, a server or an SSH session is approved from a phone or any other computer.
 - **Time & language** — database in UTC, all views in the viewer's local time; English / Simplified Chinese, auto-detected and persisted; light / dark / system theme (mission-control style UI with a particle scene behind the landing page and dashboard).
+- **Guided tour** — a first sign-in walks through connecting a machine and the board's views; skippable, replayable from Settings, `pnpm dev:tour` to work on it.
 - **Privacy** — only counts, model/agent names, project folder names and a path hash leave the machine.
 
 ## Repository layout
@@ -73,6 +83,7 @@ that talks to production. The two can run side by side; see
 
 | Command | What |
 |---|---|
+| `pnpm dev:tour` | dashboard dev server with the guided tour forced open on every dashboard load |
 | `pnpm test` | unit tests (shared parsers/pricing/aggregation, menubar sources) |
 | `pnpm -r typecheck` | all workspaces |
 | `pnpm build` | packages, then the dashboard |

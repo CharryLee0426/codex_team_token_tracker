@@ -22,43 +22,54 @@ Everything is shown in **your computer's local time** and in **English or Chines
 
 Always use the same login provider (or the same e-mail) on every device so all usage lands on one account.
 
-## 3. Install the menu bar tool
+## 3. Install and start the menu bar tool
 
-Requirements: **Node.js 20 or newer** (`node -v`). Install Node from https://nodejs.org or with `nvm`.
+Requirements: **Node.js 20 or newer** (`node -v`; install it from https://nodejs.org or with `nvm`). `npx` comes with Node, and there is nothing else to install — the tracker is fetched when you run it.
+
+### The first time on a computer
 
 ```bash
-npm install -g codex-token-tracker
-codex-token-tracker login  # opens the dashboard; sign in and click "Approve"
-codex-token-tracker        # starts the menu bar app
+npx codex-token-tracker login
 ```
 
-This gives you two interchangeable commands: **`codex-token-tracker`** and the shorter alias
-`codex-tracker`. The rest of this guide uses the short one.
-
-`codex-tracker login` prints a code such as `RHF7-DWW8` and the link `https://codex.chenli.dev/cli-auth?code=…`, and opens it in your browser. Approve it there and the terminal shows *Connected as <your name>*. The device now has its own token (revocable from **Dashboard → Devices**).
+1. The terminal prints a code such as `RHF7-DWW8` and the link `https://codex.chenli.dev/cli-auth?code=…`, and opens it in your browser (the very first run also downloads the package — a few seconds).
+2. In the browser, sign in with the **same** Google/GitHub account you use for the dashboard and click **Approve**.
+3. The terminal shows *Connected as <your name>. Uploads are enabled.* This computer now has its own device token — see it, or revoke it, under **Dashboard → Devices**.
 
 No browser on that machine (WSL2, a server, SSH)? The terminal also prints a **QR code** of the same link: scan it with your phone's camera, sign in there and approve — or open the link on any other computer. Add `--qr` to get the QR code on a desktop too, `--no-qr` to hide it.
 
+### After you have signed in — every day
+
+```bash
+npx codex-token-tracker
+```
+
+This starts the menu bar / tray app (on a desktop the first start also downloads the Electron runtime, ~100 MB, once). Leave it running: it reads your local Codex sessions, shows today's usage in the tray and uploads to the dashboard every minute. Then:
+
+- Right-click the tray icon → **Launch at login**, and you never have to type the command again.
+- Open https://codex.chenli.dev → **Personal**. Past sessions are uploaded on the first run; new usage appears within a minute.
+- `npx codex-token-tracker status` prints today's usage, your live limits and the signed-in account — no tray needed.
+
+`npx` fetches the newest published version every time it starts, so there is nothing to update. Prefer a permanent install? `npm install -g codex-token-tracker` gives you the shorter **`codex-tracker`** command (and its alias `codex-token-tracker`), upgraded with `codex-tracker update`. Every command in this guide works in both forms — `codex-tracker <command>` below means `npx codex-token-tracker <command>` if you did not install globally.
+
 Logging in more than once from one computer (the menu bar app *and* the headless agent, or a re-login) is fine: the dashboard recognises the machine and keeps a single device for it, so nothing is counted twice.
 
-> **npm 11+ / pnpm 10+ block Electron's install script by default.** That's fine: the first `codex-tracker` run downloads the Electron runtime itself (~100 MB, once). To do it during install instead: `npm install -g codex-token-tracker --allow-scripts=electron`.
+> **The Electron runtime is downloaded on the first start, never during install** (~100 MB, once, into `~/.codex-tracker/electron/`). Behind a firewall set `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` or `HTTPS_PROXY` and start again; the headless `agent` and `status` commands need no Electron at all.
 
 Tips
-- Right-click the tray icon → **Launch at login** so it starts with your computer.
 - The tray title shows today's tokens (e.g. `12.4k`); `codex-tracker config set trayTitle cost` shows dollars instead, `none` hides it.
-- Upgrade later with `codex-token-tracker update` (or `npm install -g codex-token-tracker@latest`). The tray menu and the popover also offer an **Update** button when a new version is out.
+- Global install only: upgrade with `codex-tracker update` (or `npm install -g codex-token-tracker@latest`). The tray menu and the popover offer an **Update** button when a new version is out; started with `npx`, it simply asks you to quit and run `npx codex-token-tracker` again.
 
 ### Windows
 
-Works natively (system tray). If you use Codex inside **WSL2**, the Windows tray app also discovers the WSL session logs (`\\wsl$\<distro>\home\<you>\.codex`), so one tracker is enough; running a WSL agent as well does no harm — both identify as the same PC and it is counted once.
+Works natively (system tray): run the same two commands in PowerShell. If you use Codex inside **WSL2**, the Windows tray app also discovers the WSL session logs (`\\wsl$\<distro>\home\<you>\.codex`), so one tracker is enough; running a WSL agent as well does no harm — both identify as the same PC and it is counted once.
 
 ### WSL2 / Linux servers (no tray)
 
 ```bash
-npm install -g codex-token-tracker
-codex-tracker login                 # prints the URL and a QR code — approve from your phone or any browser
-codex-tracker agent                 # headless: tracks + uploads, prints a status line
-codex-tracker status                # today's usage, live limits, sources
+npx codex-token-tracker login    # prints the URL and a QR code — approve from your phone or any browser
+npx codex-token-tracker agent    # headless: tracks + uploads, prints a status line
+npx codex-token-tracker status   # today's usage, live limits, sources
 ```
 
 Keep the agent running (tmux, `nohup`, or a `systemd --user` service).
@@ -79,7 +90,7 @@ Keep the agent running (tmux, `nohup`, or a `systemd --user` service).
 ## 5. Dashboard tour
 
 - **Personal** — only you (all your devices). **Team** — everyone in the organization, plus a member leaderboard.
-- **Range chips** (Today · 7d · 30d · 90d · 1y) apply to every card.
+- **Range chips** (Today · 7d · 30d · 90d · 1y), **Since team plan starts** (everything since 2026-08-25 00:00 PDT) and **Custom** (any start and end day, up to a year) apply to every card. **Active hours** always covers at least the last 7 days, so a 1-day range still shows a full week's pattern.
 - **Members** — roster, last seen, who is live. **Devices** — your connected computers; **Revoke** disconnects one.
 - Header: organization switcher, language (EN / 中文), theme (light / dark / system).
 
@@ -96,6 +107,8 @@ Everything that consumes your Codex subscription and keeps a local transcript:
 | Other tools | `codex-tracker config set extraSessionDirs '[{"path":"/path/to/logs","agent":"mytool","format":"generic"}]'` |
 
 ## 7. Command reference
+
+Every command runs as `npx codex-token-tracker <command>`, or as `codex-tracker <command>` after a global install.
 
 ```
 codex-tracker                 menu bar app (falls back to agent mode without a display)
@@ -118,7 +131,8 @@ Only these leave your machine: token counts, model names, the agent name (codex 
 
 ## 9. FAQ
 
-- **Dashboard shows nothing** — is the tray app / agent running and signed in (`codex-tracker status` → *Signed in as …*)? Data appears within seconds of a session's activity (a few seconds after the tracker sees new usage; every minute otherwise).
+- **Which command do I run every day?** — `npx codex-token-tracker` (or turn on *Launch at login*). `login` is only needed once per computer.
+- **Dashboard shows nothing** — is the tray app / agent running and signed in (`npx codex-token-tracker status` → *Signed in as …*)? Data appears within seconds of a session's activity (a few seconds after the tracker sees new usage; every minute otherwise).
 - **The dashboard stopped updating** — it should never need a reload: the page re-establishes its realtime link on its own (also after your laptop wakes up), and the link indicator in the sidebar reads *Reconnecting…* while it does. If it stays there, check your network; a reload is never required for fresh data.
 - **A machine appears twice under Devices** — it logged in twice with a version before 0.3.0. Update and restart the tracker on that machine; its first heartbeats merge the two entries into one (shown with a *2 logins* badge).
 - **This machine's numbers look wrong / incomplete** — press **⟳ Sync** in the popover header (or run `codex-tracker sync`). It rescans every agent from scratch and re-uploads this device's whole history, replacing the dashboard's totals for it. Do this after installing a new coding agent too.

@@ -22,42 +22,54 @@
 
 请在每台设备上始终使用同一个登录方式（或同一个邮箱），这样所有用量才会归到同一个账号。
 
-## 3. 安装菜单栏工具
+## 3. 安装并启动菜单栏工具
 
-要求：**Node.js 20 或更高版本**（`node -v`）。可从 https://nodejs.org 或使用 `nvm` 安装 Node。
+要求：**Node.js 20 或更高版本**（`node -v`；可从 https://nodejs.org 或使用 `nvm` 安装）。`npx` 随 Node 一起提供，除此之外无需安装任何东西——追踪器在运行时自动获取。
+
+### 在一台电脑上的第一次
 
 ```bash
-npm install -g codex-token-tracker
-codex-token-tracker login  # opens the dashboard; sign in and click "Approve"
-codex-token-tracker        # starts the menu bar app
+npx codex-token-tracker login
 ```
 
-安装后会得到两个等价命令：**`codex-token-tracker`** 与更短的别名 `codex-tracker`。本文档使用短的那个。
+1. 终端会打印一个类似 `RHF7-DWW8` 的代码和链接 `https://codex.chenli.dev/cli-auth?code=…`，并在浏览器中打开它（第一次运行还会下载该包，只需几秒）。
+2. 在浏览器中，用你登录仪表盘的**同一个** Google/GitHub 账号登录，然后点击 **授权（Approve）**。
+3. 终端显示 *Connected as <你的名字>. Uploads are enabled.* 此时这台电脑拥有了自己的设备 token——可在 **Dashboard → Devices** 中查看或撤销。
 
-> **npm 11+ / pnpm 10+ 默认会拦截 Electron 的安装脚本。** 不用担心：第一次运行 `codex-tracker` 时会自动下载 Electron 运行时（约 100 MB，仅一次）。如果想在安装时就下载：`npm install -g codex-token-tracker --allow-scripts=electron`。
+那台机器打不开浏览器（WSL2、服务器、SSH）？终端还会打印同一链接的**二维码**：用手机相机扫一扫，在手机上登录并授权即可——或者在任何其他电脑上打开该链接。加上 `--qr` 可以在桌面上也显示二维码，`--no-qr` 则隐藏。
 
-`codex-tracker login` 会打印一个类似 `RHF7-DWW8` 的代码和链接 `https://codex.chenli.dev/cli-auth?code=…`，并在浏览器中打开它。在浏览器中点击批准后，终端会显示 *Connected as <你的名字>*。此时这台设备拥有了自己的 token（可在 **Dashboard → Devices** 中撤销）。
+### 登录之后——每天
 
-那台机器打不开浏览器（WSL2、服务器、SSH）？终端还会打印同一链接的**二维码**：用手机相机扫一扫，在手机上登录并批准即可 —— 或者在任何其他电脑上打开该链接。加上 `--qr` 可以在桌面上也显示二维码，`--no-qr` 则隐藏。
+```bash
+npx codex-token-tracker
+```
+
+这会启动菜单栏 / 托盘应用（在桌面环境中，第一次启动还会下载 Electron 运行时，约 100 MB，仅一次）。让它一直运行：它读取本机的 Codex 会话，在托盘显示今日用量，并每分钟上传到仪表盘。然后：
+
+- 右键点击托盘图标 → **开机自启动（Launch at login）**，以后就再也不用敲这条命令了。
+- 打开 https://codex.chenli.dev → **Personal（个人）**。历史会话会在第一次运行时上传；新的用量一分钟内就会出现。
+- `npx codex-token-tracker status` 会在终端打印今日用量、实时限额和已登录的账号——不需要托盘。
+
+`npx` 每次启动都会获取最新发布的版本，因此不需要手动更新。想要永久安装？`npm install -g codex-token-tracker` 会提供更短的 **`codex-tracker`** 命令（及其别名 `codex-token-tracker`），并可用 `codex-tracker update` 升级。本指南中的每条命令两种形式都可用——如果你没有全局安装，下文的 `codex-tracker <命令>` 即指 `npx codex-token-tracker <命令>`。
 
 同一台电脑登录多次（菜单栏应用 *和* 无界面 agent，或重新登录）没有问题：仪表盘会识别出这是同一台机器，只保留一个设备，用量不会重复统计。
 
+> **Electron 运行时在第一次启动时下载，而不是在安装时**（约 100 MB，仅一次，存放于 `~/.codex-tracker/electron/`）。如果有防火墙，请设置 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` 或 `HTTPS_PROXY` 后重新启动；无界面的 `agent` 和 `status` 命令完全不需要 Electron。
+
 小提示
-- 右键点击托盘图标 → **Launch at login**（开机自启），让它随电脑一起启动。
 - 托盘标题显示今日 token 数（例如 `12.4k`）；`codex-tracker config set trayTitle cost` 改为显示美元，`none` 则隐藏。
-- 之后可通过 `codex-token-tracker update` 升级（也可以用 `npm install -g codex-token-tracker@latest`）。有新版本时，托盘菜单和弹窗顶部也会出现 **更新** 按钮。
+- 仅限全局安装：通过 `codex-tracker update` 升级（也可以用 `npm install -g codex-token-tracker@latest`）。有新版本时，托盘菜单和弹窗顶部会出现 **更新** 按钮；如果是用 `npx` 启动的，它只会提示你退出并重新运行 `npx codex-token-tracker`。
 
 ### Windows
 
-原生支持（系统托盘）。如果你在 **WSL2** 中使用 Codex，Windows 托盘应用也会自动发现 WSL 中的会话日志（`\\wsl$\<distro>\home\<you>\.codex`），所以一个追踪器就够了；再跑一个 WSL agent 也无妨 —— 两者会识别为同一台 PC，只统计一次。
+原生支持（系统托盘）：在 PowerShell 中运行同样的两条命令即可。如果你在 **WSL2** 中使用 Codex，Windows 托盘应用也会自动发现 WSL 中的会话日志（`\\wsl$\<distro>\home\<you>\.codex`），所以一个追踪器就够了；再跑一个 WSL agent 也无妨——两者会识别为同一台 PC，只统计一次。
 
 ### WSL2 / Linux 服务器（无托盘）
 
 ```bash
-npm install -g codex-token-tracker
-codex-tracker login                 # 打印链接和二维码 —— 用手机或任意浏览器批准
-codex-tracker agent                 # headless: tracks + uploads, prints a status line
-codex-tracker status                # today's usage, live limits, sources
+npx codex-token-tracker login    # 打印链接和二维码——用手机或任意浏览器授权
+npx codex-token-tracker agent    # 无界面：统计 + 上传，打印一行状态
+npx codex-token-tracker status   # 今日用量、实时限额、来源
 ```
 
 让代理持续运行（tmux、`nohup` 或 `systemd --user` 服务）。
@@ -78,7 +90,7 @@ codex-tracker status                # today's usage, live limits, sources
 ## 5. 仪表盘导览
 
 - **Personal（个人）** —— 只有你自己（所有设备）。**Team（团队）** —— 组织中的所有人，外加成员排行榜。
-- **时间范围按钮**（Today · 7d · 30d · 90d · 1y）对每个卡片都生效。
+- **时间范围按钮**（Today · 7d · 30d · 90d · 1y）、**自团队套餐开始**（2026-08-25 00:00 PDT 起的全部用量）与 **自定义**（任意起止日期，最长一年）对每个卡片都生效。**活跃时段**始终至少覆盖最近 7 天，因此选择 1 天时也能看到完整一周的规律。
 - **Members（成员）** —— 成员名单、最近活跃、谁在线。**Devices（设备）** —— 你已连接的电脑；**Revoke** 可断开某一台。
 - 顶部栏：组织切换器、语言（EN / 中文）、主题（浅色 / 深色 / 跟随系统）。
 
@@ -95,6 +107,8 @@ codex-tracker status                # today's usage, live limits, sources
 | 其他工具 | `codex-tracker config set extraSessionDirs '[{"path":"/path/to/logs","agent":"mytool","format":"generic"}]'` |
 
 ## 7. 命令参考
+
+每条命令都可以写成 `npx codex-token-tracker <命令>`，全局安装后也可以写成 `codex-tracker <命令>`。
 
 ```
 codex-tracker                 menu bar app (falls back to agent mode without a display)
@@ -117,7 +131,8 @@ codex-tracker update [--check]  安装最新发布版本
 
 ## 9. 常见问题
 
-- **仪表盘没有任何数据** —— 托盘应用 / 代理是否在运行并已登录（`codex-tracker status` → *Signed in as …*）？会话有活动后几秒内数据就会出现（追踪器发现新用量后几秒上传，否则每分钟一次）。
+- **每天该运行哪条命令？** —— `npx codex-token-tracker`（或打开*开机自启动*）。`login` 每台电脑只需一次。
+- **仪表盘没有任何数据** —— 托盘应用 / 代理是否在运行并已登录（`npx codex-token-tracker status` → *Signed in as …*）？会话有活动后几秒内数据就会出现（追踪器发现新用量后几秒上传，否则每分钟一次）。
 - **仪表盘不再更新** —— 它不需要刷新：页面会自动重新建立实时连接（笔记本从睡眠唤醒后也一样），期间侧栏的连接指示会显示 *Reconnecting…*。如果一直停在这个状态，请检查网络；获取最新数据从不需要手动刷新。
 - **Devices 里同一台机器出现了两次** —— 它用 0.3.0 之前的版本登录了两次。在那台机器上更新并重启追踪器；最初几次心跳就会把两条记录合并为一条（显示 *2 次登录* 标记）。
 - **这台电脑的数据看起来不对 / 不完整** —— 点击弹窗顶部的 **⟳ 同步** 按钮（或运行 `codex-tracker sync`）。它会从零重新扫描所有智能体，并重新上传本设备的完整历史，用新算出的数值替换仪表盘上该设备的统计。安装了新的编码智能体之后也建议执行一次。

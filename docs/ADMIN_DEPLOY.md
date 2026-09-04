@@ -53,6 +53,7 @@ Current state: project **`codex-token-tracker`** in team *CharryLee's projects*,
    | `NEXT_PUBLIC_CLERK_SIGN_IN_URL` / `…_SIGN_UP_URL` | `/sign-in` / `/sign-up` | same |
    | `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` / `…_SIGN_UP_…` | `/dashboard` | same |
    | `NEXT_PUBLIC_APP_URL` | `https://codex.chenli.dev` | — |
+   | `NEXT_PUBLIC_TEAM_PLAN_START` | optional — when the team's Codex plan began, for the **Since team plan starts** range (ISO 8601 with offset; default `2026-08-25T00:00:00-07:00`) | same |
    | `ENABLE_EXPERIMENTAL_COREPACK` | `1` — Vercel honours `packageManager: pnpm@11` | same |
    | `ELECTRON_SKIP_BINARY_DOWNLOAD` | `1` — skips the Electron download during install | same |
 
@@ -96,7 +97,7 @@ Development keys (`pk_test_`) cannot be used in production. The production insta
 ## 4. Post-deploy checklist
 
 1. Open https://codex.chenli.dev → sign in with Google/GitHub → **Create organization** (this is the team) → invite members (they can also self-serve via the organization switcher).
-2. On your machine: `npm i -g codex-token-tracker && codex-tracker login` → approve → `codex-tracker agent --once` → data appears on **Personal**, then **Team**.
+2. On your machine: `npx codex-token-tracker login` → approve → `npx codex-token-tracker agent --once` → data appears on **Personal**, then **Team**. Signing in for the first time also runs the dashboard's guided tour (skip it, or replay it from **Settings**).
 3. Convex dashboard → Production → Data: `users`, `orgs`, `memberships`, `devices`, `hourlyUsage`, `sessions` fill up. Logs show any `ConvexError`.
 4. Clerk → Webhooks → check deliveries return 200.
 
@@ -135,7 +136,7 @@ So a developer testing locally uploads to the dev deployment with a dev device t
 build **at the same time** as their installed production copy. The popover marks a dev build with an
 orange **DEV** badge.
 
-Users upgrade with `npm i -g codex-token-tracker@latest`. Electron is an *optional* dependency, so headless/WSL installs succeed even if its binary download is blocked.
+Users who run the tool with `npx codex-token-tracker` (the documented way) get the new version automatically the next time it starts; global installs upgrade with `codex-tracker update` or `npm i -g codex-token-tracker@latest`. Electron is downloaded on first launch, never during install, so headless/WSL installs succeed even if its binary download is blocked.
 
 ## 6. Operations
 
