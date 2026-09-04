@@ -95,11 +95,13 @@ export const zh: Record<MessageKey, string> = {
   updateChecking: "检查中…",
   updateInstalling: "安装中…",
   updateInstalled: "已更新到 v{version} — 重启后生效",
+  updateInstalledNpx: "请退出，然后重新运行 `npx codex-token-tracker` 以启动 v{version}",
   updateFailed: "更新失败 — 请手动执行：",
   updateCheckFailed: "检查更新失败：{message}",
   checkForUpdates: "检查更新",
   releaseNotes: "更新日志",
   cliUsage: `用法：codex-token-tracker [命令] [选项]      （别名：codex-tracker）
+      npx codex-token-tracker [命令]            （无需安装；始终是最新版本）
 
 命令：
   (无)              启动菜单栏应用（无显示环境时自动切换为 agent 模式）
@@ -169,6 +171,7 @@ export const zh: Record<MessageKey, string> = {
   cliUpdateAvailable: "发现新版本：{current} → {latest}",
   cliUpdateRunning: "正在执行：{command}",
   cliUpdateDone: "已更新到 {version}。请重启菜单栏应用（或重新运行 CLI）以生效。",
+  cliUpdateNpx: "这份副本通过 npx 运行，每次启动都会获取最新版本——无需安装。退出应用并重新运行 `{command}` 即可得到 {version}。",
   cliUpdateFailed: "更新失败（退出码 {code}）。请手动执行：{command}",
   cliUpdateCheckFailed: "无法访问 npm registry：{message}",
   cliSyncStart: "完整同步：正在重新扫描本设备上的所有智能体…",

@@ -43,7 +43,7 @@ function UpdateBar({ update, t }: { update: UpdateState; t: (key: MessageKey, pa
   if (update.status === "installed") {
     return (
       <div className="update-bar done">
-        <span className="msg">{t("updateInstalled", { version: update.latest ?? "?" })}</span>
+        <span className="msg">{t(update.installMethod === "npx" ? "updateInstalledNpx" : "updateInstalled", { version: update.latest ?? "?" })}</span>
       </div>
     );
   }

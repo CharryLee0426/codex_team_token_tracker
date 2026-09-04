@@ -20,6 +20,9 @@ const LOG_TAIL_CHARS = 4_000;
 
 export type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
 
+/** `global` = `npm i -g` (or pnpm / yarn / bun); `npx` = run out of npm's exec cache, nothing installed. */
+export type InstallMethod = "global" | "npx";
+
 export interface UpdateInfo {
   /** Version running right now. */
   current: string;
@@ -30,7 +33,8 @@ export interface UpdateInfo {
   /** Why the last check failed, if it did (a stale `latest` may still be present). */
   error: string | null;
   packageManager: PackageManager;
-  /** The exact command that installs `latest`, for display and for manual fallback. */
+  installMethod: InstallMethod;
+  /** The exact command that gets `latest` running: a global install, or the `npx` start that fetches it. */
   command: string;
 }
 
@@ -113,6 +117,24 @@ export function detectPackageManager(installDir = path.resolve(__dirname, ".."))
   return "npm";
 }
 
+/**
+ * `npx codex-token-tracker` runs the package out of npm's exec cache (`…/_npx/<hash>/node_modules/…`)
+ * instead of a global install. There is nothing for `update` to install then: npx resolves `latest`
+ * again every time the command starts, so the next launch *is* the update.
+ */
+export function isNpxInstall(installDir = path.resolve(__dirname, "..")): boolean {
+  return /[\\/]_npx[\\/]/.test(installDir);
+}
+
+export function installMethod(): InstallMethod {
+  return isNpxInstall() ? "npx" : "global";
+}
+
+/** What to run to get the newest version: the start command itself under npx. */
+export function npxCommand(): string {
+  return `npx ${NPM_PACKAGE}`;
+}
+
 export function updateArgs(pm: PackageManager, spec = `${NPM_PACKAGE}@latest`): string[] {
   switch (pm) {
     case "pnpm":
@@ -161,6 +183,7 @@ function writeCache(c: UpdateCache) {
 
 function info(current: string, latest: string | null, checkedAt: number | null, error: string | null): UpdateInfo {
   const pm = detectPackageManager();
+  const method = installMethod();
   return {
     current,
     latest,
@@ -168,7 +191,8 @@ function info(current: string, latest: string | null, checkedAt: number | null, 
     checkedAt,
     error,
     packageManager: pm,
-    command: updateCommand(pm),
+    installMethod: method,
+    command: method === "npx" ? npxCommand() : updateCommand(pm),
   };
 }
 
@@ -209,6 +233,9 @@ export interface InstallResult {
  * a read-only volume — so the caller always gets the command back to run by hand.
  */
 export function runUpdate(opts: { version?: string; onOutput?: (chunk: string) => void } = {}): Promise<InstallResult> {
+  // Started with npx: nothing to install, the next `npx codex-token-tracker` fetches the newest
+  // version by itself. Callers tell the user to restart that way (see `installMethod`).
+  if (installMethod() === "npx") return Promise.resolve({ ok: true, code: 0, command: npxCommand(), output: "" });
   const pm = detectPackageManager();
   const spec = opts.version ? `${NPM_PACKAGE}@${opts.version}` : `${NPM_PACKAGE}@latest`;
   const args = updateArgs(pm, spec);

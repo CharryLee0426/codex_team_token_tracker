@@ -95,12 +95,14 @@ export const en = {
   updateChecking: "Checking…",
   updateInstalling: "Installing…",
   updateInstalled: "Updated to v{version} — restart to apply",
+  updateInstalledNpx: "Quit, then run `npx codex-token-tracker` again to start v{version}",
   updateFailed: "Update failed — run this yourself:",
   updateCheckFailed: "Update check failed: {message}",
   checkForUpdates: "Check for updates",
   releaseNotes: "Release notes",
   // CLI
   cliUsage: `Usage: codex-token-tracker [command] [options]      (alias: codex-tracker)
+       npx codex-token-tracker [command]            (nothing to install; always the newest version)
 
 Commands:
   (none)            Start the menu bar app (falls back to agent mode without a display)
@@ -170,6 +172,7 @@ Options:
   cliUpdateAvailable: "Update available: {current} → {latest}",
   cliUpdateRunning: "Running: {command}",
   cliUpdateDone: "Updated to {version}. Restart the menu bar app (or rerun the CLI) to use it.",
+  cliUpdateNpx: "This copy runs through npx, which fetches the newest version every time it starts — nothing to install. Quit the app and run `{command}` again to get {version}.",
   cliUpdateFailed: "Update failed (exit {code}). Run it yourself: {command}",
   cliUpdateCheckFailed: "Could not reach the npm registry: {message}",
   cliSyncStart: "Full sync: rescanning every agent on this device…",

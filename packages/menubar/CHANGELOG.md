@@ -2,6 +2,22 @@
 
 All notable changes to `codex-token-tracker`. This project follows [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+Run it with `npx` — nothing to install.
+
+### Changed
+
+- **`npx codex-token-tracker` is the documented way to run the tracker.** `npx codex-token-tracker login`
+  the first time on a computer, `npx codex-token-tracker` every day after (or *Launch at login*): npx
+  resolves the newest published version on every start, so there is nothing to keep up to date. A global
+  `npm i -g codex-token-tracker` still works and still provides the short `codex-tracker` alias.
+- **`update` knows when it was started with npx.** A copy running out of npm's exec cache used to answer
+  `update` (and the popover's *Update* button) with a global install it never asked for. It now reports
+  the newer version and says to quit and run `npx codex-token-tracker` again, which fetches it; `--check`
+  is unchanged. `UpdateInfo` carries an `installMethod` (`global` | `npx`) and `command` is the start
+  command under npx. `--help` mentions the npx form.
+
 ## 0.3.1 — 2026-09-02
 
 oh-my-pi sessions are tracked.

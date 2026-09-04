@@ -18,8 +18,9 @@ older dev machines whose OS cannot go past Node 16.
 ## Install
 
 ```bash
-npm install -g codex-token-tracker-nodejs16
-codex-tracker            # menu bar app, or headless agent where there is no display
+npx codex-token-tracker-nodejs16 login   # first time: sign in and approve the device
+npx codex-token-tracker-nodejs16         # then: menu bar app, or headless agent where there is no display
+# or install it: npm install -g codex-token-tracker-nodejs16, then `codex-tracker`
 ```
 
 It installs the same `codex-token-tracker` and `codex-tracker` commands as the regular package, plus

@@ -467,7 +467,8 @@ function runConfig(positional: string[]): number {
 /**
  * `update` — report the newest published version and, unless `--check`, install it globally with
  * the package manager this copy came from. The installer's output is streamed through so a failure
- * (root-owned prefix, proxy, offline) is visible rather than swallowed.
+ * (root-owned prefix, proxy, offline) is visible rather than swallowed. A copy started with `npx`
+ * has nothing to install — the next start fetches the newest version — so it only says so.
  */
 async function runUpdateCommand(flags: Args["flags"]): Promise<number> {
   const t = makeT(lang());
@@ -487,6 +488,10 @@ async function runUpdateCommand(flags: Args["flags"]): Promise<number> {
   console.log(t("cliUpdateAvailable", { current: info.current, latest: info.latest ?? "?" }));
   if (flags.check === true) {
     console.log(`  ${info.command}`);
+    return 0;
+  }
+  if (info.installMethod === "npx") {
+    console.log(t("cliUpdateNpx", { version: info.latest ?? "?", command: info.command }));
     return 0;
   }
   console.log(t("cliUpdateRunning", { command: info.command }));

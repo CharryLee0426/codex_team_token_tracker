@@ -4,7 +4,7 @@ Menu bar / system tray app **and** headless agent that tracks your [OpenAI Codex
 
 - macOS menu bar app and native Windows tray app (Electron)
 - `codex-token-tracker agent` headless mode for **WSL2**, Linux and servers
-- Self-update: `codex-token-tracker update`, plus an in-app "Update" button when a newer version is published
+- Nothing to install: `npx codex-token-tracker` fetches the newest version every time it starts; global installs self-update with `codex-token-tracker update` or the in-app "Update" button
 - Reads Codex CLI / Codex Desktop rollout logs (`~/.codex/sessions`) locally — no API keys, no proxies
 - Real-time: today's totals, the live session's generation speed (tokens/s), context window use, weekly / 5-hour rate limits
 - Activity heatmap merged from **local data + your other devices** (realtime database)
@@ -15,17 +15,26 @@ Menu bar / system tray app **and** headless agent that tracks your [OpenAI Codex
 
 ## Install
 
+There is nothing to install — run it with `npx` (Node.js 20+):
+
 ```bash
-npm install -g codex-token-tracker
-# or run without installing
-npx codex-token-tracker
+npx codex-token-tracker login   # the first time on this computer: sign in and approve the device in the browser that opens
+npx codex-token-tracker         # every day after: start the menu bar app (agent mode where there is no display)
 ```
 
-This installs two equivalent commands on your PATH: **`codex-token-tracker`** and the shorter alias
-`codex-tracker`. Every example below works with either name.
+`npx` resolves the newest published version every time it starts, so there is nothing to keep up to
+date; turn on *Launch at login* from the tray menu and the command is never typed again. Prefer a
+permanent install?
 
-Already installed? `codex-token-tracker update` fetches the newest published version and installs it
-with whichever package manager you used (npm / pnpm / yarn / bun).
+```bash
+npm install -g codex-token-tracker
+codex-tracker login             # then just `codex-tracker`
+```
+
+That puts two equivalent commands on your PATH: **`codex-token-tracker`** and the shorter alias
+`codex-tracker`, upgraded with `codex-token-tracker update`, which installs the newest version with
+whichever package manager you used (npm / pnpm / yarn / bun). Every example below uses the short form;
+read `codex-tracker <command>` as `npx codex-token-tracker <command>` if you did not install globally.
 
 > **Electron is downloaded on first launch, not during install.** `npm install -g` never runs Electron's install script, so the install succeeds on locked-down servers and headless machines download nothing. The first `codex-tracker` run on a desktop fetches the runtime (~100 MB, once) into `~/.codex-tracker/electron/<version>/`, honouring `ELECTRON_MIRROR` (e.g. `https://npmmirror.com/mirrors/electron/`) and `HTTPS_PROXY`. A globally installed `electron` (`npm i -g electron`) is used instead when present.
 
@@ -127,7 +136,7 @@ action, never on a timer.
 
 ## Windows and WSL2
 
-**Native Windows**: `npm i -g codex-token-tracker` in PowerShell, then `codex-tracker`. The tray app also scans every WSL distro (`\\wsl$\<distro>\home\*\.codex\sessions`) so sessions run inside WSL are counted.
+**Native Windows**: `npx codex-token-tracker login`, then `npx codex-token-tracker`, in PowerShell. The tray app also scans every WSL distro (`\\wsl$\<distro>\home\*\.codex\sessions`) so sessions run inside WSL are counted.
 
 **Inside WSL2**: Electron cannot show a Windows tray from WSL, so run the agent:
 
@@ -138,7 +147,8 @@ codex-tracker agent    # keep running (tmux / nohup / systemd --user)
 
 The agent also scans `/mnt/c/Users/*/.codex/sessions`, so one agent covers both sides. WSLg can display the Electron window but tray support is limited; the Windows tray app is the recommended UI. Running both the Windows tray app and a WSL agent on one PC is fine since 0.3.0: they identify as the same machine and the dashboard counts it once.
 
-Example `systemd --user` unit (`~/.config/systemd/user/codex-tracker.service`):
+Example `systemd --user` unit (`~/.config/systemd/user/codex-tracker.service`) for a global install — with
+npx use `ExecStart=/usr/bin/npx codex-token-tracker agent` (needs the registry reachable at start):
 
 ```ini
 [Service]
@@ -167,6 +177,8 @@ Config lives in `~/.codex-tracker/` (override with `CODEX_TRACKER_HOME`):
 
 ### Updates
 
+Started with `npx`, the tracker is the newest version every time it launches — `update` and the in-app
+button then only ask you to quit and run `npx codex-token-tracker` again. For global installs,
 `checkUpdates` (default on) asks `registry.npmjs.org` for the package's `latest` dist-tag at most once
 every 6 hours and caches the answer in `~/.codex-tracker/update.json`. Nothing else is sent — the request
 carries no usage data and no identifiers. Turn it off with `codex-tracker config set checkUpdates false`;
@@ -257,7 +269,7 @@ A build knows which environment it belongs to, so a local test run can never wri
 is what `prepack` runs — so every tarball and every `npm publish` is prod, and every `pnpm build`,
 `pnpm dev` and watch-mode rebuild is dev.
 
-| | dev build (`pnpm build`) | published build (`npm i -g codex-token-tracker`) |
+| | dev build (`pnpm build`) | published build (`npx codex-token-tracker` / `npm i -g`) |
 | --- | --- | --- |
 | Dashboard default | `http://localhost:3000` | `https://codex.chenli.dev` |
 | Convex deployment | whatever the local dashboard's `/api/config` advertises — the **dev** one | production |
