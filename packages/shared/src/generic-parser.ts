@@ -1,4 +1,4 @@
-import { emptyUsage, addUsageInPlace, type TokenUsage } from "./usage.ts";
+import { emptyUsage, isCanonicalTokenUsage, tryAddUsageInPlace, type TokenUsage } from "./usage.ts";
 import type { ParsedSession, UsageEvent } from "./codex-parser.ts";
 import { isCodexAuthProvider } from "./pi-parser.ts";
 
@@ -12,8 +12,12 @@ import { isCodexAuthProvider } from "./pi-parser.ts";
 export interface GenericParserOptions {
   agent: string;
   includeAllProviders?: boolean;
-  /** Provider assumed when records carry none (e.g. an agent configured only for Codex auth). */
-  defaultProvider?: string | null;
+}
+
+interface RecordContext {
+  provider: string | null;
+  api: string | null;
+  model: string | null;
 }
 
 const INPUT_KEYS = ["input_tokens", "prompt_tokens", "input", "inputTokens", "promptTokens"];
@@ -38,6 +42,22 @@ function num(o: any, keys: string[]): number | null {
   }
   return null;
 }
+
+function hasInvalidCount(o: any, keys: string[], depth = 0): boolean {
+  if (!o || typeof o !== "object" || depth > 6) return false;
+  for (const key of keys) {
+    if (!(key in o)) continue;
+    const value = o[key];
+    if (typeof value === "number") {
+      if (!Number.isSafeInteger(value) || value < 0) return true;
+    } else if (value && typeof value === "object") {
+      if (hasInvalidCount(value, keys, depth + 1)) return true;
+    } else {
+      return true;
+    }
+  }
+  return false;
+}
 function str(o: any, keys: string[]): string | null {
   for (const k of keys) if (typeof o?.[k] === "string" && o[k]) return o[k];
   return null;
@@ -45,7 +65,10 @@ function str(o: any, keys: string[]): string | null {
 function ts(o: any, keys: string[]): number | null {
   for (const k of keys) {
     const v = o?.[k];
-    if (typeof v === "number") return v < 1e12 ? v * 1000 : v;
+    if (typeof v === "number" && Number.isFinite(v)) {
+      const t = v < 1e12 ? v * 1000 : v;
+      if (Number.isFinite(t)) return t;
+    }
     if (typeof v === "string") {
       const t = Date.parse(v);
       if (!Number.isNaN(t)) return t;
@@ -56,6 +79,14 @@ function ts(o: any, keys: string[]): number | null {
 
 function usageFrom(u: any): TokenUsage | null {
   if (!u || typeof u !== "object") return null;
+  if (
+    hasInvalidCount(u, INPUT_KEYS)
+    || hasInvalidCount(u, OUTPUT_KEYS)
+    || hasInvalidCount(u.input_tokens_details ?? u, CACHED_KEYS)
+    || hasInvalidCount(u, CACHE_WRITE_KEYS)
+    || hasInvalidCount(u.output_tokens_details ?? u, REASONING_KEYS)
+    || hasInvalidCount(u, TOTAL_KEYS)
+  ) return null;
   const input = num(u, INPUT_KEYS);
   const output = num(u, OUTPUT_KEYS);
   if (input === null && output === null) return null;
@@ -65,9 +96,24 @@ function usageFrom(u: any): TokenUsage | null {
   const inp = input ?? 0;
   const out = output ?? 0;
   const total = num(u, TOTAL_KEYS);
-  // Anthropic/pi style: input excludes cache reads when total == input+output+cached
-  const inputInclusive = total !== null && Math.abs(total - (inp + out + cached)) <= 1 && cached > 0 ? inp + cached + cacheWrite : inp;
-  return { input: inputInclusive, cached: Math.min(cached, inputInclusive), cacheWrite, output: out, reasoning, total: total ?? inputInclusive + out, requests: 1 };
+  // Normalized pi/OpenClaw-style usage stores cache buckets outside input.
+  const separatedCache = cached > 0 || cacheWrite > 0;
+  const components = inp + out + cached + cacheWrite;
+  const minimumTotal = inp + out;
+  if (!Number.isSafeInteger(components) || !Number.isSafeInteger(minimumTotal)) return null;
+  if (total !== null && total < minimumTotal) return null;
+  const inputInclusive = separatedCache && total !== null && Math.abs(total - components) <= 1 ? inp + cached + cacheWrite : inp;
+  if (!Number.isSafeInteger(inputInclusive) || (total !== null && total < inputInclusive + out)) return null;
+  const usage = {
+    input: inputInclusive,
+    cached,
+    cacheWrite,
+    output: out,
+    reasoning,
+    total: total ?? inputInclusive + out,
+    requests: 1,
+  };
+  return isCanonicalTokenUsage(usage) ? usage : null;
 }
 
 /** Walk a parsed JSON value and yield candidate records (objects containing a usage block). */
@@ -93,29 +139,33 @@ export function createGenericSessionParser(fallbackSessionId: string, opts: Gene
   let lastActivityAt = 0;
   let cwd: string | null = null;
   let model = "unknown";
-  let provider: string | null = opts.defaultProvider ?? null;
+  let provider: string | null = null;
   let lineCount = 0;
   const events: UsageEvent[] = [];
   const cumulative = emptyUsage();
 
   function noteTime(t: number | null) {
-    if (t === null) return;
+    if (t === null || !Number.isFinite(t)) return;
     if (startedAt === null || t < startedAt) startedAt = t;
     if (t > lastActivityAt) lastActivityAt = t;
   }
-  function consume(rec: any, inheritedTs: number | null) {
+  function consume(rec: any, inheritedTs: number | null, context: RecordContext) {
     const u = usageFrom(rec.usage ?? rec.token_usage ?? rec.tokenUsage);
     const t = ts(rec, TS_KEYS) ?? ts(rec.message, TS_KEYS) ?? inheritedTs ?? lastActivityAt;
     noteTime(t);
     if (!u) return;
-    const m = str(rec, MODEL_KEYS) ?? str(rec.message, MODEL_KEYS) ?? model;
-    const p = str(rec, PROVIDER_KEYS) ?? str(rec.message, PROVIDER_KEYS) ?? provider;
+    // Usage attribution must be explicit on this record/message or its enclosing JSON document.
+    // Never inherit it from a previous JSONL record: multi-provider sessions can switch routes.
+    const m = str(rec, MODEL_KEYS) ?? str(rec.message, MODEL_KEYS) ?? context.model ?? "unknown";
+    const p = str(rec, PROVIDER_KEYS) ?? str(rec.message, PROVIDER_KEYS) ?? context.provider;
+    const api = str(rec, ["api"]) ?? str(rec.message, ["api"]) ?? context.api;
+    const codexAuth = isCodexAuthProvider(p, api);
+    if (!opts.includeAllProviders && !codexAuth) return;
+    if (u.total <= 0 && u.input <= 0 && u.output <= 0) return;
+    if (!tryAddUsageInPlace(cumulative, u)) return;
     model = m;
     if (p) provider = p;
-    if (!opts.includeAllProviders && !isCodexAuthProvider(p, str(rec, ["api"]))) return;
-    if (u.total <= 0 && u.input <= 0 && u.output <= 0) return;
-    addUsageInPlace(cumulative, u);
-    events.push({ ts: t, model: m, usage: u, agent: opts.agent, provider: p });
+    events.push({ ts: t, model: m, usage: u, agent: opts.agent, provider: codexAuth ? "openai-codex" : p });
   }
 
   const api = {
@@ -129,7 +179,12 @@ export function createGenericSessionParser(fallbackSessionId: string, opts: Gene
         if (typeof v.working_directory === "string") cwd = v.working_directory;
       }
       const top = ts(v, TS_KEYS);
-      for (const rec of records(v)) consume(rec, top);
+      const context: RecordContext = {
+        provider: str(v, PROVIDER_KEYS),
+        api: str(v, ["api"]),
+        model: str(v, MODEL_KEYS),
+      };
+      for (const rec of records(v)) consume(rec, top, context);
       if (top !== null) noteTime(top);
     },
     push(line: string) {

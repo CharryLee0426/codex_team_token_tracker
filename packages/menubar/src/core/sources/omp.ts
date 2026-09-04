@@ -61,6 +61,11 @@ export const ompSource: SourceDefinition = {
   },
   hotDirs: (root) => [root.dir, ...recentSubdirs(root.dir)],
   watchRecursively: () => true,
+  async parsePath(file, opts): Promise<ParsedSession | null> {
+    if (!piSource.parsePath) return null;
+    const session = await piSource.parsePath(file, opts);
+    return session ? { ...session, originator: AGENT_OMP, source: AGENT_OMP } : null;
+  },
   parse(file: SourceFile, opts: ParseOptions): ParsedSession | null {
     // Same transcript format as pi; the pi source stamps `file.root.agent` ("omp") on the session and its events.
     const s = piSource.parse(file, opts);

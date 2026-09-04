@@ -114,15 +114,20 @@ export const pushSessions = mutation({
     const { device, user } = await requireDevice(ctx, token);
     const now = Date.now();
     for (const s of sessions) {
-      const existing = await ctx.db
+      const agent = s.agent ?? "codex";
+      const candidates = await ctx.db
         .query("sessions")
         .withIndex("by_device_session", (q) => q.eq("deviceId", device._id).eq("sessionId", s.sessionId))
-        .unique();
+        .collect();
+      // The existing index narrows this to one session id. Filter the small candidate set by the
+      // normalized agent in memory, avoiding a blocking index build on populated deployments.
+      // Rows written before `agent` existed represent native Codex and are adopted here.
+      const existing = candidates.find((candidate) => (candidate.agent ?? "codex") === agent) ?? null;
       const doc = {
         userId: user._id,
         deviceId: device._id,
         sessionId: s.sessionId,
-        agent: s.agent ?? "codex",
+        agent,
         model: s.model,
         projectName: s.projectName ?? undefined,
         cwdHash: s.cwdHash ?? undefined,

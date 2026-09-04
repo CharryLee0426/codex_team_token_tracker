@@ -4,13 +4,15 @@ import {
   cacheHitRate,
   computeCost,
   emptyUsage,
-  addUsageInPlace,
   groupByLocalDay,
+  isCodexAuthProvider,
+  isCanonicalTokenUsage,
   isOpenAIModel,
   localDayKey,
   resolvePrice,
   startOfLocalDay,
   todayKey,
+  tryAddUsageInPlace,
   type HourBucket,
   type HourRow,
   type ModelPrice,
@@ -97,48 +99,51 @@ function periodStat(events: Iterable<UsageEvent>, since: number, prices: PriceCa
   let cost = 0;
   for (const e of events) {
     if (e.ts < since) continue;
-    addUsageInPlace(usage, e.usage);
-    cost += prices.cost(e.model, e.usage);
+    if (!tryAddUsageInPlace(usage, e.usage)) continue;
+    const nextCost = cost + prices.cost(e.model, e.usage);
+    if (Number.isFinite(nextCost)) cost = nextCost;
   }
   return { usage, cost, cacheHitRate: cacheHitRate(usage) };
 }
 
 function modelStats(events: Iterable<UsageEvent>, since: number, prices: PriceCache): ModelStat[] {
   const map = new Map<string, ModelStat & { agentSet: Set<string> }>();
-  let total = 0;
+  const totalUsage = emptyUsage();
   for (const e of events) {
     if (e.ts < since) continue;
+    if (!tryAddUsageInPlace(totalUsage, e.usage)) continue;
     let m = map.get(e.model);
     if (!m) {
       const pm = prices.get(e.model);
       m = { model: e.model, usage: emptyUsage(), cost: 0, share: 0, estimated: pm.estimated, priceKey: pm.matchedKey, agents: [], agentSet: new Set() };
       map.set(e.model, m);
     }
-    addUsageInPlace(m.usage, e.usage);
-    m.cost += prices.cost(e.model, e.usage);
+    if (!tryAddUsageInPlace(m.usage, e.usage)) continue;
+    const nextCost = m.cost + prices.cost(e.model, e.usage);
+    if (Number.isFinite(nextCost)) m.cost = nextCost;
     m.agentSet.add(e.agent || "codex");
-    total += e.usage.total;
   }
   const out = [...map.values()].sort((a, b) => b.usage.total - a.usage.total);
-  return out.map(({ agentSet, ...m }) => ({ ...m, agents: [...agentSet].sort(), share: total ? m.usage.total / total : 0 }));
+  return out.map(({ agentSet, ...m }) => ({ ...m, agents: [...agentSet].sort(), share: totalUsage.total ? m.usage.total / totalUsage.total : 0 }));
 }
 
 function agentStats(sessions: ParsedSession[], since: number, prices: PriceCache): AgentStat[] {
   const map = new Map<string, AgentStat>();
-  let total = 0;
+  const totalUsage = emptyUsage();
   for (const s of sessions) {
     let counted = false;
     for (const e of s.events) {
       if (e.ts < since) continue;
+      if (!tryAddUsageInPlace(totalUsage, e.usage)) continue;
       const agent = e.agent || s.agent || "codex";
       let a = map.get(agent);
       if (!a) {
         a = { agent, usage: emptyUsage(), cost: 0, share: 0, sessions: 0 };
         map.set(agent, a);
       }
-      addUsageInPlace(a.usage, e.usage);
-      a.cost += prices.cost(e.model, e.usage);
-      total += e.usage.total;
+      if (!tryAddUsageInPlace(a.usage, e.usage)) continue;
+      const nextCost = a.cost + prices.cost(e.model, e.usage);
+      if (Number.isFinite(nextCost)) a.cost = nextCost;
       if (!counted) {
         a.sessions++;
         counted = true;
@@ -146,18 +151,69 @@ function agentStats(sessions: ParsedSession[], since: number, prices: PriceCache
     }
   }
   const out = [...map.values()].sort((a, b) => b.usage.total - a.usage.total);
-  for (const a of out) a.share = total ? a.usage.total / total : 0;
+  for (const a of out) a.share = totalUsage.total ? a.usage.total / totalUsage.total : 0;
   return out;
+}
+
+/**
+ * Build the only session shape that may leave the device. Some multi-provider agents keep one
+ * session-level cumulative/model/timestamp alongside per-request events, so filtering only the
+ * event array can otherwise leave a non-OpenAI summary attached to an OpenAI-only event list.
+ */
+function codexOAuthSession(session: ParsedSession): ParsedSession | null {
+  const events = session.events.filter((event) =>
+    Number.isFinite(event.ts)
+    && event.ts >= 0
+    && isOpenAIModel(event.model)
+    && isCodexAuthProvider(event.provider)
+    && isCanonicalTokenUsage(event.usage));
+  if (!events.length) return null;
+
+  const cumulative = emptyUsage();
+  let firstEventAt = events[0].ts;
+  let lastActivityAt = events[0].ts;
+  let latest = events[0];
+  for (const event of events) {
+    // Fail closed for this session if individually valid records still overflow when combined.
+    if (!tryAddUsageInPlace(cumulative, event.usage)) return null;
+    if (event.ts < firstEventAt) firstEventAt = event.ts;
+    if (event.ts >= lastActivityAt) {
+      lastActivityAt = event.ts;
+      latest = event;
+    }
+  }
+
+  // Session metadata can predate the first usage record and is the correct denominator for a new
+  // session's live rate. Later activity is safe to preserve only for native Codex: its entire file
+  // is gated by one auth sidecar, while multi-provider parsers may have advanced their timestamp on
+  // a record that was excluded before this final boundary.
+  const startedAt = Number.isFinite(session.startedAt) && session.startedAt > 0
+    ? Math.min(session.startedAt, firstEventAt)
+    : firstEventAt;
+  if (
+    session.agent === "codex"
+    && events.length === session.events.length
+    && Number.isFinite(session.lastActivityAt)
+    && session.lastActivityAt > lastActivityAt
+  ) lastActivityAt = session.lastActivityAt;
+
+  return {
+    ...session,
+    provider: latest.provider ?? null,
+    startedAt,
+    lastActivityAt,
+    model: latest.model,
+    events,
+    cumulative,
+  };
 }
 
 export function computeStats(input: StatsInput): Stats {
   const now = input.now ?? Date.now();
   const prices = new PriceCache(input.pricing);
-  // Codex-only dashboard: drop usage on non-OpenAI models (Cline/Roo/OpenCode can drive Claude,
-  // Gemini, local models…) so totals, costs and the model mix stay comparable to OpenAI billing.
-  const sessions = input.sessions.map((s) =>
-    s.events.every((e) => isOpenAIModel(e.model)) ? s : { ...s, events: s.events.filter((e) => isOpenAIModel(e.model)) },
-  );
+  // Codex OAuth-only dashboard: drop API-key and non-OpenAI usage, then rebuild each summary from
+  // those retained events before session metadata or totals can be uploaded.
+  const sessions = input.sessions.map(codexOAuthSession).filter((session): session is ParsedSession => session !== null);
   const allEvents: UsageEvent[] = [];
   const sessionCosts = new Map<string, number>();
   let lastActivityAt: number | null = null;
@@ -167,7 +223,8 @@ export function computeStats(input: StatsInput): Stats {
     let cost = 0;
     for (const e of s.events) {
       allEvents.push(e);
-      cost += prices.cost(e.model, e.usage);
+      const nextCost = cost + prices.cost(e.model, e.usage);
+      if (Number.isFinite(nextCost)) cost = nextCost;
     }
     sessionCosts.set(`${s.agent}:${s.sessionId}`, cost);
     if (s.lastActivityAt && (lastActivityAt === null || s.lastActivityAt > lastActivityAt)) lastActivityAt = s.lastActivityAt;
@@ -222,15 +279,16 @@ export function computeStats(input: StatsInput): Stats {
     let cost = 0;
     for (const r of remoteRows) {
       if (localDayKey(r.hourStart) !== tk) continue;
-      addUsageInPlace(usage, r.usage);
-      cost += r.cost;
+      if (!tryAddUsageInPlace(usage, r.usage)) continue;
+      const nextCost = cost + r.cost;
+      if (Number.isFinite(nextCost)) cost = nextCost;
     }
     remoteToday = { usage, cost };
   }
 
   return {
     buckets,
-    sessions: sessions.filter((s) => s.events.length),
+    sessions,
     today,
     week,
     month,

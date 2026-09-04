@@ -59,7 +59,7 @@ export interface SyncResult {
   /** Transcript files re-read across every discovered source. */
   files: number;
   sessions: number;
-  /** Session roots that were discovered (Codex, pi, OpenCode, Cline/Roo/Kilo, Hermes, custom dirs). */
+  /** Session roots discovered across the enabled built-in sources and custom dirs. */
   roots: number;
   /** Agent names found on disk, e.g. ["codex", "opencode", "pi"]. */
   agents: string[];

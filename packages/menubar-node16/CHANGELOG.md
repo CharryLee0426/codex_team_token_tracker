@@ -7,6 +7,18 @@ and carries **the same version number**, because it is built from the same sourc
 application itself, see [that package's changelog](https://github.com/CharryLee0426/codex_team_token_tracker/blob/main/packages/menubar/CHANGELOG.md).
 Entries here cover only what is specific to the Node 16 build.
 
+## Unreleased
+
+### Notes
+
+- Current Kilo, Hermes and OpenClaw SQLite stores require `node:sqlite`; a Node 16 headless process skips
+  those databases and uses any attributable legacy JSON/JSONL or VS Code task fallback. OpenClaw-managed
+  Codex rollouts are diagnostic-only because their OAuth token is not persisted alongside them.
+  The current Electron runtime can provide SQLite support when this package runs in tray mode.
+- Compressed Codex/OpenClaw `.jsonl.zst` rollouts and DeepSeek Harness `.jsonl.zstd` sessions prefer native
+  Zstandard when available and otherwise use the bundled decoder, so compressed history remains readable on
+  Node 16. Plain `.jsonl` remains supported too.
+
 ## 0.2.2 — 2026-09-02
 
 ### Fixed
