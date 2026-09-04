@@ -47,7 +47,7 @@ npx codex-token-tracker         # 之后每天：启动菜单栏应用并让它�
 | 路径 | 内容 | 发布目标 |
 |---|---|---|
 | `apps/dashboard` | Next.js 15 仪表盘（Clerk、Convex、next-intl、next-themes、Tailwind v4、recharts） | Vercel |
-| `apps/mobile` | 只读原生查看器（iOS SwiftUI、Android Kotlin/Compose） | 本地 / 应用商店构建 |
+| `apps/mobile` | 只读原生查看器（iOS SwiftUI、Android Kotlin/Compose） | 本地原生构建 |
 | `packages/menubar` | `codex-token-tracker` —— Electron 托盘应用 + 无界面代理模式 + CLI（每个智能体一个来源模块） | npm |
 | `packages/backend` | Convex schema 与函数（从 `apps/dashboard` 部署） | Convex |
 | `packages/shared` | 解析器（Codex、pi、通用）、定价、聚合、时间与配色工具、`wham/usage` 解析器 —— 含单元测试 | – |

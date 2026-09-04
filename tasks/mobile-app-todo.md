@@ -1,5 +1,8 @@
 # Native Mobile Usage Viewer
 
+**Status:** Complete. All seven tasks met their acceptance criteria; platform and repository
+verification evidence is recorded in `tasks/mobile-app-plan.md` and `apps/mobile/README.md`.
+
 ## Task 1: Contract and local configuration
 
 **Acceptance criteria:** The product/data boundaries, ignored secret inputs, five-tab IA, and build

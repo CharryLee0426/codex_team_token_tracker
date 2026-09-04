@@ -48,7 +48,7 @@ Then open the dashboard: **Personal** fills within a minute. The first sign-in s
 | Path | What | Publish target |
 |---|---|---|
 | `apps/dashboard` | Next.js 15 dashboard (Clerk, Convex, next-intl, next-themes, Tailwind v4, recharts) | Vercel |
-| `apps/mobile` | Read-only native viewers (SwiftUI on iOS, Kotlin/Compose on Android) | Local/App Store builds |
+| `apps/mobile` | Read-only native viewers (SwiftUI on iOS, Kotlin/Compose on Android) | Local native builds |
 | `packages/menubar` | `codex-token-tracker` – Electron tray app + headless agent + CLI (source registry per agent) | npm |
 | `packages/backend` | Convex schema & functions (deployed from `apps/dashboard`) | Convex |
 | `packages/shared` | Parsers (Codex, pi, generic), pricing, aggregation, time & palette helpers, `wham/usage` parser — unit-tested | – |

@@ -34,20 +34,19 @@ Build order: `mobile-contract` -> `ios-viewer` and `android-viewer` in parallel 
 ## Commands
 
 ```bash
-# iOS project generation, tests, and simulator build
+# iOS tests and simulator build (run `xcodegen generate` only after editing project.yml)
 cd apps/mobile/ios
-xcodegen generate
 xcodebuild -project CodexTracker.xcodeproj -scheme CodexTracker \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' test
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' test
 xcodebuild -project CodexTracker.xcodeproj -scheme CodexTracker \
   -sdk iphonesimulator -configuration Debug build
 
 # Android tests, APK, and emulator E2E
 cd apps/mobile/android
 JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home \
-ANDROID_HOME=/Users/bytedance/Library/Android/sdk ./gradlew testDebugUnitTest assembleDebug
+ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew testDebugUnitTest assembleDebug
 JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home \
-ANDROID_HOME=/Users/bytedance/Library/Android/sdk ./gradlew connectedDebugAndroidTest
+ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew connectedDebugAndroidTest
 ```
 
 ## Project Structure
@@ -97,19 +96,30 @@ model identifiers, and derive cost from the already uploaded `usd` values.
 - Real mode is enabled only when a Clerk publishable key and Convex deployment URL are supplied by
   ignored local configuration. Missing/placeholder configuration opens the labeled demo viewer.
 - After native Clerk authentication, use the official Clerk-Convex bridge and call
-  `users:ensureUser` before protected subscriptions.
-- Use `orgs:myOrgs` for a compact team picker and the existing authenticated read queries:
-  `usage:hourly`, `usage:liveNow`, `usage:recentSessions`, `usage:myDevices`, and `orgs:members`.
+  `users:ensureUser` before protected subscriptions. Read account data with `users:me`.
+- Discover team choices from Clerk membership state, activate the selected Clerk organization, wait
+  for a refreshed Convex token with the matching `org_id`, run the idempotent
+  `orgs:ensureCurrentOrg` bootstrap, and resolve the mirrored row with `orgs:byClerkId` before team
+  reads. Never use the Convex membership mirror as the authority for what the user may activate.
+- Use the existing authenticated read queries `usage:hourly`, `usage:liveNow`,
+  `usage:recentSessions`, `usage:myDevices`, and `orgs:members`. Every team read must verify that the
+  requested organization matches the active Clerk-signed organization claim as well as the mirrored
+  membership.
 - Split ranges into at most 60-day query chunks because the backend rejects spans over 62 days.
 - Filter hourly rows and sessions with the dashboard's OpenAI model-name rule. Keep unknown model
   names because attributable Codex rollouts can omit a name.
 - Never request transcript/file-system access or upload prompts, code, paths, hardware identifiers,
-  credentials, or any new wire field.
+  credentials, or any new wire field. Authentication tokens go only to their intended Clerk/Convex
+  endpoints through the official SDKs; never add them to usage payloads, logs, or app-owned storage.
 
 ## Testing Strategy
 
 - Unit tests prove compact-row expansion, OpenAI filtering, UTC-to-local daily grouping, summary and
-  cache-hit math, 60-day chunking, and deterministic demo data on each platform.
+  cache-hit math, 60-day chunking, deterministic demo data, clock-driven hour/day rollover, and
+  exact live-data expiry on each platform. Native decoder/transport tests cover ordinary and tagged
+  Convex floating-point values and ensure `v.number()` arguments are not encoded as Convex integers.
+  Repository lifecycle tests cover first-launch initialization, principal changes, and interrupted
+  organization switches so stale account/team state cannot leak into a new session.
 - Native UI tests launch with a test-only demo flag, verify the overview KPIs, traverse all five
   tabs, switch range/theme where supported, and assert that no tracker setup/revoke UI exists.
 - Build and run the iOS XCUITest on an installed simulator and Android instrumentation tests on an
@@ -122,9 +132,10 @@ model identifiers, and derive cost from the already uploaded `usd` values.
 - Always: preserve UTC semantics, Codex-only filtering, read-only mobile behavior, accessibility,
   deterministic demo tests, ignored secrets, and paired English/Chinese documentation.
 - Ask first: production deployment, Clerk dashboard/native-app configuration, signing/provisioning,
-  App Store/Play publishing, backend/schema/wire changes, or a new dependency outside this spec.
+  App Store/Play publishing, backend schema/wire changes, or a new dependency outside this spec.
 - Never: commit keys or local SDK paths, call ingestion/device-auth APIs, complete the web onboarding
-  from mobile, publish artifacts, or mutate/revoke users, organizations, invites, and devices.
+  from mobile, publish artifacts, or expose user-facing mutations for users, organizations, invites,
+  and devices. The two idempotent authentication bootstrap writes above are explicitly allowed.
 
 ## Success Criteria
 
