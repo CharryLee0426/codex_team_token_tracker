@@ -3,15 +3,18 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { platformKind } from "../platform";
-import { normalizeExtraDir, type ExtraSessionDir, type SourceFormat, type SourcesConfig } from "../config";
+import { DEFAULT_SOURCES, normalizeExtraDir, type ExtraSessionDir, type SourceFormat, type SourcesConfig } from "../config";
 import type { SessionRoot, SourceContext, SourceDefinition, UserHome } from "./types";
 import { codexSource } from "./codex";
+import { deepseekHarnessSource } from "./deepseek-harness";
 import { piSource } from "./pi";
 import { ompSource } from "./omp";
+import { openclawSource } from "./openclaw";
 import { genericSource } from "./generic";
 import { hermesSource } from "./hermes";
 import { opencodeSource } from "./opencode";
-import { clineSource, rooSource, kiloSource } from "./cline";
+import { clineSource, rooSource } from "./cline";
+import { kiloSource } from "./kilo";
 import { listDirs } from "./util";
 
 export type { SessionRoot, SourceContext, SourceDefinition, SourceFile, ParseOptions, UserHome, RootKind, RootOrigin } from "./types";
@@ -22,11 +25,12 @@ export { hermesHome } from "./hermes";
 export { mergeSessions } from "./util";
 
 /** Registry of all sources. Adding an agent = one module + one entry here (+ a `sources` config key). */
-export const SOURCES: SourceDefinition[] = [codexSource, piSource, ompSource, hermesSource, opencodeSource, clineSource, rooSource, kiloSource, genericSource];
+export const SOURCES: SourceDefinition[] = [codexSource, deepseekHarnessSource, piSource, ompSource, openclawSource, hermesSource, opencodeSource, clineSource, rooSource, kiloSource, genericSource];
 
 const byId = new Map(SOURCES.map((s) => [s.id, s]));
 const byFormat: Record<SourceFormat, SourceDefinition> = {
   codex: codexSource,
+  dsh: deepseekHarnessSource,
   pi: piSource,
   generic: genericSource,
   opencode: opencodeSource,
@@ -93,11 +97,18 @@ export interface DiscoverOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-/** Discover existing session roots for every enabled source plus user-configured extra dirs. */
-export function discoverSessionRoots(opts: DiscoverOptions = {}): SessionRoot[] {
-  const enabled: Record<string, boolean> = { codex: true, pi: true, omp: true, hermes: true, opencode: true, cline: true, roo: true, kilo: true, ...(opts.sources ?? {}) };
+export interface RootDiscovery {
+  roots: SessionRoot[];
+  /** Enabled sources whose discovery failed, so the local index retains their previously known roots. */
+  incompleteSources: Set<string>;
+}
+
+/** Discover existing session roots and record sources whose discovery was incomplete. */
+export function discoverSessionRootsWithStatus(opts: DiscoverOptions = {}): RootDiscovery {
+  const enabled: Record<string, boolean> = { ...DEFAULT_SOURCES, ...(opts.sources ?? {}) };
   const ctx: SourceContext = { homes: opts.homes ?? userHomes(), platform: platformKind(), env: opts.env ?? process.env };
   const roots: SessionRoot[] = [];
+  const incompleteSources = new Set<string>();
   const seen = new Set<string>();
   const add = (r: SessionRoot) => {
     const key = `${path.resolve(r.dir)}|${r.exts.join(",")}`;
@@ -110,7 +121,7 @@ export function discoverSessionRoots(opts: DiscoverOptions = {}): SessionRoot[] 
     try {
       for (const r of s.discover(ctx)) add(r);
     } catch {
-      /* a source must never break discovery */
+      incompleteSources.add(s.id);
     }
   }
   for (const entry of opts.extraSessionDirs ?? []) {
@@ -121,17 +132,30 @@ export function discoverSessionRoots(opts: DiscoverOptions = {}): SessionRoot[] 
     const def = byFormat[e.format ?? "generic"] ?? genericSource;
     add(def.extraRoot(dir, e.agent));
   }
-  return roots;
+  return { roots, incompleteSources };
 }
 
-/** Recursively list files under a root that match its suffixes. */
-export function walkFiles(root: SessionRoot): string[] {
+/** Discover existing session roots for every enabled source plus user-configured extra dirs. */
+export function discoverSessionRoots(opts: DiscoverOptions = {}): SessionRoot[] {
+  return discoverSessionRootsWithStatus(opts).roots;
+}
+
+export interface FileWalk {
+  files: string[];
+  /** False when any directory could not be read, so absence cannot safely mean deletion. */
+  complete: boolean;
+}
+
+/** Recursively list files under a root that match its suffixes and report whether the walk was complete. */
+export function walkFilesWithStatus(root: SessionRoot): FileWalk {
   const out: string[] = [];
+  let complete = true;
   const walk = (dir: string, depth: number) => {
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
+      complete = false;
       return;
     }
     for (const e of entries) {
@@ -144,7 +168,12 @@ export function walkFiles(root: SessionRoot): string[] {
     }
   };
   walk(root.dir, 0);
-  return out;
+  return { files: out, complete };
+}
+
+/** Recursively list files under a root that match its suffixes. */
+export function walkFiles(root: SessionRoot): string[] {
+  return walkFilesWithStatus(root).files;
 }
 
 /** List matching files directly inside a directory (non-recursive). */

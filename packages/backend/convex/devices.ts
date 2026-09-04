@@ -187,16 +187,20 @@ export const moveUsage = internalMutation({
       .withIndex("by_device_session", (q) => q.eq("deviceId", from))
       .take(MOVE_BATCH);
     for (const s of sessions) {
-      const existing = await ctx.db
+      const agent = s.agent ?? "codex";
+      const candidates = await ctx.db
         .query("sessions")
         .withIndex("by_device_session", (q) => q.eq("deviceId", into).eq("sessionId", s.sessionId))
-        .unique();
+        .collect();
+      const existing = candidates.find((candidate) => (candidate.agent ?? "codex") === agent) ?? null;
       if (!existing) {
-        await ctx.db.patch(s._id, { deviceId: into, userId: target.userId });
+        await ctx.db.patch(s._id, { deviceId: into, userId: target.userId, agent });
       } else {
         if (s.updatedAt > existing.updatedAt) {
           const { _id: _i, _creationTime: _c, ...rest } = s;
-          await ctx.db.patch(existing._id, { ...rest, deviceId: into, userId: target.userId });
+          await ctx.db.patch(existing._id, { ...rest, deviceId: into, userId: target.userId, agent });
+        } else if (existing.agent === undefined) {
+          await ctx.db.patch(existing._id, { agent });
         }
         await ctx.db.delete(s._id);
       }

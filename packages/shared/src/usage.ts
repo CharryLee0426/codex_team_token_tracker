@@ -4,7 +4,7 @@
  * Mirrors the Codex CLI `TokenUsage` struct:
  * - `input` includes `cached` (and `cacheWrite`) tokens.
  * - `output` includes `reasoning` tokens.
- * - `total` = input + output.
+ * - `total` is at least input + output; some providers report additional unclassified tokens.
  * - `requests` counts API round-trips (one per `token_count` delta).
  */
 export interface TokenUsage {
@@ -19,6 +19,43 @@ export interface TokenUsage {
 
 export function emptyUsage(): TokenUsage {
   return { input: 0, cached: 0, cacheWrite: 0, output: 0, reasoning: 0, total: 0, requests: 0 };
+}
+
+/** Validate the integer and subset invariants shared by every uploadable usage record. */
+export function isCanonicalTokenUsage(value: TokenUsage): boolean {
+  const fields = [
+    value.input,
+    value.cached,
+    value.cacheWrite,
+    value.output,
+    value.reasoning,
+    value.total,
+    value.requests,
+  ];
+  if (fields.some((field) => !Number.isSafeInteger(field) || field < 0)) return false;
+  const cacheTotal = value.cached + value.cacheWrite;
+  const recombined = value.input + value.output;
+  return Number.isSafeInteger(cacheTotal)
+    && cacheTotal <= value.input
+    && value.reasoning <= value.output
+    && Number.isSafeInteger(recombined)
+    && value.total >= recombined;
+}
+
+/** Add a complete usage record only when the resulting aggregate remains canonical and safe. */
+export function tryAddUsageInPlace(target: TokenUsage, addition: TokenUsage): boolean {
+  const next: TokenUsage = {
+    input: target.input + addition.input,
+    cached: target.cached + addition.cached,
+    cacheWrite: target.cacheWrite + addition.cacheWrite,
+    output: target.output + addition.output,
+    reasoning: target.reasoning + addition.reasoning,
+    total: target.total + addition.total,
+    requests: target.requests + addition.requests,
+  };
+  if (!isCanonicalTokenUsage(addition) || !isCanonicalTokenUsage(next)) return false;
+  Object.assign(target, next);
+  return true;
 }
 
 export function addUsage(a: TokenUsage, b: Partial<TokenUsage>): TokenUsage {

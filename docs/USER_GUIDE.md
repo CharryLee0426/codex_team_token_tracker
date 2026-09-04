@@ -44,7 +44,7 @@ No browser on that machine (WSL2, a server, SSH)? The terminal also prints a **Q
 npx codex-token-tracker
 ```
 
-This starts the menu bar / tray app (on a desktop the first start also downloads the Electron runtime, ~100 MB, once). Leave it running: it reads your local Codex sessions, shows today's usage in the tray and uploads to the dashboard every minute. Then:
+This starts the menu bar / tray app (on a desktop the first start also downloads the Electron runtime, ~100 MB, once). Leave it running: it reads supported agents' local Codex usage records, shows today's usage in the tray and uploads to the dashboard every minute. Then:
 
 - Right-click the tray icon → **Launch at login**, and you never have to type the command again.
 - Open https://codex.chenli.dev → **Personal**. Past sessions are uploaded on the first run; new usage appears within a minute.
@@ -96,15 +96,37 @@ Keep the agent running (tmux, `nohup`, or a `systemd --user` service).
 
 ## 6. Which agents are tracked
 
-Everything that consumes your Codex subscription and keeps a local transcript:
+The current public agents below have been audited for both a user-facing Codex / ChatGPT OAuth login
+and durable local usage data. API-key and non-OpenAI records never enter displayed, priced, or uploaded totals.
 
-| Agent | Notes |
+| Agent | Status and local data |
 |---|---|
-| Codex CLI / Codex Desktop | exact numbers from `~/.codex/sessions` |
-| pi | `~/.pi/agent/sessions`; only `openai-codex` calls count — API-key providers are ignored unless `codex-tracker config set trackAllProviders true` |
-| oh-my-pi (`omp`) | `~/.omp/agent/sessions` (also `~/.omp/profiles/<name>/agent/sessions` and `$XDG_DATA_HOME/omp/sessions`); same transcript format and same rule as pi, tagged `omp` |
-| OpenCode, Cline / Roo Code / Kilo Code, Hermes | best-effort readers; if your usage is missing run `codex-tracker paths` and tell your admin |
-| Other tools | `codex-tracker config set extraSessionDirs '[{"path":"/path/to/logs","agent":"mytool","format":"generic"}]'` |
+| Codex CLI / Codex Desktop | Supported: native rollouts in `~/.codex/sessions`, including current `token_usage_record` entries and legacy counters |
+| pi | Supported: `~/.pi/agent/sessions`; `openai-codex` assistant usage is attributed to `pi` |
+| oh-my-pi (`omp`) | Supported: `~/.omp/agent/sessions`, profiles and the XDG session directory; pi-compatible messages and current `model_usage` records are attributed to `omp` |
+| Cline | Supported: current v1 envelopes under `~/.cline/data/sessions` and legacy VS Code task storage; only exact `openai-codex` usage counts by default, while `openai-codex-cli` is excluded to avoid counting the same Codex rollout twice |
+| Kilo Code | Supported: current `kilo*.db` SQLite stores from `$KILO_DB`, otherwise `%LOCALAPPDATA%\kilo` on Windows, `~/Library/Application Support/kilo` on macOS, or `$XDG_DATA_HOME/kilo` (normally `~/.local/share/kilo`) on Linux; legacy VS Code task storage remains supported |
+| Hermes Agent | Supported: current `state.db` usage aggregates under `$HERMES_HOME` or `<user-home>/.hermes` on every OS (including Windows homes visible from WSL), plus profiles and legacy JSON / JSONL sessions |
+| OpenClaw | Supported: per-agent SQLite transcripts under `$OPENCLAW_STATE_DIR`, `~/.openclaw` or `~/.clawdbot`, plus attributable legacy JSON / JSONL. Managed Codex rollouts are diagnostic-only because their OAuth token is not persisted alongside them |
+| DeepSeek Harness (`dsh`) | Supported: exact `openai-codex` usage under `$DSH_HOME/sessions` or `~/.dsh/sessions` when current local route metadata identifies OAuth; reads `session.jsonl` and concatenated `session.jsonl.zstd` frames. For another session root, use `format: "dsh"` in `extraSessionDirs` |
+| OpenCode / Roo Code | Existing best-effort compatibility readers remain available, but this audit did not verify them as current-format integrations |
+| Other tools | Add a compatible directory with `codex-tracker config set extraSessionDirs '[{"path":"/path/to/logs","agent":"mytool","format":"generic"}]'` |
+
+Audit decisions for the remaining ranked agents:
+
+- **Claude Code** has no public Codex / ChatGPT OAuth provider; its first-party login is for Anthropic services.
+- **Zazen (Freebuff fork)** needs no separate source: Freebuff Desktop can run a locally installed Codex using the existing provider account, and those native rollouts are already tracked as `codex`. Freebuff does not expose distinct durable OAuth attribution that could be labelled `zazen`.
+
+Accuracy and runtime notes:
+
+- Current Kilo, Hermes and OpenClaw databases require `node:sqlite` (Node 22.5+ or the current Electron runtime). Older Node runtimes use attributable legacy JSON/JSONL or VS Code task fallbacks; they cannot read history that exists only in SQLite.
+- Native Codex rollouts count only when the current `$CODEX_HOME/auth.json` proves ChatGPT login. Keyring-only or ephemeral login leaves no readable auth method in the rollout, so the tracker deliberately excludes it rather than risk counting API-key usage. Because rollouts also lack a per-request auth marker, switching the current Codex login between ChatGPT and API-key auth reclassifies historical rollouts on the next scan. Credential values are never retained, logged or uploaded.
+- Kilo uses only the current auth entry's `type` discriminator; credential values are not retained, logged, or uploaded. Its SQLite messages do not preserve the auth method used by each request, so changing OpenAI between OAuth and API-key auth can reclassify historical rows on the next sync.
+- DeepSeek Harness parses local `.credentials.yaml` and `settings.yaml`, but uses only the `openai-codex` record kind and whether an `apiKeyEnv` override exists; credential values are not retained, logged or uploaded. Its session rows do not preserve each request's auth method either, so current route configuration can reclassify historical usage. A custom `dsh`-format root still uses the current sidecars under `$DSH_HOME` or `~/.dsh` for this attribution.
+- Hermes stores session/model aggregates rather than hourly rows. The tracker assigns an aggregate to its `last_seen` hour, preserving its total while approximating its hourly distribution.
+- OpenClaw's current transcript DB records the exact Codex-OAuth route marker. Its managed Codex harness injects `chatgptAuthTokens` only in memory and does not write a managed `CODEX_HOME/auth.json`; those rollout files can be discovered for local diagnostics but never enter OAuth totals.
+- Compressed Codex/OpenClaw `.jsonl.zst` rollouts and DeepSeek Harness `.jsonl.zstd` sessions prefer native Zstandard when available and otherwise use the bundled decoder, so compressed history works across supported runtimes. Plain `.jsonl` remains supported.
+- DeepSeek Harness records are JSON-decoded locally so usage and model provenance can be read; prompt and response content is never retained, logged or uploaded by the tracker.
 
 ## 7. Command reference
 
@@ -135,7 +157,7 @@ Only these leave your machine: token counts, model names, the agent name (codex 
 - **Dashboard shows nothing** — is the tray app / agent running and signed in (`npx codex-token-tracker status` → *Signed in as …*)? Data appears within seconds of a session's activity (a few seconds after the tracker sees new usage; every minute otherwise).
 - **The dashboard stopped updating** — it should never need a reload: the page re-establishes its realtime link on its own (also after your laptop wakes up), and the link indicator in the sidebar reads *Reconnecting…* while it does. If it stays there, check your network; a reload is never required for fresh data.
 - **A machine appears twice under Devices** — it logged in twice with a version before 0.3.0. Update and restart the tracker on that machine; its first heartbeats merge the two entries into one (shown with a *2 logins* badge).
-- **This machine's numbers look wrong / incomplete** — press **⟳ Sync** in the popover header (or run `codex-tracker sync`). It rescans every agent from scratch and re-uploads this device's whole history, replacing the dashboard's totals for it. Do this after installing a new coding agent too.
+- **This machine's numbers look wrong / incomplete** — press **⟳ Sync** in the popover header (or run `codex-tracker sync`). It rescans every agent from scratch and re-uploads every still-present local record for this device. The idempotent API refreshes those records but does not delete older remote rows whose source file is no longer present. Do this after installing a new coding agent too.
 - **"Electron is not installed"** — run `npm rebuild electron` (or use `codex-tracker agent`). On Linux/WSL the tray needs a display; agent mode does not.
 - **Numbers differ from the Codex app's limits** — the Rate limits card should be within a minute of the Codex app; if it says *From logs*, your Codex login expired: open Codex once to refresh it.
 - **I use two computers** — connect both; the dashboard sums all your devices. Two trackers on the *same* PC (e.g. Windows tray + WSL agent) are recognised as one machine and counted once.

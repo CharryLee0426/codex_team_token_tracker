@@ -1,16 +1,17 @@
-import { emptyUsage, addUsageInPlace, type TokenUsage } from "./usage.ts";
+import { emptyUsage, isCanonicalTokenUsage, tryAddUsageInPlace, type TokenUsage } from "./usage.ts";
 import type { ParsedSession, UsageEvent } from "./codex-parser.ts";
 
 export const AGENT_PI = "pi";
 
 /** Provider ids that route through a Codex (ChatGPT) subscription login rather than an API key. */
-export const CODEX_AUTH_PROVIDERS = new Set(["openai-codex", "codex", "chatgpt", "openai-chatgpt"]);
+export const CODEX_AUTH_PROVIDERS = new Set(["openai-codex"]);
+const CODEX_AUTH_APIS = new Set(["openai-codex-responses", "openai-chatgpt-responses"]);
 
 export function isCodexAuthProvider(provider: string | null | undefined, api?: string | null): boolean {
   const p = (provider ?? "").toLowerCase();
   if (CODEX_AUTH_PROVIDERS.has(p)) return true;
   const a = (api ?? "").toLowerCase();
-  return a.startsWith("openai-codex") || p.includes("codex");
+  return p === "openai" && CODEX_AUTH_APIS.has(a);
 }
 
 export interface PiParserOptions {
@@ -24,15 +25,55 @@ interface PiUsage {
   cacheRead?: number;
   cacheWrite?: number;
   reasoning?: number;
+  reasoningTokens?: number;
   totalTokens?: number;
+}
+
+const PI_USAGE_KEYS: Array<keyof PiUsage> = [
+  "input",
+  "output",
+  "cacheRead",
+  "cacheWrite",
+  "reasoning",
+  "reasoningTokens",
+  "totalTokens",
+];
+
+function safeCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+function usageFrom(raw: unknown): TokenUsage | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const u = raw as PiUsage;
+  if (PI_USAGE_KEYS.some((key) => u[key] !== undefined && !safeCount(u[key]))) return null;
+  const cached = u.cacheRead ?? 0;
+  const cacheWrite = u.cacheWrite ?? 0;
+  const fresh = u.input ?? 0;
+  const output = u.output ?? 0;
+  const reasoning = u.reasoning ?? u.reasoningTokens ?? 0;
+  const input = fresh + cached + cacheWrite;
+  const componentTotal = input + output;
+  if (!Number.isSafeInteger(input) || !Number.isSafeInteger(componentTotal)) return null;
+  if (u.totalTokens !== undefined && u.totalTokens < componentTotal) return null;
+  const usage = {
+    input,
+    cached,
+    cacheWrite,
+    output,
+    reasoning,
+    total: u.totalTokens ?? componentTotal,
+    requests: 1,
+  };
+  return isCanonicalTokenUsage(usage) ? usage : null;
 }
 
 /**
  * pi coding agent (`~/.pi/agent/sessions/<cwd>/<ts>_<uuid>.jsonl`); oh-my-pi writes the same format under
  * `~/.omp/agent/sessions` and is tagged `omp` by its own source.
- * Line 1: {type:"session", version, id, timestamp, cwd}; assistant messages carry per-request
- * `message.usage` = {input, output, cacheRead, cacheWrite, reasoning, totalTokens, cost} where
- * `input` EXCLUDES cached tokens (totalTokens = input + output + cacheRead) and `output` includes reasoning.
+ * Line 1: {type:"session", version, id, timestamp, cwd}; assistant messages and OMP
+ * `model_usage` records carry per-request usage where `input` excludes cache tokens and `output`
+ * already includes reasoning.
  */
 export function createPiSessionParser(fallbackSessionId: string, opts: PiParserOptions = {}): {
   push(line: string): void;
@@ -44,17 +85,22 @@ export function createPiSessionParser(fallbackSessionId: string, opts: PiParserO
   let cwd: string | null = null;
   let model = "unknown";
   let provider: string | null = null;
+  let routeModel = "unknown";
+  let routeProvider: string | null = null;
   let lineCount = 0;
   const events: UsageEvent[] = [];
   const cumulative = emptyUsage();
 
   function noteTime(ts: number | null) {
-    if (ts === null || Number.isNaN(ts)) return;
+    if (ts === null || !Number.isFinite(ts)) return;
     if (startedAt === null || ts < startedAt) startedAt = ts;
     if (ts > lastActivityAt) lastActivityAt = ts;
   }
   function parseTs(v: unknown): number | null {
-    if (typeof v === "number") return v < 1e12 ? v * 1000 : v;
+    if (typeof v === "number" && Number.isFinite(v)) {
+      const t = v < 1e12 ? v * 1000 : v;
+      return Number.isFinite(t) ? t : null;
+    }
     if (typeof v === "string") {
       const t = Date.parse(v);
       return Number.isNaN(t) ? null : t;
@@ -82,45 +128,62 @@ export function createPiSessionParser(fallbackSessionId: string, opts: PiParserO
         return;
       }
       if (obj.type === "model_change") {
-        if (typeof obj.modelId === "string") model = obj.modelId;
-        if (typeof obj.provider === "string") provider = obj.provider;
+        if (Object.prototype.hasOwnProperty.call(obj, "modelId")) {
+          routeModel = typeof obj.modelId === "string" && obj.modelId ? obj.modelId : "unknown";
+        }
+        if (Object.prototype.hasOwnProperty.call(obj, "provider")) {
+          routeProvider = typeof obj.provider === "string" && obj.provider ? obj.provider : null;
+        }
         noteTime(ts);
         return;
       }
-      if (obj.type !== "message" || !obj.message || typeof obj.message !== "object") return;
-      const m = obj.message;
-      noteTime(ts ?? parseTs(m.timestamp));
-      if (m.role !== "assistant") return;
-      if (typeof m.model === "string") model = m.model;
-      const msgProvider: string | null = typeof m.provider === "string" ? m.provider : provider;
-      if (msgProvider) provider = msgProvider;
-      const u: PiUsage | undefined = m.usage;
-      if (!u || typeof u !== "object") return;
-      if (!opts.includeAllProviders && !isCodexAuthProvider(msgProvider, typeof m.api === "string" ? m.api : null)) return;
-      const cached = u.cacheRead ?? 0;
-      const cacheWrite = u.cacheWrite ?? 0;
-      const fresh = u.input ?? 0;
-      const output = u.output ?? 0;
-      const usage: TokenUsage = {
-        input: fresh + cached + cacheWrite,
-        cached,
-        cacheWrite,
-        output,
-        reasoning: u.reasoning ?? 0,
-        total: u.totalTokens ?? fresh + cached + cacheWrite + output,
-        requests: 1,
-      };
+      let usageRecord: any;
+      if (obj.type === "model_usage") {
+        usageRecord = obj;
+      } else if (obj.type === "message" && obj.message && typeof obj.message === "object") {
+        usageRecord = obj.message;
+        if (usageRecord.role !== "assistant") {
+          noteTime(ts ?? parseTs(usageRecord.timestamp));
+          return;
+        }
+      } else {
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(usageRecord, "model")) {
+        routeModel = typeof usageRecord.model === "string" && usageRecord.model ? usageRecord.model : "unknown";
+      }
+      if (Object.prototype.hasOwnProperty.call(usageRecord, "provider")) {
+        // A malformed or deliberately unretained explicit provider must clear the inherited route;
+        // otherwise an oversized non-Codex provider could inherit an earlier OAuth route.
+        routeProvider = typeof usageRecord.provider === "string" && usageRecord.provider ? usageRecord.provider : null;
+      }
+      const msgProvider = routeProvider;
+      const usage = usageFrom(usageRecord.usage);
+      if (!usage) return;
+      const codexAuth = isCodexAuthProvider(msgProvider, typeof usageRecord.api === "string" ? usageRecord.api : null);
+      if (!opts.includeAllProviders && !codexAuth) return;
       if (usage.total <= 0 && usage.input <= 0 && usage.output <= 0) return;
-      addUsageInPlace(cumulative, usage);
-      const eventTs = ts ?? parseTs(m.timestamp) ?? lastActivityAt;
-      events.push({ ts: eventTs, model: m.model ?? model, usage, agent: AGENT_PI, provider: msgProvider });
+      const eventModel = routeModel;
+      const eventProvider = codexAuth ? "openai-codex" : msgProvider;
+      if (!tryAddUsageInPlace(cumulative, usage)) return;
+      model = eventModel;
+      provider = eventProvider;
+      noteTime(ts ?? parseTs(usageRecord.timestamp));
+      const eventTs = ts ?? parseTs(usageRecord.timestamp) ?? lastActivityAt;
+      events.push({
+        ts: eventTs,
+        model: eventModel,
+        usage,
+        agent: AGENT_PI,
+        provider: eventProvider,
+      });
     },
     result(): ParsedSession | null {
       if (lineCount === 0) return null;
       return {
         sessionId: sessionId ?? fallbackSessionId,
         agent: AGENT_PI,
-        provider,
+        provider: events.length ? provider : routeProvider,
         startedAt: startedAt ?? lastActivityAt,
         lastActivityAt,
         cwd,
@@ -129,7 +192,7 @@ export function createPiSessionParser(fallbackSessionId: string, opts: PiParserO
         source: "pi",
         cliVersion: null,
         timezone: null,
-        model,
+        model: events.length ? model : routeModel,
         events,
         cumulative: { ...cumulative },
         contextWindow: null,

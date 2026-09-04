@@ -115,7 +115,7 @@ Commands:
   logout            Disconnect this device
   status            Print today's usage, live session and rate limits
   sync              Rescan every agent and re-upload this device's full history (calibrate)
-  paths             Show detected session directories (Codex, pi, oh-my-pi, OpenCode, Cline/Roo/Kilo, Hermes, custom)
+  paths             Show detected session directories (Codex, pi, oh-my-pi, OpenCode, Cline/Roo/Kilo, Hermes, OpenClaw, DeepSeek Harness, custom)
   update            Install the newest published version (--check only reports)
   config get|set    Read or change settings (config set uploadIntervalSec 30, config set sources.pi false)
   lang <en|zh|auto> Set the display language
@@ -163,7 +163,7 @@ Options:
   cliStatusAccount: "Account",
   cliStatusDirs: "Session dirs",
   cliPathsTitle: "Detected session directories:",
-  cliPathsNone: "No session directory found. Set CODEX_HOME or add extraSessionDirs.",
+  cliPathsNone: "No session directory found. Check the enabled source paths or add extraSessionDirs.",
   cliConfigSet: "Set {key} = {value}",
   cliConfigUnknownKey: "Unknown config key: {key}. Keys: {keys}",
   cliLangSet: "Language set to {lang}",

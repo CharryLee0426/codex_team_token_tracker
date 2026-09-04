@@ -1,4 +1,5 @@
 import type { ParsedSession } from "@codex-tracker/shared";
+import type { Stats } from "node:fs";
 import type { SourceFormat } from "../config";
 import type { PlatformKind } from "../platform";
 
@@ -20,6 +21,8 @@ export interface SessionRoot {
   maxDepth: number;
   /** Read the file as text before `parse` (false for binary stores such as SQLite). */
   text: boolean;
+  /** Current non-secret auth classification used to distinguish an intentional exclusion from a torn transcript. */
+  oauthAttribution?: "oauth" | "non-oauth" | "unknown";
 }
 
 export interface UserHome {
@@ -57,6 +60,12 @@ export interface SourceDefinition {
   hotDirs(root: SessionRoot): string[];
   /** Watch the root recursively instead of watching hot dirs individually. */
   watchRecursively(root: SessionRoot): boolean;
+  /** Optional version including sidecars such as SQLite WAL or auth-discriminator files. */
+  fileVersion?(path: string, stat: Stats, root: SessionRoot): { size: number; mtimeMs: number };
+  /** Optional bounded-memory parser for text transcripts too large to load as one string. */
+  parsePath?(file: Omit<SourceFile, "text">, opts: ParseOptions): Promise<ParsedSession | null>;
+  /** Prefer the bounded path parser even below the store's large-file threshold (for compressed inputs). */
+  preferParsePath?(path: string): boolean;
   parse(file: SourceFile, opts: ParseOptions): ParsedSession | null;
   /** Root template for a user-configured extra directory of this format. */
   extraRoot(dir: string, agent: string): SessionRoot;

@@ -18,8 +18,8 @@ export const DEV_DASHBOARD_URL = "http://localhost:3000";
 export const DEFAULT_DASHBOARD_URL = IS_DEV_BUILD ? DEV_DASHBOARD_URL : PROD_DASHBOARD_URL;
 
 /** How a session directory's files are parsed (see src/core/sources). */
-export type SourceFormat = "codex" | "pi" | "generic" | "opencode" | "cline";
-export const SOURCE_FORMATS: SourceFormat[] = ["codex", "pi", "generic", "opencode", "cline"];
+export type SourceFormat = "codex" | "dsh" | "pi" | "generic" | "opencode" | "cline";
+export const SOURCE_FORMATS: SourceFormat[] = ["codex", "dsh", "pi", "generic", "opencode", "cline"];
 
 /** A user-configured session directory: `{ "path": "~/.myagent/logs", "agent": "myagent", "format": "generic" }`. */
 export interface ExtraSessionDir {
@@ -31,9 +31,12 @@ export interface ExtraSessionDir {
 /** Built-in sources that are auto-discovered when enabled. */
 export interface SourcesConfig {
   codex: boolean;
+  /** DeepSeek Harness (`dsh`) session logs under $DSH_HOME. */
+  dsh: boolean;
   pi: boolean;
   /** oh-my-pi (`omp`): pi's transcript format under ~/.omp. */
   omp: boolean;
+  openclaw: boolean;
   hermes: boolean;
   opencode: boolean;
   cline: boolean;
@@ -41,7 +44,7 @@ export interface SourcesConfig {
   kilo: boolean;
 }
 
-export const DEFAULT_SOURCES: SourcesConfig = { codex: true, pi: true, omp: true, hermes: true, opencode: true, cline: true, roo: true, kilo: true };
+export const DEFAULT_SOURCES: SourcesConfig = { codex: true, dsh: true, pi: true, omp: true, openclaw: true, hermes: true, opencode: true, cline: true, roo: true, kilo: true };
 export const SOURCE_IDS = Object.keys(DEFAULT_SOURCES) as Array<keyof SourcesConfig>;
 
 export interface TrackerConfig {
@@ -60,7 +63,7 @@ export interface TrackerConfig {
   trayTitle: "tokens" | "cost" | "none";
   /** Which agents' logs to read. */
   sources: SourcesConfig;
-  /** Count every provider found in other agents' logs (API keys etc.), not only Codex-subscription providers. */
+  /** Parse other providers for local source diagnostics; final stats and uploads remain Codex-OAuth-only. */
   trackAllProviders: boolean;
   /** Query chatgpt.com for live rate limits using the local Codex login. */
   liveRateLimits: boolean;

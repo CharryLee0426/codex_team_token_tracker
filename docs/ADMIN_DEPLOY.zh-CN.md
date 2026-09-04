@@ -133,8 +133,10 @@ git push origin main --tags
 ## 6. 运维
 
 - **更新仪表盘 / 后端**：推送到 `main` → Vercel 构建 → 同一次构建中 `convex deploy` 会把函数和 schema 推送到生产环境。Schema 变更会针对现有数据做校验；新增字段请保持可选（如 `agent` 字段的做法）。
+- **先部署仪表盘 / 后端，再发布依赖它的追踪器。** 追踪器会从 `/api/config` 读取 `wireVersion`，只向声明支持新字段的后端发送这些字段（0.3.0 从 wire version 2 起发送 `machineId`）。会话身份也由服务端保证：在发布扩展了智能体来源的客户端前，必须先部署 `(device, agent, sessionId)` upsert 逻辑，否则重用同一会话 ID 的两个智能体在后端升级前可能互相覆盖。
 - **预览部署（Preview）**（任何非 `main` 分支 / PR）：`CONVEX_DEPLOY_KEY` 只在 Production 环境设置，因此预览构建只执行 `next build`，并使用 **开发** Convex 部署和 **开发** Clerk 实例（Preview 环境变量）—— 这是一个不会触碰生产数据的安全预发布环境。
-- **定价表**：`packages/shared/src/pricing.ts`（每 100 万 token 的美元价格），与 <https://developers.openai.com/api/docs/pricing> 保持一致，并包含输入超过 272K token 时的长上下文档位。未知模型会回退到同系列价格并标记为 *est.*；用户可在本地 `~/.codex-tracker/pricing.json` 中覆盖。仅统计 OpenAI 模型 —— 其他 agent 在非 OpenAI 模型上的用量会在设备端丢弃，并在仪表盘再过滤一次。
+- **旧版已启用 `trackAllProviders` 时的一次性清理：** 旧客户端可能已上传 API Key 形式的 OpenAI 记录。新客户端不会再上传它们，但 v2 upsert 协议无法判断本地消失的记录是否应被删除。请先备份部署，再从 Convex 控制台删除该设备的 `hourlyUsage` 与 `sessions` 记录（删除整台设备的这两类记录最稳妥），然后在该设备上运行 `codex-tracker sync`。撤销设备不会删除其用量。
+- **定价表**：`packages/shared/src/pricing.ts`（每 100 万 token 的美元价格），与 <https://developers.openai.com/api/docs/pricing> 保持一致，并包含输入超过 272K token 时的长上下文档位。未知模型会回退到同系列价格并标记为 *est.*；用户可在本地 `~/.codex-tracker/pricing.json` 中覆盖。仅统计具有精确 Codex OAuth 归因的 OpenAI 模型 —— API Key 与非 OpenAI 用量都会在设备端丢弃。
 - **撤销设备**：用户在 Dashboard → Devices 中操作；管理员可以在 Convex 控制台中为 `devices` 表对应行设置 `revokedAt`。
 - **移除成员**：从 Clerk 组织中移除该成员；Webhook 会删除成员关系，团队视图不再包含此人（其数据行仍然关联到该用户）。
 - **备份 / 导出**：Convex 控制台 → Settings → Export，或执行 `npx convex export --prod`。

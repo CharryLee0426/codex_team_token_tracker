@@ -4,12 +4,15 @@ The **Node.js 16 build** of [`codex-token-tracker`](https://www.npmjs.com/packag
 menu bar / system tray app and headless agent that tracks OpenAI Codex token usage, cache hits, model mix
 and API-equivalent cost, and syncs it to your team dashboard.
 
-Same app, same features, same version number. The only difference is the runtime it can be installed on:
+Same application sources, commands, wire protocol and version number. Readers that rely on built-in runtime
+modules are available only when the process exposes them:
 
 | | `codex-token-tracker` | `codex-token-tracker-nodejs16` |
 |---|---|---|
 | Node | 20 or newer | **16.8 or newer** (also runs on 18 / 20 / 22) |
-| Features | all | all |
+| Core features and text-format sources | all | all |
+| Current SQLite sources | when the runtime provides `node:sqlite` | when the runtime provides `node:sqlite` |
+| Codex/OpenClaw/DeepSeek Harness compressed sessions | supported | supported (bundled Zstandard fallback) |
 | Dashboard / wire protocol | identical | identical |
 
 **Use the regular package unless your machine is pinned to Node 16.** This one exists for build boxes and
@@ -68,8 +71,14 @@ package back, the Node 16 support lives here:
   touches Electron. If your OS is too old for Electron 38, install an older one alongside
   (`npm i -g electron@22`): a globally installed `electron` is picked up first, and the renderer is built for
   Chromium 108 so it still works.
-- **Hermes SQLite sources are skipped**, because they need `node:sqlite`. This is not a regression: that
-  module only arrived in Node 22.5, so the Node 20 build skips them too.
+- **Current Kilo, Hermes and OpenClaw SQLite sources are skipped in a Node 16 process**, because they need
+  `node:sqlite`. The tracker still uses any attributable legacy JSON/JSONL or VS Code task fallback it
+  finds. OpenClaw-managed Codex rollouts are diagnostic-only because their OAuth token is injected in
+  memory and is not persisted alongside them. The module arrived in Node 22.5, so a Node 20 headless process has the same limitation;
+  the current Electron runtime can read these databases even when launched by this compatibility package.
+- **Compressed histories remain supported on Node 16.** Codex/OpenClaw `.jsonl.zst` rollouts and DeepSeek
+  Harness `.jsonl.zstd` sessions prefer native Zstandard when available and otherwise use the bundled decoder.
+  Plain `.jsonl` remains supported too.
 - **Self-update stays on this package.** `codex-tracker update` checks and installs
   `codex-token-tracker-nodejs16`, never the Node 20 package.
 

@@ -289,14 +289,13 @@ export class Engine extends EventEmitter {
 
   /**
    * Full sync ("calibrate this device"). Unlike the periodic incremental upload this deliberately
-   * throws away every cache on the way:
+   * invalidates every accounting cache on the way:
    *  1. re-read the config so sources enabled since start-up are picked up,
-   *  2. drop the parsed-file index and re-discover + re-parse every transcript of every agent
-   *     (Codex plus the agents running on the Codex subscription: pi, OpenCode, Cline/Roo/Kilo,
-   *     Hermes and any custom `extraSessionDirs`),
+   *  2. mark the parsed-file index stale and re-discover + re-parse every transcript of every agent
+   *     (Codex plus every enabled agent source and custom `extraSessionDirs`),
    *  3. recompute the aggregates with the current pricing table,
-   *  4. re-upload *everything* — not just what changed — so the dashboard's totals for this device
-   *     are replaced by the freshly computed ones,
+   *  4. re-upload every still-present local record — not just what changed — using idempotent upserts
+   *     (remote rows whose source disappeared are not deleted by this protocol),
    *  5. pull the other devices' rows and the live rate limits back down.
    *
    * Returns null when a sync is already running. Never throws: failures land in the returned state.

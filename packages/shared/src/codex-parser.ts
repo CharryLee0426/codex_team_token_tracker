@@ -1,4 +1,4 @@
-import { emptyUsage, type TokenUsage } from "./usage.ts";
+import { emptyUsage, isCanonicalTokenUsage, tryAddUsageInPlace, type TokenUsage } from "./usage.ts";
 
 /** One API request worth of token usage (a delta between consecutive `token_count` events). */
 /** Identifier of the tool that produced the usage: "codex" (Codex CLI/Desktop), "pi", "hermes", or a custom name. */
@@ -60,24 +60,43 @@ interface RawUsage {
   total_tokens?: number;
 }
 
+const RAW_USAGE_KEYS: Array<keyof RawUsage> = [
+  "input_tokens",
+  "cached_input_tokens",
+  "cache_write_input_tokens",
+  "output_tokens",
+  "reasoning_output_tokens",
+  "total_tokens",
+];
+
 function toUsage(r: RawUsage | null | undefined): TokenUsage | null {
-  if (!r || typeof r !== "object") return null;
+  if (!r || typeof r !== "object" || Array.isArray(r)) return null;
+  if (RAW_USAGE_KEYS.some((key) => r[key] !== undefined && (
+    typeof r[key] !== "number" || !Number.isSafeInteger(r[key]) || r[key]! < 0
+  ))) return null;
   if (typeof r.input_tokens !== "number" && typeof r.output_tokens !== "number") return null;
   const input = r.input_tokens ?? 0;
   const output = r.output_tokens ?? 0;
-  return {
+  const recombined = input + output;
+  if (!Number.isSafeInteger(recombined)) return null;
+  if (r.total_tokens !== undefined && r.total_tokens !== recombined) return null;
+  const usage = {
     input,
     cached: r.cached_input_tokens ?? 0,
     cacheWrite: r.cache_write_input_tokens ?? 0,
     output,
     reasoning: r.reasoning_output_tokens ?? 0,
-    total: r.total_tokens ?? input + output,
+    total: r.total_tokens ?? recombined,
     requests: 0,
   };
+  return isCanonicalTokenUsage(usage) ? usage : null;
 }
 
 function parseTs(v: unknown): number | null {
-  if (typeof v === "number") return v < 1e12 ? v * 1000 : v;
+  if (typeof v === "number" && Number.isFinite(v)) {
+    const t = v < 1e12 ? v * 1000 : v;
+    return Number.isFinite(t) ? t : null;
+  }
   if (typeof v === "string") {
     const t = Date.parse(v);
     return Number.isNaN(t) ? null : t;
@@ -110,7 +129,7 @@ function parseRateWindow(w: any): RateLimitWindow | null {
  * Feed lines in order (across multiple reads of a growing file); call `result()` any time.
  *
  * Handles the current format (`{timestamp,type,payload}` lines with `session_meta`, `turn_context`,
- * `event_msg/token_count`) and the legacy 2025 format (top-level meta line + flat `token_count` payloads).
+ * `token_usage_record`) and the legacy 2025 format (top-level meta line + `token_count` payloads).
  */
 export function createSessionParser(fallbackSessionId: string): {
   push(line: string): void;
@@ -128,12 +147,16 @@ export function createSessionParser(fallbackSessionId: string): {
   let contextWindow: number | null = null;
   let rateLimits: RateLimits | null = null;
   let lastCumulative: TokenUsage | null = null;
-  let requests = 0;
   let lineCount = 0;
   const events: UsageEvent[] = [];
+  const eventCumulative = emptyUsage();
+  let hasTokenUsageRecords = false;
+  let recordCumulative = emptyUsage();
+  const recordEvents: UsageEvent[] = [];
+  const seenResponseIds = new Set<string>();
 
   function noteTime(ts: number | null) {
-    if (ts === null) return;
+    if (ts === null || !Number.isFinite(ts)) return;
     if (startedAt === null || ts < startedAt) startedAt = ts;
     if (ts > lastActivityAt) lastActivityAt = ts;
   }
@@ -161,6 +184,8 @@ export function createSessionParser(fallbackSessionId: string): {
         observedAt: ts,
       };
     }
+    // Once per-response records begin, later token_count entries are mirrors of those records.
+    if (hasTokenUsageRecords) return;
     if (!cumulative && !last) return;
 
     let delta: TokenUsage | null = null;
@@ -188,8 +213,31 @@ export function createSessionParser(fallbackSessionId: string): {
     if (!delta) return;
     if (delta.total <= 0 && delta.input <= 0 && delta.output <= 0) return; // duplicate / rate-limit-only event
     delta.requests = 1;
-    requests += 1;
+    if (!tryAddUsageInPlace(eventCumulative, delta)) return;
     events.push({ ts, model, usage: delta, agent: AGENT_CODEX, provider: null });
+  }
+
+  function onTokenUsageRecord(ts: number, payload: any) {
+    if (!payload || typeof payload !== "object") return;
+    if (!sessionId && typeof payload.session_id === "string") sessionId = payload.session_id;
+
+    const usage = toUsage(payload.usage);
+    if (!usage) return;
+    const responseId = typeof payload.response_id === "string" ? payload.response_id : null;
+    if (responseId !== null && seenResponseIds.has(responseId)) return;
+    if (responseId !== null) seenResponseIds.add(responseId);
+
+    if (!hasTokenUsageRecords) {
+      // A rollout can be resumed after upgrading Codex. Preserve its legacy cumulative prefix;
+      // subsequent token_count entries are emitted after (and mirror) these authoritative records.
+      hasTokenUsageRecords = true;
+      recordEvents.push(...events);
+      recordCumulative = { ...eventCumulative };
+    }
+
+    const delta = { ...usage, requests: 1 };
+    if (!tryAddUsageInPlace(recordCumulative, delta)) return;
+    recordEvents.push({ ts, model, usage: delta, agent: AGENT_CODEX, provider: null });
   }
 
   return {
@@ -209,7 +257,9 @@ export function createSessionParser(fallbackSessionId: string): {
       const payload = obj.payload;
 
       if (type === "session_meta" && payload && typeof payload === "object") {
-        sessionId = payload.id ?? payload.session_id ?? sessionId;
+        const metaId = typeof payload.id === "string" ? payload.id : typeof payload.session_id === "string" ? payload.session_id : null;
+        if (sessionId !== null && metaId !== null && metaId !== sessionId) return;
+        sessionId ??= metaId;
         noteTime(parseTs(payload.timestamp) ?? ts);
         cwd = typeof payload.cwd === "string" ? payload.cwd : cwd;
         originator = typeof payload.originator === "string" ? payload.originator : originator;
@@ -220,7 +270,8 @@ export function createSessionParser(fallbackSessionId: string): {
       }
       // legacy meta line: {"id":..., "timestamp":..., "instructions":...}
       if (!type && typeof obj.id === "string" && obj.timestamp && "instructions" in obj) {
-        sessionId = obj.id;
+        if (sessionId !== null && obj.id !== sessionId) return;
+        sessionId ??= obj.id;
         noteTime(ts);
         if (typeof obj.cwd === "string") cwd = obj.cwd;
         return;
@@ -230,6 +281,12 @@ export function createSessionParser(fallbackSessionId: string): {
         if (typeof payload.cwd === "string") cwd = payload.cwd;
         if (typeof payload.timezone === "string") timezone = payload.timezone;
         noteTime(ts);
+        return;
+      }
+      if (type === "token_usage_record") {
+        const t = ts ?? (lastActivityAt || Date.now());
+        noteTime(t);
+        onTokenUsageRecord(t, payload);
         return;
       }
       if (type === "event_msg" && payload && typeof payload === "object") {
@@ -258,7 +315,10 @@ export function createSessionParser(fallbackSessionId: string): {
     result(): ParsedSession | null {
       if (lineCount === 0) return null;
       const id = sessionId ?? fallbackSessionId;
-      const cumulative = lastCumulative ? { ...lastCumulative, requests } : { ...emptyUsage(), requests };
+      const selectedEvents = hasTokenUsageRecords ? recordEvents : events;
+      const cumulative = hasTokenUsageRecords
+        ? { ...recordCumulative }
+        : { ...eventCumulative };
       return {
         sessionId: id,
         agent: AGENT_CODEX,
@@ -272,7 +332,7 @@ export function createSessionParser(fallbackSessionId: string): {
         cliVersion,
         timezone,
         model,
-        events,
+        events: selectedEvents,
         cumulative,
         contextWindow,
         rateLimits,
@@ -291,7 +351,7 @@ export function parseSessionText(text: string, fallbackSessionId = "unknown"): P
 
 /** Derive a session id from a rollout filename like rollout-2026-08-31T10-27-38-<uuid>.jsonl */
 export function sessionIdFromFilename(filename: string): string {
-  const base = basename(filename).replace(/\.jsonl$/i, "");
+  const base = basename(filename).replace(/\.jsonl(?:\.zst)?$/i, "");
   const m = base.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
   return m ? m[1] : base;
 }

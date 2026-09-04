@@ -6,8 +6,46 @@ All notable changes to `codex-token-tracker`. This project follows [Semantic Ver
 
 Run it with `npx` — nothing to install.
 
+### Added
+
+- **Current Codex-OAuth storage support across the audited agent set.** The tracker now understands the
+  current local usage formats for Codex CLI/Desktop, pi, oh-my-pi, Cline, Kilo Code, Hermes Agent,
+  OpenClaw and DeepSeek Harness while retaining their older readers:
+  - Codex `token_usage_record` events (de-duplicated by response id) and compressed `.jsonl.zst` rollouts;
+  - pi assistant usage plus oh-my-pi `model_usage` / `reasoningTokens` records;
+  - Cline v1 message envelopes under `~/.cline/data/sessions` and its current legacy-task location, with
+    `CLINE_SESSION_DATA_DIR` → `CLINE_DATA_DIR` → `CLINE_DIR/data` precedence;
+  - current Kilo `kilo*.db` assistant messages, classified as Codex OAuth using only the Kilo data root's
+    `auth.json` entry `type` discriminator (credential values are not retained, logged, or uploaded);
+  - Hermes `session_model_usage` rows, including cache writes, reasoning, request counts and profiles;
+  - OpenClaw per-agent transcript databases and attributable legacy sessions. Managed Codex rollouts remain
+    discoverable for local diagnostics, but never enter OAuth totals because OpenClaw injects their auth in
+    memory instead of persisting an auth discriminator beside the rollout.
+  - DeepSeek Harness `assistant/message` usage from `$DSH_HOME/sessions` / `~/.dsh/sessions`, including
+    concatenated independent `session.jsonl.zstd` frames and failed-attempt usage samples. Only exact
+    `openai-codex` provenance with current OAuth route metadata enters OAuth totals. Local credentials/settings
+    YAML is parsed, but only its route discriminators are used; credential values are not retained, logged or uploaded.
+    Custom session roots can select the first-class `dsh` format.
+- **The OpenRouter-ranked agent audit has explicit coverage decisions.** Claude Code is not integrated because
+  it has no public Codex / ChatGPT OAuth provider. Zazen (the Freebuff fork) can run a locally installed Codex,
+  whose native rollouts are already covered by `codex`; it exposes no distinct durable OAuth attribution for a
+  separate source. Existing OpenCode and Roo readers remain enabled as best-effort compatibility integrations.
+
 ### Changed
 
+- SQLite-backed Kilo, Hermes and OpenClaw stores are read when the runtime exposes `node:sqlite` (Node 22.5+
+  and the current Electron runtime). Older Node processes use any attributable legacy JSON/JSONL or VS Code-task
+  fallback; SQLite-only history is unavailable. Hermes aggregate rows are assigned
+  to their `last_seen` hour, so their totals are preserved but hourly distribution is approximate. Kilo's
+  current auth type can reclassify historical `providerID: openai` rows after an OAuth/API-key switch.
+- Codex/OpenClaw `.jsonl.zst` rollouts and DeepSeek Harness `.jsonl.zstd` sessions prefer native Zstandard
+  when available and otherwise use the bundled decoder, including on supported older Node runtimes. Plain
+  `.jsonl` remains supported.
+- Native Codex rollout usage now fails closed unless the current `auth.json` explicitly identifies ChatGPT
+  login or contains a structurally valid legacy OAuth token bundle. Keyring-only and ephemeral authentication
+  cannot be proven from a rollout and is therefore omitted; no credential value is retained, logged or uploaded.
+  Because upstream rollouts lack a per-request auth field, changing the current Codex login between ChatGPT
+  and API-key modes reclassifies historical rollouts on the next scan.
 - **`npx codex-token-tracker` is the documented way to run the tracker.** `npx codex-token-tracker login`
   the first time on a computer, `npx codex-token-tracker` every day after (or *Launch at login*): npx
   resolves the newest published version on every start, so there is nothing to keep up to date. A global
@@ -17,6 +55,43 @@ Run it with `npx` — nothing to install.
   the newer version and says to quit and run `npx codex-token-tracker` again, which fetches it; `--check`
   is unchanged. `UpdateInfo` carries an `installMethod` (`global` | `npx`) and `command` is the start
   command under npx. `--help` mentions the npx form.
+
+### Fixed
+
+- **Agent session summaries no longer collide when two agents reuse the same session id.** Backend upserts and
+  device merges now identify a summary by `(device, agent, sessionId)`, while adopting legacy agent-less rows as
+  native Codex. The client replays its cached summaries once so previously collapsed records can be restored.
+- **Only Codex-OAuth events can reach statistics or uploads, even with `trackAllProviders` enabled.** Session
+  metadata and cumulative totals are rebuilt from the retained events; API-key and non-OpenAI sessions are
+  removed before pricing and upload. DeepSeek Harness also stamps an exact route as unverified unless its
+  current sidecar proves OAuth, so diagnostic parsing cannot turn API-key usage into uploadable usage.
+- **Parallel Codex sessions and subagents no longer make usage totals move backward.** A child rollout
+  keeps its own identity when it contains inherited parent metadata, cumulative usage stays additive
+  across Codex counter resets, and the scanner keeps the last valid snapshot during transient rewrites,
+  filesystem errors, overlapping scans, or full rescans. Plain rollouts larger than 50 MiB are parsed
+  line by line instead of disappearing.
+- **Compressed Codex/OpenClaw histories work on Node 16 and 20 without native Zstandard.** The bundled
+  decoder streams `.jsonl.zst` input when no native decoder exists, and an oversized non-usage record is
+  discarded without hiding later usage records.
+- **Large Cline snapshots are parsed with bounded memory.** Prompt and tool strings are discarded while
+  streaming `*.messages.json`; a torn or malformed rewrite retains the last valid usage snapshot for retry.
+- **OpenCode accounting now includes separately stored reasoning tokens without double-counting totals.**
+  Inconsistent reported totals fall back to recombined counters, and prompt-derived session titles are never
+  reused as uploaded project metadata.
+- **Generic JSON/JSONL attribution no longer crosses record boundaries.** A provider, API, or model must be
+  present on the usage record/message or its enclosing document; a previous record cannot lend it an OAuth
+  identity. Hermes discovery now consistently defaults to `<user-home>/.hermes` on every operating system.
+- **Kilo's current database is discovered in each platform's official data directory:** `%LOCALAPPDATA%\kilo`
+  on Windows, `~/Library/Application Support/kilo` on macOS, and `$XDG_DATA_HOME/kilo` on Linux.
+- **OpenClaw forked sessions no longer multiply copied parent usage.** Durable transcript event/message ids
+  are de-duplicated within each agent database while independent id-less usage rows remain countable.
+
+### Upgrade note
+
+- Deploy the backend's `(device, agent, sessionId)` session identity before distributing this client. If an
+  older client used `trackAllProviders`, it may already have uploaded API-key OpenAI rows; the upsert-only wire
+  protocol cannot safely infer deletions. Back up Convex, remove that device's `hourlyUsage` and `sessions`
+  rows, then run `codex-tracker sync` on the device. Revoking the device does not delete its usage.
 
 ## 0.3.1 — 2026-09-02
 
@@ -31,8 +106,9 @@ oh-my-pi sessions are tracked.
   that directory, every oh-my-pi profile (`~/.omp/profiles/<name>/agent/sessions`), the XDG data
   directory oh-my-pi switches to when `$XDG_DATA_HOME/omp` exists, and `$PI_CODING_AGENT_SESSION_DIR`;
   `$PI_CONFIG_DIR` is honoured in place of `~/.omp`. The transcripts go through the pi reader, so only
-  `openai-codex` messages count (every provider with `trackAllProviders`), and they appear tagged
-  **oh-my-pi** (`omp`) in the popover, `codex-tracker status`, `codex-tracker paths` and on the
+  `openai-codex` messages enter accounting (`trackAllProviders` may retain other providers only for local
+  diagnostics), and they appear tagged **oh-my-pi** (`omp`) in the popover, `codex-tracker status`,
+  `codex-tracker paths` and on the
   dashboard. An `extraSessionDirs` entry with `"agent": "omp"` now defaults to the pi format.
 
 ## 0.3.0 — 2026-09-02
@@ -118,8 +194,8 @@ A manual **Sync** button that recalibrates this device's numbers on the dashboar
      coding agents running on your Codex subscription (pi, OpenCode, Cline / Roo / Kilo, Hermes) and any
      configured `extraSessionDirs` — instead of skipping files whose size and mtime are unchanged;
   3. recomputes the aggregates with the current pricing table;
-  4. re-uploads **everything**, so the dashboard's totals for this device are replaced by the freshly
-     computed ones;
+  4. re-uploads every still-present local record. Existing rows are refreshed idempotently; this protocol
+     does not delete older remote rows whose source file is no longer present;
   5. pulls the other devices' rows and the live rate limits back down.
 
   Use it when a machine's numbers look wrong, after installing a new agent, or after an update that

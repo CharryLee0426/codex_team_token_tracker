@@ -10,6 +10,8 @@ export const AGENT_LABELS: Record<string, string> = {
   cline: "Cline",
   roo: "Roo Code",
   kilo: "Kilo Code",
+  openclaw: "OpenClaw",
+  dsh: "DeepSeek Harness",
 };
 
 export function agentLabel(agent: string): string {

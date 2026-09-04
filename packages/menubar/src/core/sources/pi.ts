@@ -1,8 +1,9 @@
 import os from "node:os";
 import path from "node:path";
-import { createPiSessionParser, piSessionIdFromFilename } from "@codex-tracker/shared";
+import { createPiSessionParser, piSessionIdFromFilename, type ParsedSession } from "@codex-tracker/shared";
 import type { SessionRoot, SourceContext, SourceDefinition, SourceFile, ParseOptions } from "./types";
 import { isDir, makeRoot, recentSubdirs } from "./util";
+import { streamProjectedPiJsonl } from "./pi-jsonl-stream";
 
 /** pi coding agent home (`$PI_CODING_AGENT_DIR`, default ~/.pi/agent). */
 export function piHome(): string {
@@ -15,6 +16,19 @@ function underHome(h: { home: string }, envVar: string | undefined, ...rel: stri
   return path.join(h.home, ...rel);
 }
 
+function restamp(session: ParsedSession | null, agent: string): ParsedSession | null {
+  if (!session || agent === "pi") return session;
+  return { ...session, agent, events: session.events.map((event) => ({ ...event, agent })) };
+}
+
+async function parsePiPath(file: Omit<SourceFile, "text">, opts: ParseOptions): Promise<ParsedSession | null> {
+  const parser = createPiSessionParser(piSessionIdFromFilename(file.path), {
+    includeAllProviders: opts.includeAllProviders,
+  });
+  await streamProjectedPiJsonl(file.path, (line) => parser.push(line));
+  return restamp(parser.result(), file.root.agent);
+}
+
 
 /** pi (github.com/badlogic/pi-mono): ~/.pi/agent/sessions/<cwd-slug>/<timestamp>_<uuid>.jsonl */
 export const piSource: SourceDefinition = {
@@ -24,19 +38,18 @@ export const piSource: SourceDefinition = {
   discover(ctx: SourceContext): SessionRoot[] {
     const roots: SessionRoot[] = [];
     for (const h of ctx.homes) {
-      const dir = path.join(underHome(h, process.env.PI_CODING_AGENT_DIR, ".pi", "agent"), "sessions");
+      const dir = path.join(underHome(h, ctx.env.PI_CODING_AGENT_DIR, ".pi", "agent"), "sessions");
       if (isDir(dir)) roots.push(makeRoot(dir, "pi", "pi", "pi", "flat", h.origin, [".jsonl"], 3));
     }
     return roots;
   },
   hotDirs: (root) => [root.dir, ...recentSubdirs(root.dir)],
   watchRecursively: () => true,
+  parsePath: parsePiPath,
   parse(file: SourceFile, opts: ParseOptions) {
     const parser = createPiSessionParser(piSessionIdFromFilename(file.path), { includeAllProviders: opts.includeAllProviders });
     for (const line of file.text.split(/\r?\n/)) parser.push(line);
-    const s = parser.result();
-    if (s && file.root.agent !== "pi") return { ...s, agent: file.root.agent, events: s.events.map((e) => ({ ...e, agent: file.root.agent })) };
-    return s;
+    return restamp(parser.result(), file.root.agent);
   },
   extraRoot: (dir, agent) => makeRoot(dir, "pi", agent, "pi", "extra", "extra", [".jsonl"], 3),
 };

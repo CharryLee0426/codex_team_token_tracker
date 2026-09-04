@@ -1,5 +1,5 @@
 import { hourStartOf, localParts, addLocalDays, dayKeyRange } from "./time.ts";
-import { emptyUsage, addUsageInPlace, type TokenUsage } from "./usage.ts";
+import { emptyUsage, tryAddUsageInPlace, type TokenUsage } from "./usage.ts";
 import { resolvePrice, computeCost, type ModelPrice } from "./pricing.ts";
 import type { UsageEvent } from "./codex-parser.ts";
 
@@ -27,17 +27,19 @@ export function bucketEvents(
     const agent = e.agent || "codex";
     const key = bucketKey(hourStart, e.model, agent);
     let b = into.get(key);
+    const created = !b;
     if (!b) {
       b = { hourStart, model: e.model, agent, usage: emptyUsage(), cost: 0 };
-      into.set(key, b);
     }
-    addUsageInPlace(b.usage, e.usage);
+    if (!tryAddUsageInPlace(b.usage, e.usage)) continue;
+    if (created) into.set(key, b);
     let p = priceCache.get(e.model);
     if (!p) {
       p = resolvePrice(e.model, pricing).price;
       priceCache.set(e.model, p);
     }
-    b.cost += computeCost(e.usage, p);
+    const nextCost = b.cost + computeCost(e.usage, p);
+    if (Number.isFinite(nextCost)) b.cost = nextCost;
   }
   return into;
 }
@@ -65,8 +67,9 @@ function accumulate(map: Map<string, Cell>, key: string, r: HourRow) {
     c = { key, usage: emptyUsage(), cost: 0 };
     map.set(key, c);
   }
-  addUsageInPlace(c.usage, r.usage);
-  c.cost += r.cost;
+  if (!tryAddUsageInPlace(c.usage, r.usage)) return;
+  const nextCost = c.cost + r.cost;
+  if (Number.isFinite(nextCost)) c.cost = nextCost;
 }
 
 /** Group hourly rows by local calendar day (YYYY-MM-DD) in the machine (or given) time zone. */
@@ -109,8 +112,9 @@ export function weekdayTotals(rows: Iterable<HourRow>, tz?: string): Cell[] {
   const cells: Cell[] = Array.from({ length: 7 }, (_, i) => ({ key: String(i), usage: emptyUsage(), cost: 0 }));
   for (const r of rows) {
     const c = cells[localParts(r.hourStart, tz).weekday];
-    addUsageInPlace(c.usage, r.usage);
-    c.cost += r.cost;
+    if (!tryAddUsageInPlace(c.usage, r.usage)) continue;
+    const nextCost = c.cost + r.cost;
+    if (Number.isFinite(nextCost)) c.cost = nextCost;
   }
   return cells;
 }
@@ -120,8 +124,9 @@ export function hourOfDayTotals(rows: Iterable<HourRow>, tz?: string): Cell[] {
   const cells: Cell[] = Array.from({ length: 24 }, (_, i) => ({ key: String(i), usage: emptyUsage(), cost: 0 }));
   for (const r of rows) {
     const c = cells[localParts(r.hourStart, tz).hour];
-    addUsageInPlace(c.usage, r.usage);
-    c.cost += r.cost;
+    if (!tryAddUsageInPlace(c.usage, r.usage)) continue;
+    const nextCost = c.cost + r.cost;
+    if (Number.isFinite(nextCost)) c.cost = nextCost;
   }
   return cells;
 }

@@ -4,6 +4,7 @@ import { api } from "@codex-tracker/backend/convex/_generated/api";
 import {
   expandCompactRows,
   hourStartOf,
+  isCanonicalTokenUsage,
   sha256Hex,
   MAX_BUCKETS_PER_PUSH,
   MAX_SESSIONS_PER_PUSH,
@@ -20,6 +21,8 @@ import { machineId } from "./platform";
 
 /** Wire version from which the backend accepts `machineId` (one device per machine). */
 export const WIRE_MACHINE_ID = 2;
+/** Bump when the backend's session upsert identity changes, forcing one safe replay of summaries. */
+export const SESSION_UPLOAD_IDENTITY_EPOCH = 2;
 
 export class SignedOutError extends Error {
   constructor(message: string) {
@@ -81,12 +84,67 @@ function bucketHash(b: HourBucket): string {
   return `${u.input}|${u.cached}|${u.cacheWrite}|${u.output}|${u.reasoning}|${u.total}|${u.requests}|${b.cost.toFixed(6)}`;
 }
 
-function sessionHash(s: ParsedSession, cost: number): string {
-  return `${s.agent}|${s.model}|${s.lastActivityAt}|${s.cumulative.total}|${s.cumulative.requests}|${cost.toFixed(6)}|${s.projectName ?? ""}`;
+function uploadableBucket(bucket: HourBucket): boolean {
+  return Number.isSafeInteger(bucket.hourStart)
+    && bucket.hourStart >= 0
+    && Number.isFinite(bucket.cost)
+    && bucket.cost >= 0
+    && isCanonicalTokenUsage(bucket.usage);
+}
+
+function uploadableSession(session: ParsedSession, cost: number): boolean {
+  return Number.isFinite(cost)
+    && cost >= 0
+    && Number.isFinite(session.startedAt)
+    && session.startedAt >= 0
+    && Number.isFinite(session.lastActivityAt)
+    && session.lastActivityAt >= 0
+    && isCanonicalTokenUsage(session.cumulative);
+}
+
+function uploadableLive(live: LiveSnapshot): boolean {
+  return Number.isFinite(live.tokensPerSecond)
+    && live.tokensPerSecond >= 0
+    && (live.lastEventAt === null || (Number.isFinite(live.lastEventAt) && live.lastEventAt >= 0))
+    && Number.isSafeInteger(live.todayTotal)
+    && live.todayTotal >= 0
+    && Number.isFinite(live.todayCost)
+    && live.todayCost >= 0;
+}
+
+function uploadSession(s: ParsedSession, cost: number): UploadSession {
+  return {
+    sessionId: s.sessionId,
+    agent: s.agent,
+    model: s.model,
+    projectName: s.projectName,
+    cwdHash: s.cwd ? sha256Hex(s.cwd) : null,
+    startedAt: s.startedAt,
+    lastActivityAt: s.lastActivityAt,
+    input: s.cumulative.input,
+    cached: s.cumulative.cached,
+    cacheWrite: s.cumulative.cacheWrite,
+    output: s.cumulative.output,
+    reasoning: s.cumulative.reasoning,
+    total: s.cumulative.total,
+    requests: s.cumulative.requests,
+    cost,
+    source: s.source ?? s.originator ?? null,
+    cliVersion: s.cliVersion,
+  };
+}
+
+/** Hash exactly the normalized session payload; any outbound correction must invalidate local state. */
+export function sessionUploadHash(s: ParsedSession, cost: number): string {
+  return sha256Hex(JSON.stringify(uploadSession(s, cost)));
 }
 
 function bucketStateKey(b: { hourStart: number; model: string; agent: string }): string {
   return `${b.hourStart}|${b.model}|${b.agent}`;
+}
+
+export function sessionStateKey(s: Pick<ParsedSession, "agent" | "sessionId">): string {
+  return `${SESSION_UPLOAD_IDENTITY_EPOCH}|${s.agent}|${s.sessionId}`;
 }
 
 export interface UploaderOptions {
@@ -191,8 +249,7 @@ export class Uploader {
 
   /**
    * Upload changed hour buckets and session summaries. Returns counts of pushed items.
-   * With `full`, the record of what was already pushed is dropped first so *everything* is re-sent —
-   * that is what recalibrates this device's totals on the dashboard after a parser or pricing change.
+   * With `full`, the record of what was already pushed is dropped first so *everything* is re-sent.
    */
   async pushAll(
     buckets: HourBucket[],
@@ -211,6 +268,7 @@ export class Uploader {
       const changed: UploadHourBucket[] = [];
       const hashes = new Map<string, string>();
       for (const b of buckets.sort((a, b) => a.hourStart - b.hourStart)) {
+        if (!uploadableBucket(b)) continue;
         const key = bucketStateKey(b);
         const h = bucketHash(b);
         if (this.state.pushedBuckets[key] === h) continue;
@@ -246,36 +304,20 @@ export class Uploader {
       const sHashes = new Map<string, string>();
       for (const s of sessions) {
         if (!s.events.length) continue;
-        const sKey = `${s.agent}:${s.sessionId}`;
-        const cost = sessionCosts.get(sKey) ?? 0;
-        const h = sessionHash(s, cost);
+        const costKey = `${s.agent}:${s.sessionId}`;
+        const sKey = sessionStateKey(s);
+        const cost = sessionCosts.get(costKey) ?? 0;
+        if (!uploadableSession(s, cost)) continue;
+        const h = sessionUploadHash(s, cost);
         if (this.state.pushedSessions[sKey] === h) continue;
         sHashes.set(sKey, h);
-        changedSessions.push({
-          sessionId: s.sessionId,
-          agent: s.agent,
-          model: s.model,
-          projectName: s.projectName,
-          cwdHash: s.cwd ? sha256Hex(s.cwd) : null,
-          startedAt: s.startedAt,
-          lastActivityAt: s.lastActivityAt,
-          input: s.cumulative.input,
-          cached: s.cumulative.cached,
-          cacheWrite: s.cumulative.cacheWrite,
-          output: s.cumulative.output,
-          reasoning: s.cumulative.reasoning,
-          total: s.cumulative.total,
-          requests: s.cumulative.requests,
-          cost,
-          source: s.source ?? s.originator ?? null,
-          cliVersion: s.cliVersion,
-        });
+        changedSessions.push(uploadSession(s, cost));
       }
       let pushedSessions = 0;
       for (let i = 0; i < changedSessions.length; i += MAX_SESSIONS_PER_PUSH) {
         const chunk = changedSessions.slice(i, i + MAX_SESSIONS_PER_PUSH);
         await this.call((c, token) => c.mutation(api.ingest.pushSessions, { token, sessions: chunk }));
-        for (const s of chunk) this.state.pushedSessions[`${s.agent}:${s.sessionId}`] = sHashes.get(`${s.agent}:${s.sessionId}`)!;
+        for (const s of chunk) this.state.pushedSessions[sessionStateKey(s)] = sHashes.get(sessionStateKey(s))!;
         pushedSessions += chunk.length;
         this.state.lastUploadAt = Date.now();
         saveState(this.state);
@@ -295,7 +337,8 @@ export class Uploader {
   async heartbeat(input: { appVersion: string; platform: string; hostname: string | null; timezone: string; live: LiveSnapshot | null }) {
     // The machine id lets the backend fold a second login from this computer into the same device.
     const extra = backendSupports(this.opts.getConfig(), WIRE_MACHINE_ID) ? { machineId: machineId() } : {};
-    await this.call((c, token) => c.mutation(api.ingest.heartbeat, { token, ...input, ...extra }));
+    const live = input.live && uploadableLive(input.live) ? input.live : null;
+    await this.call((c, token) => c.mutation(api.ingest.heartbeat, { token, ...input, live, ...extra }));
   }
 
   /** Other devices' hourly rows for the last `weeks` weeks (merged into the heatmap and "all devices today"). */

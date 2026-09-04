@@ -111,6 +111,9 @@ importers:
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
+      fzstd:
+        specifier: 0.1.1
+        version: 0.1.1
       menubar:
         specifier: ^9.5.3
         version: 9.5.3(electron@38.8.6)
@@ -123,6 +126,9 @@ importers:
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
 
   packages/menubar-node16:
     dependencies:
@@ -1345,6 +1351,9 @@ packages:
     resolution: {integrity: sha512-yhlQgA6mnOJUKOsRUFsgJdQCvkKhcz8tlZG5HBQfReYZy46OwLcY+Zia0mtdHsOo9y/hP+CxMN0TU9QxoOtG4g==}
     engines: {node: '>=6 <7 || >=8'}
 
+  fzstd@0.1.1:
+    resolution: {integrity: sha512-dkuVSOKKwh3eas5VkJy1AW1vFpet8TA/fGmVA5krThl8YcOVE/8ZIoEA1+U1vEn5ckxxhLirSdY837azmbaNHA==}
+
   get-stream@5.2.0:
     resolution: {integrity: sha512-nBF+F1rAZVCu/p7rjzgA+Yb4lfYXrpl7a6VmJrU8wF9I1CKvP/QwPNZHnOlwbTkY6dvtFIzFMSyQXbLoTQPRpA==}
     engines: {node: '>=8'}
@@ -1819,6 +1828,11 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
+
+  yaml@2.9.0:
+    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
 
   yauzl@2.10.0:
     resolution: {integrity: sha512-p4a9I6X6nu6IhoGmBqAcbJy1mlC4j27vEPZX9F4L4/vZT3Lyq1VkFHw/V/PUcB9Buo+DG3iHkT0x3Qya58zc3g==}
@@ -2731,6 +2745,8 @@ snapshots:
       jsonfile: 4.0.0
       universalify: 0.1.2
 
+  fzstd@0.1.1: {}
+
   get-stream@5.2.0:
     dependencies:
       pump: 3.0.4
@@ -3205,6 +3221,8 @@ snapshots:
   wrappy@1.0.2: {}
 
   ws@8.21.0: {}
+
+  yaml@2.9.0: {}
 
   yauzl@2.10.0:
     dependencies:
