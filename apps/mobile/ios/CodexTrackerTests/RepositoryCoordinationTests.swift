@@ -1,8 +1,39 @@
+import Combine
+import ConvexMobile
 import XCTest
 @testable import CodexTracker
 
 @MainActor
 final class RepositoryCoordinationTests: XCTestCase {
+  func testFirstPublisherValueReceivesBackgroundValueOnMainActor() async throws {
+    let waiter = FirstPublisherValue<Int>()
+    waiter.start(
+      Just(42)
+        .setFailureType(to: ClientError.self)
+        .subscribe(on: DispatchQueue.global())
+        .eraseToAnyPublisher()
+    )
+
+    let value = try await waiter.wait()
+    XCTAssertEqual(value, 42)
+  }
+
+  func testFirstPublisherValueReceivesBackgroundCompletionOnMainActor() async {
+    let waiter = FirstPublisherValue<Int>()
+    waiter.start(
+      Empty<Int, ClientError>()
+        .subscribe(on: DispatchQueue.global())
+        .eraseToAnyPublisher()
+    )
+
+    do {
+      _ = try await waiter.wait()
+      XCTFail("Completion without a value must fail instead of suspending the load")
+    } catch {
+      XCTAssertFalse(error is CancellationError)
+    }
+  }
+
   func testReplacingTeamLoadCancelsPendingResultAndInvalidatesOldGeneration() async {
     let coordinator = RepositoryLoadCoordinator()
     let pending = PendingLoadResult<Int>()

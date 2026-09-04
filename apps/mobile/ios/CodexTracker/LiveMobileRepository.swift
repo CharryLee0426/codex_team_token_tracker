@@ -484,12 +484,12 @@ final class LiveMobileRepository: MobileRepository, StreamingMobileRepository {
 }
 
 @MainActor
-private final class FirstPublisherValue<Value: Sendable> {
+final class FirstPublisherValue<Value: Sendable> {
   private let pendingResult = PendingLoadResult<Value>()
   private var cancellable: AnyCancellable?
 
   func start(_ publisher: AnyPublisher<Value, ClientError>) {
-    cancellable = publisher.first().sink { [weak self] completion in
+    cancellable = publisher.first().receive(on: DispatchQueue.main).sink { [weak self] completion in
       switch completion {
       case .finished:
         self?.pendingResult.resume(throwing: LiveRepositoryError.subscriptionEnded)

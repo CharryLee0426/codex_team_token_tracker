@@ -24,6 +24,8 @@ settings:
   base:
     DEVELOPMENT_TEAM: ""
     CODE_SIGNING_ALLOWED: NO
+    "CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]": YES
+    "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
     IPHONEOS_DEPLOYMENT_TARGET: 17.0
     SWIFT_VERSION: 6.0
     SWIFT_STRICT_CONCURRENCY: complete

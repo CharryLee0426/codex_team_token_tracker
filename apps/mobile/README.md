@@ -71,7 +71,9 @@ distributing production clients.
 
 Release compilation produces an **unsigned iOS device `.app` and unsigned Android APK/AAB**.
 Distribution signing, provisioning, IPA export, TestFlight/Play upload are separate release steps.
-Development iOS builds remain unsigned Simulator apps; Android Debug builds are debug-signed.
+Development iOS Simulator apps use Xcode's ad hoc "Sign to Run Locally" signing so Clerk can access
+the Keychain; no Apple Developer team is required for this Simulator signing. Android Debug builds
+are debug-signed.
 
 Use `--env-file PATH` for an explicit dotenv file (including a CI-created secret file), `--dry-run`
 to inspect commands without writing config/building/deploying, and `--destination 'platform=iOS
@@ -86,6 +88,30 @@ The existing UI suites deliberately launch **demo fixtures**, even when the inst
 development configuration. Passing E2E proves native navigation and read-only behavior; complete
 Clerk sign-in and team-access testing separately with a development account. No sign-in credentials
 or tokens are embedded in the tests.
+
+To build a live development app for iPhone 17 Pro Max without launching demo tests:
+
+```bash
+pnpm mobile:build --local --platform ios \
+  --destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest'
+```
+
+Install `artifacts/mobile/local/ios/DerivedData/Build/Products/Debug-iphonesimulator/CodexTracker.app`
+on that simulator, then launch it normally without `--demo`. Sign in with a development account
+to exercise real Clerk authentication and Convex data; no fixture data is used in this launch.
+
+For the same live check on Android, boot an emulator and use its serial from `adb devices`:
+
+```bash
+pnpm mobile:build --local --platform android
+adb -s emulator-5554 install -r artifacts/mobile/local/android/codex-tracker-debug.apk
+adb -s emulator-5554 shell am start -S -n dev.chenli.codextracker/.MainActivity
+```
+
+This normal launch uses the development services. Complete sign-in in the emulator, then check
+Personal, Team, Members, Devices, Settings, and session restoration after restarting the app.
+Do not supply the `dev.chenli.codextracker.DEMO_MODE` intent extra or run `DemoTestRunner` for this
+live check. The APK contains public service configuration; account sessions stay on the emulator.
 
 ## iOS
 

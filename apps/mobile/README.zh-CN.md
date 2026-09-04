@@ -63,8 +63,9 @@ pnpm mobile:build --release
 分发生产客户端前需单独部署生产后端变更。
 
 Release 编译产物是**未签名 iOS 真机 `.app` 和未签名 Android APK/AAB**。分发签名、
-provisioning、IPA 导出及 TestFlight/Play 上传属于独立发布步骤。开发 iOS 产物仍是未签名
-Simulator 应用；Android Debug 产物使用 debug 签名。
+provisioning、IPA 导出及 TestFlight/Play 上传属于独立发布步骤。开发 iOS Simulator 应用使用
+Xcode 的 ad hoc “Sign to Run Locally” 签名，让 Clerk 可以访问 Keychain；模拟器签名不需要
+Apple Developer 团队。Android Debug 产物使用 debug 签名。
 
 用 `--env-file PATH` 指定 dotenv 文件（含 CI 创建的 secret 文件），`--dry-run` 仅查看命令，
 不会写配置、构建或部署；`--destination 'platform=iOS Simulator,name=你的模拟器,OS=latest'`
@@ -77,6 +78,29 @@ pnpm 命令包含 Node 的 `--` 分隔符，避免 Node 提前加载流水线的
 
 现有 UI 测试即使运行开发配置的应用，也会显式使用**演示数据**。E2E 通过表示原生导航与只读
 行为通过验证；完整 Clerk 登录与团队访问需另用开发账号测试。测试不内置登录凭据或 token。
+
+为 iPhone 17 Pro Max 构建使用真实开发环境的应用，不启动演示测试：
+
+```bash
+pnpm mobile:build --local --platform ios \
+  --destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest'
+```
+
+将 `artifacts/mobile/local/ios/DerivedData/Build/Products/Debug-iphonesimulator/CodexTracker.app`
+安装到该模拟器，正常启动且不传入 `--demo`。使用开发账号登录后即可验证真实 Clerk 身份认证
+与 Convex 数据；此次启动不会使用演示数据。
+
+在 Android 上进行同样的真实环境验证时，先启动模拟器，并使用 `adb devices` 显示的序列号：
+
+```bash
+pnpm mobile:build --local --platform android
+adb -s emulator-5554 install -r artifacts/mobile/local/android/codex-tracker-debug.apk
+adb -s emulator-5554 shell am start -S -n dev.chenli.codextracker/.MainActivity
+```
+
+正常启动会使用开发环境服务。在模拟器中完成登录后，检查个人、团队、成员、设备、设置页面，
+以及重启应用后的登录状态恢复。真实环境验证不要传入 `dev.chenli.codextracker.DEMO_MODE`
+intent 参数，也不要运行 `DemoTestRunner`。APK 仅包含公开服务配置，登录会话保留在模拟器内。
 
 ## iOS
 

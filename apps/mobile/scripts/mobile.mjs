@@ -76,7 +76,9 @@ export function buildCommands(options, repo, output, xcconfig) {
       '-configuration', release ? 'Release' : 'Debug', '-xcconfig', xcconfig,
       '-derivedDataPath', join(output, 'ios/DerivedData'),
       ...(release ? ['-sdk', 'iphoneos', '-destination', 'generic/platform=iOS'] : ['-destination', options.destination]),
-      'CODE_SIGNING_ALLOWED=NO', options.action === 'e2e' ? 'test' : 'build',
+      // Keep the project's Simulator signing settings: Clerk needs its Keychain entitlement.
+      ...(release ? ['CODE_SIGNING_ALLOWED=NO'] : []),
+      options.action === 'e2e' ? 'test' : 'build',
     ] });
   }
   if (options.platform !== 'ios') {

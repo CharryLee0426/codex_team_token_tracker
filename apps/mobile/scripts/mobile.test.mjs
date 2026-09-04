@@ -78,6 +78,21 @@ test('E2E builds use Debug; production is available only on release build path',
   assert(release.every(c => !c.args.includes('deploy')));
 });
 
+test('iOS builds preserve SDK-specific project signing; releases explicitly disable it', () => {
+  for (const mode of ['local', 'demo']) {
+    for (const action of ['build', 'e2e']) {
+      const [ios] = buildCommands(parseOptions([action, `--${mode}`, '--platform', 'ios']), '/repo', '/output', '/native.xcconfig');
+      assert(!ios.args.some(arg => arg.startsWith('CODE_SIGN')));
+    }
+  }
+  const [release] = buildCommands(parseOptions(['build', '--release', '--platform', 'ios']), '/repo', '/output', '/native.xcconfig');
+  assert(release.args.includes('CODE_SIGNING_ALLOWED=NO'));
+  assert(!release.args.includes('CODE_SIGN_IDENTITY=-'));
+  assert(!release.args.some(arg => arg.includes('[sdk=iphonesimulator*]')));
+  const [device] = buildCommands(parseOptions(['build', '--local', '--platform', 'ios', '--destination', 'generic/platform=iOS']), '/repo', '/output', '/native.xcconfig');
+  assert(!device.args.some(arg => arg.startsWith('CODE_SIGN')));
+});
+
 test('generated native configuration contains only public settings and escapes xcconfig URLs', () => {
   const dir = mkdtempSync(join(tmpdir(), 'mobile-config-'));
   try {
