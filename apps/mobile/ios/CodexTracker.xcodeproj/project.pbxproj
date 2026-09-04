@@ -64,6 +64,7 @@
 /* Begin PBXFileReference section */
 		004CE1A768F341A9C57EA20E /* ConvexWireModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvexWireModels.swift; sourceTree = "<group>"; };
 		1DBB25C5AEBDBF6A2BF8686A /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		2856DB6DD409C728C9CD59BF /* CodexTracker.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CodexTracker.entitlements; sourceTree = "<group>"; };
 		2C265E1B8B7C091D47BCE375 /* RangeControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RangeControl.swift; sourceTree = "<group>"; };
 		2CB54F0A933E73ED25038729 /* dashboard-demo.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "dashboard-demo.json"; sourceTree = "<group>"; };
 		2D6793C7ED73CE274326278C /* CodexTracker.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CodexTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -96,6 +97,7 @@
 		9872C7692918A7198586576F /* KPIGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KPIGrid.swift; sourceTree = "<group>"; };
 		9E3F5E6F26DEDB1269CC0613 /* CodexTrackerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexTrackerApp.swift; sourceTree = "<group>"; };
 		ACEB005EB558C60E11036E4B /* Repository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repository.swift; sourceTree = "<group>"; };
+		B7079899B692BE08E6E064F9 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		D1752C928C5C8C7DF040B5A8 /* UsageAggregation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageAggregation.swift; sourceTree = "<group>"; };
 		DA3BDC9D2EAC925335114F8E /* UsageDomainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageDomainTests.swift; sourceTree = "<group>"; };
 		ED4FAEEAC31FDB4B276EF066 /* UsageCharts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageCharts.swift; sourceTree = "<group>"; };
@@ -156,6 +158,7 @@
 				417B0F24D7443EE7E2E5E227 /* AppConfiguration.swift */,
 				69774D0F107811E31261A876 /* AppModel.swift */,
 				7F4CB998FD677EC30FA87FB9 /* Assets.xcassets */,
+				2856DB6DD409C728C9CD59BF /* CodexTracker.entitlements */,
 				9E3F5E6F26DEDB1269CC0613 /* CodexTrackerApp.swift */,
 				004CE1A768F341A9C57EA20E /* ConvexWireModels.swift */,
 				337BAB07E9B6694B6A8F5F4C /* DesignSystem.swift */,
@@ -186,6 +189,7 @@
 			isa = PBXGroup;
 			children = (
 				809A4C37A8D83598BA5F40FD /* Base.xcconfig */,
+				B7079899B692BE08E6E064F9 /* Release.xcconfig */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -259,6 +263,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3EBF7D4BD6A79D006A53A59D /* Build configuration list for PBXNativeTarget "CodexTracker" */;
 			buildPhases = (
+				99704E0F8548BD2A51A2433B /* Validate service environment */,
 				88F0F311CE469DA2445B0BCD /* Sources */,
 				69EC9ECDE08205F8B966378F /* Resources */,
 				D4C783AFD944357454A29AFE /* Frameworks */,
@@ -337,6 +342,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		99704E0F8548BD2A51A2433B /* Validate service environment */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Validate service environment";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "sh \"$SRCROOT/Config/validate-environment.sh\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		14EF820550533DCD991F987D /* Sources */ = {
@@ -419,7 +446,7 @@
 /* Begin XCBuildConfiguration section */
 		22CEAAF27314B77EC973CFB0 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 809A4C37A8D83598BA5F40FD /* Base.xcconfig */;
+			baseConfigurationReference = B7079899B692BE08E6E064F9 /* Release.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -499,6 +526,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CodexTracker/CodexTracker.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CodexTracker/Info.plist;
@@ -551,6 +579,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CodexTracker/CodexTracker.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CodexTracker/Info.plist;

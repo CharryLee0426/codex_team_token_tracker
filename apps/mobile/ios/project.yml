@@ -9,7 +9,7 @@ configs:
   Release: release
 configFiles:
   Debug: Config/Base.xcconfig
-  Release: Config/Base.xcconfig
+  Release: Config/Release.xcconfig
 packages:
   Clerk:
     url: https://github.com/clerk/clerk-ios.git
@@ -55,9 +55,14 @@ targets:
         UIApplicationSupportsIndirectInputEvents: true
     settings:
       base:
+        CODE_SIGN_ENTITLEMENTS: CodexTracker/CodexTracker.entitlements
         PRODUCT_BUNDLE_IDENTIFIER: dev.chenli.codextracker
         PRODUCT_NAME: CodexTracker
         GENERATE_INFOPLIST_FILE: NO
+    preBuildScripts:
+      - name: Validate service environment
+        script: sh "$SRCROOT/Config/validate-environment.sh"
+        basedOnDependencyAnalysis: false
   CodexTrackerTests:
     type: bundle.unit-test
     platform: iOS

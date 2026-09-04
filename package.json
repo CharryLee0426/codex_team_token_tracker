@@ -8,6 +8,10 @@
     "node": ">=20"
   },
   "scripts": {
+    "mobile:setup": "node -- apps/mobile/scripts/mobile.mjs setup",
+    "mobile:build": "node -- apps/mobile/scripts/mobile.mjs build",
+    "mobile:e2e": "node -- apps/mobile/scripts/mobile.mjs e2e",
+    "mobile:test": "node --test apps/mobile/scripts/*.test.mjs",
     "dev": "pnpm --filter dashboard dev",
     "dev:tour": "pnpm --filter dashboard dev:tour",
     "dev:convex": "pnpm --filter dashboard dev:convex",

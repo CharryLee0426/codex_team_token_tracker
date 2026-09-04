@@ -1,0 +1,4 @@
+// Production requires the root pipeline's validated -xcconfig. Never include development settings.
+CLERK_PUBLISHABLE_KEY =
+CONVEX_URL =
+CLERK_FRONTEND_API_HOST =

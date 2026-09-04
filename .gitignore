@@ -48,5 +48,6 @@ apps/mobile/ios/*.xcodeproj/xcuserdata/
 apps/mobile/ios/*.xcuserstate
 apps/mobile/android/local.properties
 apps/mobile/android/.gradle/
+apps/mobile/android/.kotlin/
 apps/mobile/android/**/build/
 artifacts/mobile/

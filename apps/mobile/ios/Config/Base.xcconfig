@@ -1,4 +1,5 @@
 CLERK_PUBLISHABLE_KEY = pk_test_REPLACE_ME
 CONVEX_URL = https:/$()/example.convex.cloud
+CLERK_FRONTEND_API_HOST = example.clerk.accounts.dev
 
 #include? "Local.xcconfig"

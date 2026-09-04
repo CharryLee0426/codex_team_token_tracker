@@ -20,6 +20,64 @@ iOS 和 Android 应用是现有 Codex Tracker 仪表盘的原生只读入口，�
 指标、每日/模型/来源摘要和最近会话；成员和设备页只读；设置仅包含外观、语言、账号、隐私与
 应用信息。
 
+## 构建与 E2E 流水线
+
+在仓库根目录使用 Node 22+ 和 pnpm 11.15.1 执行以下命令。先安装下文的原生工具链；
+Android E2E 测试前需启动 Android 仿真器。
+
+```bash
+pnpm mobile:setup --local            # 设置开发 Clerk issuer，并部署开发 Convex 后端
+pnpm mobile:build --local            # 两端均使用开发 Clerk + 开发 Convex
+pnpm mobile:e2e --local              # 对开发配置的应用运行两端原生测试
+pnpm mobile:e2e --local --deploy     # 先部署开发后端，再执行两端测试
+pnpm mobile:build --local --platform ios
+pnpm mobile:e2e --local --platform android
+pnpm mobile:build --demo             # 无凭据演示模式（不传环境参数时也是该模式）
+pnpm mobile:test                     # 无需服务的流水线回归测试，CI 也会执行
+```
+
+`--local` 指 Clerk 和 Convex 的**云端开发实例**，模拟器和真机都可以访问；Clerk 不提供
+自托管的本地服务器。命令优先读取 `apps/mobile/.env.local`，仅在文件不存在时回退到
+`apps/dashboard/.env.local`。需要独立的移动端开发部署时，复制 `apps/mobile/.env.example`。
+必填项是 `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`（`pk_test_...`）、`CONVEX_DEPLOYMENT`
+（`dev:<名称>`）和对应的 `NEXT_PUBLIC_CONVEX_URL` 云端 URL。
+
+`mobile:setup --local` 和 `--local --deploy` 从 publishable key 推导 issuer，在该开发部署
+设置 **CLERK_JWT_ISSUER_DOMAIN**，再执行带类型检查的 `convex dev --once`，同时部署当前
+后端授权加固。需要已有开发部署和 Convex CLI 登录，或仅用于该部署的开发 deploy key。
+Clerk Native API、原生应用登记和 session claims 按下文在控制台配置一次；构建命令不会创建
+Clerk 实例或修改 Clerk 设置。
+若已有 issuer 指向其他 Clerk 实例，setup 会拒绝覆盖。为未配置部署新增 issuer 后若部署失败，
+会移除刚添加的值；回滚失败会明确报错。
+
+要编译使用生产环境的 Release，创建被忽略的 `apps/mobile/.env.release`，填入 `pk_live_...`、
+`CONVEX_DEPLOYMENT=prod:<名称>` 及匹配的云端 URL，然后执行：
+
+```bash
+pnpm mobile:build --release
+```
+
+生产配置仅用于显式 Release 构建。Release 不会回退到开发配置，E2E/setup 拒绝 `--release`。
+执行命令前会校验 key 类型、部署名、URL、issuer 和 deploy key 是否匹配。子进程会清除继承的
+服务凭据，原生构建仅接收已验证的公开 key 和 URL。**所有移动端命令都不会部署生产后端**；
+分发生产客户端前需单独部署生产后端变更。
+
+Release 编译产物是**未签名 iOS 真机 `.app` 和未签名 Android APK/AAB**。分发签名、
+provisioning、IPA 导出及 TestFlight/Play 上传属于独立发布步骤。开发 iOS 产物仍是未签名
+Simulator 应用；Android Debug 产物使用 debug 签名。
+
+用 `--env-file PATH` 指定 dotenv 文件（含 CI 创建的 secret 文件），`--dry-run` 仅查看命令，
+不会写配置、构建或部署；`--destination 'platform=iOS Simulator,name=你的模拟器,OS=latest'`
+可选择其他 iOS 模拟器。环境文件相对路径从仓库根目录解析。构建会生成被忽略的
+`artifacts/mobile/<demo|local|release>/Native.xcconfig`；iOS 产物在该目录的
+`ios/DerivedData/Build/Products`，Android 复制产物在 `android/`。Gradle 原始输出目录会被
+不同模式共用，安装时请使用按环境复制的 APK。
+pnpm 命令包含 Node 的 `--` 分隔符，避免 Node 提前加载流水线的 `--env-file`；直接调用时也应
+保留：`node -- apps/mobile/scripts/mobile.mjs ...`。
+
+现有 UI 测试即使运行开发配置的应用，也会显式使用**演示数据**。E2E 通过表示原生导航与只读
+行为通过验证；完整 Clerk 登录与团队访问需另用开发账号测试。测试不内置登录凭据或 token。
+
 ## iOS
 
 要求：
@@ -28,7 +86,8 @@ iOS 和 Android 应用是现有 Codex Tracker 仪表盘的原生只读入口，�
 - 最低部署版本 iOS 17
 - 仅在修改 `project.yml` 时需要 XcodeGen 2.46 或更高版本；生成后的 Xcode 项目已提交
 
-仓库中的占位配置会启动演示模式。若要在本机启用实时模式，复制被忽略的配置文件并替换两个值：
+仓库中的占位配置会启动演示模式。若直接在 Xcode 启用实时模式，复制并填写以下配置
+（根目录流水线会自动生成配置）：
 
 ```bash
 cd apps/mobile/ios
@@ -40,6 +99,7 @@ xcconfig 会把 `//` 视为注释起始符，因此 URL 必须沿用示例中的
 ```text
 CLERK_PUBLISHABLE_KEY = pk_test_replace_me
 CONVEX_URL = https:/$()/your-deployment.convex.cloud
+CLERK_FRONTEND_API_HOST = your-instance.clerk.accounts.dev
 ```
 
 在当前机器已安装的模拟器上构建与测试：
@@ -144,15 +204,18 @@ ANDROID_SDK_ROOT="$HOME/Library/Android/sdk" \
 
 1. 为相应实例启用 Clerk Native API。Clerk 明确说明该设置会改变 bot protection 行为，因此应
    先评估安全取舍。
-2. 把 `dev.chenli.codextracker` 注册为 Android package/application ID。iOS 端则需用 Apple
-   App ID Prefix 与该 bundle ID 注册 Native Application，并添加 Associated Domains capability：
-   `webcredentials:<你的 Clerk Frontend API 主机>`。
+2. Android 登记 namespace `android_app`、package `dev.chenli.codextracker` 及构建所用签名
+   证书的 SHA-256 fingerprint（可通过 `./gradlew signingReport` 查看）。debug 证书仅登记在
+   开发实例；生产使用 release/Play 签名证书。iOS 用 Apple App ID Prefix 和 bundle ID
+   `dev.chenli.codextracker` 登记 Native Application。仓库 entitlements 已通过
+   `webcredentials:$(CLERK_FRONTEND_API_HOST)` 配置 Associated Domains，由流水线按环境填值。
 3. 启用 Clerk 当前的 **Convex integration**。在 *Sessions → Claims* 中保留集成生成的
    `aud: convex` 映射，并加入 `docs/clerk-jwt-template.json` 中的组织/用户映射。官方原生桥接
    请求的是 Clerk 原生 session token，无法选择仓库中旧的、名为 `convex` 的 JWT template；
    如果实例只有旧 template，必须先把其映射复制到 session claims，才能测试移动端实时模式。
-4. 把 `packages/backend/convex/auth.config.ts` 使用的 Convex issuer 设为集成显示的 Clerk
-   Frontend API URL，然后有意识地部署认证/后端变更。
+4. 执行 `pnpm mobile:setup --local` 设置 `packages/backend/convex/auth.config.ts` 读取的
+   `CLERK_JWT_ISSUER_DOMAIN` 并部署开发后端。其值与 Clerk 当前指南中的
+   `CLERK_FRONTEND_API_URL` 相同；本仓库沿用已有变量名。
 5. 只在上述被忽略的本地文件中填写 publishable key 和 Convex deployment URL。
 
 不要把 Clerk secret key 放入任一应用。原生客户端只使用 publishable key，由平台 SDK 保存
@@ -161,9 +224,12 @@ Clerk 会话，并且只把 token 发送到预期的 Clerk/Convex endpoint。客
 组织与用量函数。token 不会加入用量 payload、写入日志或存入应用自有存储。
 
 现有 Convex issuer 和 JWT-template 约束见仓库的[管理员部署指南](../../docs/ADMIN_DEPLOY.zh-CN.md)。
-启用 Native API、注册原生应用和修改 Apple capability 都是所有者操作，本次构建不会自动执行。
-在把原生团队实时访问视为安全之前，还必须部署本分支包含的后端授权加固；本地构建流程不会执行
-任何部署。
+请同时参照 Clerk 官方 [iOS 集成](https://clerk.com/docs/ios/reference/native-mobile/integrations/convex)
+与 [Android 集成](https://clerk.com/docs/android/reference/native-mobile/integrations/convex)。
+Clerk 账号设置独立于编译；开发后端可通过 `mobile:setup --local` 或 `--local --deploy` 部署。
+直接 Xcode/Gradle Debug 构建可读取 `Config/Local.xcconfig` / `local.properties`；Release
+必须使用根目录流水线验证后的配置，且不会读取开发配置文件。使用根目录流水线可完整校验
+Clerk/Convex 环境配对。
 
 ## 数据与隐私约束
 
@@ -182,8 +248,9 @@ Clerk 会话，并且只把 token 发送到预期的 Clerk/Convex endpoint。客
 - iOS：在运行 iOS 26.5 的 iPhone 17 Pro 模拟器上，41 个 XCTest 与 2 个 XCUITest 流程通过。
 - Android：在 API 37 ARM64 仿真器上，33 个单元测试与 3 个 Compose E2E 流程通过；lint 为
   0 个错误，两个 debug APK 均通过签名校验。
-- 下列演示模式构建与导出产物已完整验证。实时 Clerk/Convex 登录、API 26 真机表现、TalkBack/
-  大字体手动测试、商店签名和后端部署依赖所有者环境，本次未执行。
+- `--local` 流水线同样通过 iOS 41 + 2、Android 33 + 3 项测试，并验证了开发后端部署。
+  测试使用演示数据；完整 Clerk 实时登录、API 26 真机表现、TalkBack/大字体手动测试、商店签名
+  和生产部署需另行完成。
 
 ## 本地产物
 
