@@ -10,18 +10,18 @@ import dev.chenli.codextracker.data.ViewerRepository
 import dev.chenli.codextracker.domain.DemoFixtureLoader
 
 class CodexTrackerApplication : Application() {
-  lateinit var demoRepository: ViewerRepository
-    private set
+  val demoRepository: ViewerRepository by lazy {
+    check(BuildConfig.DEBUG) { "Demo data is unavailable in release builds." }
+    val fixture = assets.open("dashboard-demo.json").bufferedReader().use { reader ->
+      DemoFixtureLoader.decode(reader.readText())
+    }
+    DemoViewerRepository(fixture)
+  }
   var liveRepository: ViewerRepository? = null
     private set
 
   override fun onCreate() {
     super.onCreate()
-    val fixture = assets.open("dashboard-demo.json").bufferedReader().use { reader ->
-      DemoFixtureLoader.decode(reader.readText())
-    }
-    demoRepository = DemoViewerRepository(fixture)
-
     if (AppConfig.hasLiveConfiguration) {
       Clerk.initialize(
         context = this,

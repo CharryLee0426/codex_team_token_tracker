@@ -66,6 +66,7 @@ Release 编译产物是**未签名 iOS 真机 `.app` 和未签名 Android APK/AA
 provisioning、IPA 导出及 TestFlight/Play 上传属于独立发布步骤。开发 iOS Simulator 应用使用
 Xcode 的 ad hoc “Sign to Run Locally” 签名，让 Clerk 可以访问 Keychain；模拟器签名不需要
 Apple Developer 团队。Android Debug 产物使用 debug 签名。
+Android Release 不包含演示数据文件，必须使用真实服务，且会忽略演示模式 intent 参数。
 
 用 `--env-file PATH` 指定 dotenv 文件（含 CI 创建的 secret 文件），`--dry-run` 仅查看命令，
 不会写配置、构建或部署；`--destination 'platform=iOS Simulator,name=你的模拟器,OS=latest'`

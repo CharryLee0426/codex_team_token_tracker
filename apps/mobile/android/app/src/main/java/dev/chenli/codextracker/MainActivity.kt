@@ -23,8 +23,8 @@ class MainActivity : AppCompatActivity() {
     val application = application as CodexTrackerApplication
     val forcedDemo = BuildConfig.DEBUG && intent.getBooleanExtra(DemoModeExtra, false)
     val repository =
-      if (forcedDemo || application.liveRepository == null) application.demoRepository
-      else checkNotNull(application.liveRepository)
+      if (BuildConfig.DEBUG && (forcedDemo || application.liveRepository == null)) application.demoRepository
+      else checkNotNull(application.liveRepository) { "Live service configuration is required." }
     isDemoMode = repository.isDemo
 
     setContent {
