@@ -120,6 +120,6 @@ Convex 部署），状态保存在 `~/.codex-tracker-dev`，不进行自动更�
 | `pnpm build` | 先构建各 package，再构建仪表盘 |
 | `pnpm release:menubar` | 发布 `codex-token-tracker` —— 由 `prepack` 生成生产版构建（见管理员指南） |
 
-定价表位于 `packages/shared/src/pricing.ts`，与 <https://developers.openai.com/api/docs/pricing> 保持一致（含 272K 长上下文档位）；未知模型会回退到同系列价格并标记为 *estimated*（估算）。仅统计具有精确 Codex OAuth 归因的 OpenAI 模型 —— API Key 与非 OpenAI 用量都会被忽略，因为本工具统计的是 Codex 订阅消耗。依赖版本固定在稳定的主版本线（Next 15、Clerk 6、Convex 1.x、TypeScript 5.9、Electron 38、recharts 2）；pnpm ≥ 10 需要 `pnpm-workspace.yaml` 中的 `allowBuilds` 列表。
+定价表位于 `packages/shared/src/pricing.ts`，与 <https://developers.openai.com/api/docs/pricing> 保持一致（含缓存写入价格与 272K 长上下文档位）；未知模型会回退到同系列价格并标记为 *estimated*（估算）。仅统计具有精确 Codex OAuth 归因的 OpenAI 模型 —— API Key 与非 OpenAI 用量都会被忽略，因为本工具统计的是 Codex 订阅消耗。依赖版本固定在稳定的主版本线（Next 15、Clerk 6、Convex 1.x、TypeScript 5.9、Electron 38、recharts 2）；pnpm ≥ 10 需要 `pnpm-workspace.yaml` 中的 `allowBuilds` 列表。
 
 许可证：MIT。

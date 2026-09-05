@@ -122,6 +122,6 @@ that talks to production. The two can run side by side; see
 | `pnpm build` | packages, then the dashboard |
 | `pnpm release:menubar` | publish `codex-token-tracker` — `prepack` makes the production build (see the admin guide) |
 
-Pricing lives in `packages/shared/src/pricing.ts`, mirroring <https://developers.openai.com/api/docs/pricing> (including the 272K long-context tiers); unknown models fall back to their family and are flagged *estimated*. Only OpenAI models with exact Codex-OAuth attribution are counted — API-key and non-OpenAI usage is dropped, since this tracker reports Codex subscription consumption. Versions are pinned to stable major lines (Next 15, Clerk 6, Convex 1.x, TypeScript 5.9, Electron 38, recharts 2); pnpm ≥ 10 needs the `allowBuilds` list in `pnpm-workspace.yaml`.
+Pricing lives in `packages/shared/src/pricing.ts`, mirroring <https://developers.openai.com/api/docs/pricing> (including cache-write rates and the 272K long-context tiers); unknown models fall back to their family and are flagged *estimated*. Only OpenAI models with exact Codex-OAuth attribution are counted — API-key and non-OpenAI usage is dropped, since this tracker reports Codex subscription consumption. Versions are pinned to stable major lines (Next 15, Clerk 6, Convex 1.x, TypeScript 5.9, Electron 38, recharts 2); pnpm ≥ 10 needs the `allowBuilds` list in `pnpm-workspace.yaml`.
 
 License: MIT.

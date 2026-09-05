@@ -71,6 +71,7 @@ distributing production clients.
 
 Release compilation produces an **unsigned iOS device `.app` and unsigned Android APK/AAB**.
 Distribution signing, provisioning, IPA export, TestFlight/Play upload are separate release steps.
+Android Release excludes demo fixtures and requires live services; demo intent extras are ignored.
 Development iOS Simulator apps use Xcode's ad hoc "Sign to Run Locally" signing so Clerk can access
 the Keychain; no Apple Developer team is required for this Simulator signing. Android Debug builds
 are debug-signed.

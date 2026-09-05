@@ -33,6 +33,13 @@ Run it with `npx` — nothing to install.
 
 ### Changed
 
+- **Pricing table refreshed from developers.openai.com (2026-09-05).** GPT-6 Astra (`gpt-6-astra`) is listed
+  at $10 input / $1 cached / $12.50 cache writes / $50 output per 1M tokens, with prompts above 272K input
+  tokens billing the whole request at 2× input and cache rates and 1.5× output; it was previously priced
+  through the global fallback (`gpt-5.3-codex`, $1.75 / $14) and marked *est.* The documented `gpt-5.6` alias
+  resolves to `gpt-5.6-sol`, and GPT-6 / GPT-5.6 cache writes bill at 1.25× input in both tiers instead of the
+  plain input rate. Run `codex-tracker sync` after updating so this machine's history is re-priced; other
+  machines keep their previously uploaded costs until they sync.
 - SQLite-backed Kilo, Hermes and OpenClaw stores are read when the runtime exposes `node:sqlite` (Node 22.5+
   and the current Electron runtime). Older Node processes use any attributable legacy JSON/JSONL or VS Code-task
   fallback; SQLite-only history is unavailable. Hermes aggregate rows are assigned

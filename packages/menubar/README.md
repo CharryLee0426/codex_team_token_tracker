@@ -197,16 +197,18 @@ volume. When that happens the exact command is shown so you can run it yourself.
 ### Pricing
 
 Costs are "API-equivalent" — [standard OpenAI list prices](https://developers.openai.com/api/docs/pricing)
-per 1M tokens (input, cached input, output; reasoning tokens are billed as output). Models with a
-long-context tier are billed at the higher rate for requests whose prompt exceeds 272K tokens. `-codex`
-variants are priced at their base model's rate.
+per 1M tokens (input, cached input, cache writes, output; reasoning tokens are billed as output). Models
+with a long-context tier (GPT-6 Astra, GPT-5.6, GPT-5.5, GPT-5.4) bill the whole request at the higher rate —
+2× input and cache rates, 1.5× output — when its prompt exceeds 272K tokens. `-codex` variants are priced at
+their base model's rate.
 
 **Codex only.** Some supported sources (Cline/Roo/Kilo, OpenCode, DeepSeek Harness) can also drive Anthropic, Google or local
 models. That usage is *not* counted: this tool reports Codex consumption, and pricing a Claude request
 against an OpenAI table would be meaningless.
 
 Models missing from the built-in table are priced by family and marked **est.** Override or add prices in
-`~/.codex-tracker/pricing.json`:
+`~/.codex-tracker/pricing.json` (`cacheWrite` is optional and defaults to `input`; an override is one flat
+rate with no long-context tier):
 
 ```json
 {

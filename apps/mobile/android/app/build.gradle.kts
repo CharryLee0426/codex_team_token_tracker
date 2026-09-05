@@ -53,7 +53,7 @@ android {
     compose = true
   }
 
-  sourceSets.named("main") { assets.directories.add(rootProject.file("../fixtures").absolutePath) }
+  sourceSets.named("debug") { assets.directories.add(rootProject.file("../fixtures").absolutePath) }
   sourceSets.named("test") { resources.directories.add(rootProject.file("../fixtures").absolutePath) }
 
   testOptions {
