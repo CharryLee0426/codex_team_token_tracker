@@ -70,6 +70,16 @@ test("pricing resolution and fallback", () => {
   assert.equal(unknown.matchedKey, "gpt-5.6-sol");
   assert.equal(resolvePrice("gpt-5.7-mini").matchedKey, "gpt-5.4-mini");
   assert.equal(resolvePrice("codex-auto-review").matchedKey, null);
+  // GPT-6 Astra is listed; a later gpt-6 codename estimates from it instead of the global fallback
+  const astra = resolvePrice("gpt-6-astra");
+  assert.equal(astra.estimated, false);
+  assert.deepEqual([astra.price.input, astra.price.cachedInput, astra.price.cacheWrite, astra.price.output], [10, 1, 12.5, 50]);
+  assert.equal(resolvePrice("gpt-6-astra-codex").estimated, false);
+  assert.equal(resolvePrice("gpt-6-nova").matchedKey, "gpt-6-astra");
+  assert.equal(resolvePrice("gpt-6-nova").estimated, true);
+  // documented alias of gpt-5.6-sol
+  assert.equal(resolvePrice("gpt-5.6").estimated, false);
+  assert.equal(resolvePrice("gpt-5.6").price.output, 20);
   const ov = resolvePrice("gpt-5.6-sol", { "gpt-5.6-sol": { input: 2, cachedInput: 0.2, output: 16 } });
   assert.equal(ov.price.input, 2);
   const cost = computeCost({ input: 1_000_000, cached: 500_000, output: 100_000 }, { input: 1.25, cachedInput: 0.125, output: 10 });
@@ -83,6 +93,22 @@ test("long-context tier applies per request", () => {
   assert.equal(Number(short.toFixed(6)), Number(((100_000 * 2 + 10_000 * 12) / 1_000_000).toFixed(6)));
   // 272_001 input tokens bill at the long-context input rate ($4/1M), not $2/1M
   assert.equal(Number(long.toFixed(6)), Number((((LONG_CONTEXT_THRESHOLD + 1) * 4) / 1_000_000).toFixed(6)));
+});
+
+test("GPT-6 Astra bills cache writes and the long-context tier at OpenAI's rates", () => {
+  const p = resolvePrice("gpt-6-astra").price;
+  // 50K fresh × $10 + 40K cached × $1 + 10K cache writes × $12.50 + 5K output × $50
+  const short = computeCost({ input: 100_000, cached: 40_000, cacheWrite: 10_000, output: 5_000 }, p);
+  assert.equal(Number(short.toFixed(6)), 0.915);
+  // exactly 272K input tokens is still the short tier — "more than 272K" is long
+  assert.equal(Number(computeCost({ input: LONG_CONTEXT_THRESHOLD, output: 0 }, p).toFixed(6)), 2.72);
+  // 150K fresh × $20 + 100K cached × $2 + 50K cache writes × $25 + 10K output × $75, for the full request
+  const long = computeCost({ input: 300_000, cached: 100_000, cacheWrite: 50_000, output: 10_000 }, p);
+  assert.equal(Number(long.toFixed(6)), 5.2);
+  // models without a cache-write rate bill cache writes at the selected tier's input rate
+  const flat = { input: 1, cachedInput: 0.1, output: 2, long: { threshold: 10, input: 3, cachedInput: 0.3, output: 6 } };
+  assert.equal(Number(computeCost({ input: 10, cacheWrite: 10 }, flat).toFixed(9)), 0.00001);
+  assert.equal(Number(computeCost({ input: 20, cacheWrite: 20 }, flat).toFixed(9)), 0.00006);
 });
 
 test("only OpenAI models count as Codex usage", () => {

@@ -9,7 +9,8 @@ export interface ModelPrice {
   cacheWrite?: number;
   /**
    * Long-context tier. OpenAI bills some models at a higher rate once a single request's prompt
-   * crosses `threshold` input tokens (272K for the GPT-5.4+ flagships). Absent = one flat rate.
+   * crosses `threshold` input tokens (272K for the GPT-5.4+ and GPT-6 flagships: 2x input and cache
+   * rates, 1.5x output, for the full request). Absent = one flat rate.
    */
   long?: LongContextPrice;
 }
@@ -20,6 +21,8 @@ export interface LongContextPrice {
   input: number;
   cachedInput: number;
   output: number;
+  /** Optional cache-write rate for this tier; defaults to the tier's `input` when absent. */
+  cacheWrite?: number;
 }
 
 export interface PriceMatch {
@@ -34,30 +37,42 @@ export interface PriceMatch {
 /** Input-token threshold above which the long-context tier applies. */
 export const LONG_CONTEXT_THRESHOLD = 272_000;
 
-const long = (threshold: number, input: number, cachedInput: number, output: number): LongContextPrice => ({
+const long = (
+  threshold: number,
+  input: number,
+  cachedInput: number,
+  output: number,
+  cacheWrite?: number,
+): LongContextPrice => ({
   threshold,
   input,
   cachedInput,
   output,
+  ...(cacheWrite === undefined ? {} : { cacheWrite }),
 });
 
 /**
  * Standard OpenAI API list prices (USD / 1M tokens), used to express subscription usage as
  * "API-equivalent" dollars. Mirrors https://developers.openai.com/api/docs/pricing (standard tier —
- * not batch/flex/priority). Models newer than this table are priced by family fallback and flagged
- * `estimated`; override anything via `pricing.json` (menubar) or `PRICING_OVERRIDES` (dashboard).
+ * not batch/flex/fast) as of 2026-09-05. Models newer than this table are priced by family fallback
+ * and flagged `estimated`; override anything via `pricing.json` (menubar). The dashboard displays the
+ * costs devices computed and only consults this table to flag estimates.
  *
  * `-codex` variants are billed at their base model's rate and are listed explicitly so Codex CLI
  * model ids resolve exactly instead of through the family fallback.
  */
 export const DEFAULT_PRICING: Record<string, ModelPrice> = {
-  // GPT-5.6 family
-  "gpt-5.6-sol": { input: 4, cachedInput: 0.4, output: 20, long: long(LONG_CONTEXT_THRESHOLD, 8, 0.8, 30) },
-  "gpt-5.6-sol-codex": { input: 4, cachedInput: 0.4, output: 20, long: long(LONG_CONTEXT_THRESHOLD, 8, 0.8, 30) },
-  "gpt-5.6-terra": { input: 2, cachedInput: 0.2, output: 12, long: long(LONG_CONTEXT_THRESHOLD, 4, 0.4, 18) },
-  "gpt-5.6-terra-codex": { input: 2, cachedInput: 0.2, output: 12, long: long(LONG_CONTEXT_THRESHOLD, 4, 0.4, 18) },
-  "gpt-5.6-luna": { input: 0.2, cachedInput: 0.02, output: 1.2, long: long(LONG_CONTEXT_THRESHOLD, 0.4, 0.04, 1.8) },
-  "gpt-5.6-cyber": { input: 12.5, cachedInput: 1.25, output: 75 },
+  // GPT-6 family — cache writes bill at 1.25x input in both tiers
+  "gpt-6-astra": { input: 10, cachedInput: 1, cacheWrite: 12.5, output: 50, long: long(LONG_CONTEXT_THRESHOLD, 20, 2, 75, 25) },
+  "gpt-6-astra-codex": { input: 10, cachedInput: 1, cacheWrite: 12.5, output: 50, long: long(LONG_CONTEXT_THRESHOLD, 20, 2, 75, 25) },
+  // GPT-5.6 family — cache writes bill at 1.25x input; Sol's promotional rate runs at least through 2026-11-21
+  "gpt-5.6-sol": { input: 4, cachedInput: 0.4, cacheWrite: 5, output: 20, long: long(LONG_CONTEXT_THRESHOLD, 8, 0.8, 30, 10) },
+  "gpt-5.6": { input: 4, cachedInput: 0.4, cacheWrite: 5, output: 20, long: long(LONG_CONTEXT_THRESHOLD, 8, 0.8, 30, 10) }, // documented alias of gpt-5.6-sol
+  "gpt-5.6-sol-codex": { input: 4, cachedInput: 0.4, cacheWrite: 5, output: 20, long: long(LONG_CONTEXT_THRESHOLD, 8, 0.8, 30, 10) },
+  "gpt-5.6-terra": { input: 2, cachedInput: 0.2, cacheWrite: 2.5, output: 12, long: long(LONG_CONTEXT_THRESHOLD, 4, 0.4, 18, 5) },
+  "gpt-5.6-terra-codex": { input: 2, cachedInput: 0.2, cacheWrite: 2.5, output: 12, long: long(LONG_CONTEXT_THRESHOLD, 4, 0.4, 18, 5) },
+  "gpt-5.6-luna": { input: 0.2, cachedInput: 0.02, cacheWrite: 0.25, output: 1.2, long: long(LONG_CONTEXT_THRESHOLD, 0.4, 0.04, 1.8, 0.5) },
+  "gpt-5.6-cyber": { input: 12.5, cachedInput: 1.25, cacheWrite: 15.625, output: 75 },
   // GPT-5.5 family
   "gpt-5.5": { input: 5, cachedInput: 0.5, output: 30, long: long(LONG_CONTEXT_THRESHOLD, 10, 1, 45) },
   "gpt-5.5-codex": { input: 5, cachedInput: 0.5, output: 30, long: long(LONG_CONTEXT_THRESHOLD, 10, 1, 45) },
@@ -106,7 +121,7 @@ export const DEFAULT_PRICING: Record<string, ModelPrice> = {
   "codex-mini-latest": { input: 1.5, cachedInput: 0.375, output: 6 },
 };
 
-/** Used when nothing in the table matches at all — the current Codex flagship. */
+/** Used when nothing in the table matches at all — the model OpenAI lists under "Codex" on the pricing page. */
 export const FALLBACK_PRICE_KEY = "gpt-5.3-codex";
 
 const TIERS = ["mini", "nano", "pro"] as const;
@@ -192,7 +207,8 @@ export function resolvePrice(model: string, overrides?: Record<string, ModelPric
  *
  * `u.input` is the request's prompt size, so it also selects the long-context tier when the model
  * has one. Callers that pass an aggregate get the standard tier, which is what pre-aggregated rows
- * (already costed per request on the device) want.
+ * (already costed per request on the device) want. Cache writes bill at the selected tier's
+ * `cacheWrite` rate, or its `input` rate when the model has none.
  */
 export function computeCost(u: Partial<TokenUsage>, p: ModelPrice): number {
   const input = u.input ?? 0;
@@ -202,7 +218,7 @@ export function computeCost(u: Partial<TokenUsage>, p: ModelPrice): number {
   const fresh = Math.max(0, input - cached - cacheWrite);
   const output = u.output ?? 0;
   const cost =
-    fresh * rate.input + cached * rate.cachedInput + cacheWrite * (p.cacheWrite ?? rate.input) + output * rate.output;
+    fresh * rate.input + cached * rate.cachedInput + cacheWrite * (rate.cacheWrite ?? rate.input) + output * rate.output;
   return cost / 1_000_000;
 }
 
