@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { hourStartOf } from "@codex-tracker/shared/time";
 import { DEMO_LIVE_USER_IDS, DEMO_ME_ID, DEMO_ORG_NAME, DEMO_USERS, demoDevices, demoInvites, demoMembers, demoRows, demoSessions } from "@/lib/demo-data";
 import { DEFAULT_RANGE, rangeBounds, type RangeSelection } from "@/lib/ranges";
 import { deriveUsageModel, heatmapWeeksFor } from "@/lib/usage-model";
@@ -35,7 +34,7 @@ export function PreviewApp({ view, initialSidebar }: { view: PreviewView; initia
   const scope = view === "team" ? "team" : "personal";
   const model = useMemo(() => {
     const scoped = scope === "team" ? rows : rows.filter((r) => r.userId === DEMO_ME_ID);
-    const bounds = rangeBounds(range, hourStartOf(now));
+    const bounds = rangeBounds(range, now);
     const m = deriveUsageModel(scoped, bounds, heatmapWeeksFor(bounds), seriesRef.current, scope === "team");
     seriesRef.current = m.series;
     return m;

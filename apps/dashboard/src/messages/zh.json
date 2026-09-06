@@ -156,30 +156,19 @@
   },
   "charts": {
     "usageOverTime": "用量趋势",
-    "usageOverTimeHint": "按模型的每日 token 数（本地时间）",
     "heatmap": "贡献热力图",
-    "heatmapHint": "每个本地日期的 token 数",
     "weeksShown": "最近 {count} 周",
     "activeHours": "活跃时段",
-    "activeHoursHint": "按星期与小时统计的 token 数（本地时间）",
     "peak": "峰值",
     "weekday": "周一至周日对比",
-    "weekdayHint": "周一到周日的总 token 数",
-    "avgPerDay": "每个{weekday}平均",
-    "occurrences": "范围内共 {count} 天",
     "modelDist": "模型分布",
-    "modelDistHint": "各模型 token 占比",
     "day": "日期",
     "less": "少",
     "more": "多",
     "noData": "该范围内没有用量",
     "priceEstimated": "价格为估算——该模型不在价格表中",
     "hour": "{hour}:00",
-    "tokensPerDay": "tokens / 天",
-    "cacheSavings": "缓存节省",
-    "activeHoursHover": "悬停或点按单元格查看该小时",
-    "lastDays": "最近 {count} 天",
-    "activeHoursWidened": "不足一周的范围在此处显示最近 {count} 天，让每一行星期都有数据"
+    "cacheSavings": "缓存节省"
   },
   "members": {
     "title": "成员",
@@ -309,9 +298,7 @@
     "connectBody": "在每台机器上用 npx 运行追踪器——无需安装，每次启动都会获取最新版本（需要 Node.js 20+）：",
     "connectStep1": "第一次——登录；本仪表盘会自动打开，授权该设备即可",
     "connectStep2": "之后每天——托盘图标显示今日用量；在 WSL2 或服务器上请使用无界面代理",
-    "connectStep3": "小提示——右键托盘图标 → 开机自启动。想全局安装？之后也可以用更短的 `codex-tracker` 命令",
-    "pricingTitle": "价格",
-    "pricingBody": "费用在每台设备上按 OpenAI 标准 API 价格计算，并包含输入超过 272K token 时的长上下文档位。仅统计 Codex（OpenAI）用量 —— 其他提供商的用量不计入。较新的模型会回退到最接近的已知系列并标记为估算。"
+    "connectStep3": "小提示——右键托盘图标 → 开机自启动。想全局安装？之后也可以用更短的 `codex-tracker` 命令"
   },
   "auth": {
     "signInTitle": "登录 Codex Tracker",
@@ -495,7 +482,6 @@
       "pending": "待完成"
     },
     "settingsTitle": "新手引导",
-    "settingsBody": "两分钟的导览：连接一台机器、让追踪器保持运行，以及看板上各个功能的位置。",
     "settingsCta": "开始引导"
   }
 }

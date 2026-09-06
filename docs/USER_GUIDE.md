@@ -90,7 +90,7 @@ Keep the agent running (tmux, `nohup`, or a `systemd --user` service).
 ## 5. Dashboard tour
 
 - **Personal** — only you (all your devices). **Team** — everyone in the organization, plus a member leaderboard.
-- **Range chips** (Today · 7d · 30d · 90d · 1y), **Since team plan starts** (everything since 2026-08-25 00:00 PDT) and **Custom** (any start and end day, up to a year) apply to every card. **Active hours** always covers at least the last 7 days, so a 1-day range still shows a full week's pattern.
+- **Range chips** (Today · 7d · 30d · 90d · 1y), **Since team plan starts** (everything since 2026-08-25 00:00 PDT) and **Custom** (any start and end day, up to a year) set the usage range. **Active hours** shows an hourly curve for each selected date for Today and custom ranges of up to 3 days; longer ranges use a weekday/hour heatmap whose cells show the exact dates and token counts on hover, focus or tap. **Weekday comparison** shows the local Monday–Sunday week containing the selected range's end date, including days outside that range; the card displays its dates. The contribution heatmap retains its longer calendar history.
 - **Members** — roster, last seen, who is live. **Devices** — your connected computers; **Revoke** disconnects one.
 - Header: organization switcher, language (EN / 中文), theme (light / dark / system).
 

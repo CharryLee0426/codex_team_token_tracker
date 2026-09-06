@@ -2,8 +2,8 @@
 
 import { useMemo, useRef } from "react";
 import type { Id } from "@codex-tracker/backend/convex/_generated/dataModel";
-import { hourStartOf } from "@codex-tracker/shared/time";
-import { rangeBounds, type RangeSelection } from "@/lib/ranges";
+import { HOUR, hourStartOf, startOfLocalDay } from "@codex-tracker/shared/time";
+import { rangeBounds, weekdayWindow, type RangeSelection } from "@/lib/ranges";
 import { deriveUsageModel, heatmapWeeksFor, spanStart, type UsageModel } from "@/lib/usage-model";
 import { useHourlyRange, type PublicUser, type Scope } from "./use-hourly-range";
 
@@ -27,10 +27,14 @@ export interface UsageData {
  */
 export function useUsageData(scope: Scope, orgId: Id<"orgs"> | undefined, range: RangeSelection, nowMs: number, enabled: boolean): UsageData {
   const hourTick = hourStartOf(nowMs);
-  const bounds = useMemo(() => rangeBounds(range, hourTick), [range, hourTick]);
+  // In fractional-offset zones, the current UTC hour can start on yesterday's local date.
+  const rangeTick = Math.max(hourTick, startOfLocalDay(nowMs));
+  const bounds = useMemo(() => rangeBounds(range, rangeTick), [range, rangeTick]);
   const weeks = heatmapWeeksFor(bounds);
   const span = useMemo(() => spanStart(bounds, weeks), [bounds, weeks]);
-  const data = useHourlyRange(scope, orgId, span.fromMs, bounds.toMs, enabled);
+  // A historical end date may fall before Sunday; fetch that entire comparison week as well.
+  const toMs = Math.max(bounds.toMs, Math.min(weekdayWindow(bounds).toMs, hourTick + HOUR));
+  const data = useHourlyRange(scope, orgId, span.fromMs, toMs, enabled);
 
   // Stable series → color assignment: a model keeps its slot once it has one.
   const seriesRef = useRef<string[]>([]);
