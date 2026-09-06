@@ -35,7 +35,6 @@ export function SettingsPanel({ tourHref = TOUR_HREF }: { tourHref?: string }) {
       <Card>
         <CardHeader
           title={to("settingsTitle")}
-          hint={to("settingsBody")}
           action={
             <LinkButton href={tourHref} variant="primary" size="sm">
               <Compass size={14} /> {to("settingsCta")}
@@ -59,9 +58,6 @@ export function SettingsPanel({ tourHref = TOUR_HREF }: { tourHref?: string }) {
             <CodeBlock code={"npm i -g codex-token-tracker      # optional\ncodex-tracker                     # = npx codex-token-tracker"} />
           </div>
         </CardBody>
-      </Card>
-      <Card>
-        <CardHeader title={t("pricingTitle")} hint={t("pricingBody")} />
       </Card>
     </div>
   );

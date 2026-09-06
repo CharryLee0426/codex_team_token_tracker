@@ -1,7 +1,7 @@
 import { expandCompactRows } from "@codex-tracker/shared/wire";
 import { addUsageInPlace, cacheHitRate, emptyUsage, type TokenUsage } from "@codex-tracker/shared/usage";
 import { isOpenAIModel, resolvePrice } from "@codex-tracker/shared/pricing";
-import { groupByAgent, groupByLocalDay, groupByModel, weekdayHourMatrix, weekdayTotals } from "@codex-tracker/shared/aggregate";
+import { groupByAgent, groupByLocalDay, groupByModel } from "@codex-tracker/shared/aggregate";
 import { dayKeyRange, localParts, dayKeyToLocalStart } from "@codex-tracker/shared/time";
 
 export type UsageRow = ReturnType<typeof expandCompactRows>[number];
@@ -122,29 +122,54 @@ export function dailyStack(rows: UsageRow[], fromKey: string, toKey: string, ser
 
 export interface WeekdayPoint {
   weekday: number; // 0=Sun..6=Sat
+  day: string; // YYYY-MM-DD local
   total: number;
   cost: number;
-  days: number; // occurrences of this weekday in the range
-  avg: number;
 }
 
-/** Mon..Sun ordered totals with per-occurrence averages. */
+/** One local calendar week, including zero-usage days, ordered Monday through Sunday. */
 export function weekdaySeries(rows: UsageRow[], fromKey: string, toKey: string): WeekdayPoint[] {
-  const totals = weekdayTotals(rows);
-  const occurrences = new Array<number>(7).fill(0);
-  for (const key of dayKeyRange(fromKey, toKey)) occurrences[new Date(dayKeyToLocalStart(key)).getDay()]++;
-  const order = [1, 2, 3, 4, 5, 6, 0];
-  return order.map((wd) => {
-    const c = totals[wd];
-    const days = occurrences[wd];
-    return { weekday: wd, total: c.usage.total, cost: c.cost, days, avg: days ? c.usage.total / days : 0 };
+  const totals = groupByLocalDay(rows);
+  return dayKeyRange(fromKey, toKey).map((day) => {
+    const c = totals.get(day);
+    return { weekday: new Date(dayKeyToLocalStart(day)).getDay(), day, total: c?.usage.total ?? 0, cost: c?.cost ?? 0 };
   });
 }
 
-/** Rows Mon..Sun (index 0 = Monday) × 24 local hours. */
-export function activeHoursRows(rows: UsageRow[]): { weekday: number; hours: number[] }[] {
-  const m = weekdayHourMatrix(rows);
-  return [1, 2, 3, 4, 5, 6, 0].map((wd) => ({ weekday: wd, hours: m[wd] }));
+export interface ActiveHoursDay {
+  day: string;
+  weekday: number;
+  hours: number[];
+}
+
+export interface ActiveHoursRow {
+  weekday: number;
+  hours: number[];
+  days: ActiveHoursDay[];
+}
+
+/** Exact selected dates × local hours. Repeated DST hours share a slot without losing tokens. */
+export function activeHoursDays(rows: UsageRow[], fromKey: string, toKey: string): ActiveHoursDay[] {
+  const days = new Map<string, ActiveHoursDay>();
+  for (const day of dayKeyRange(fromKey, toKey)) {
+    days.set(day, { day, weekday: new Date(dayKeyToLocalStart(day)).getDay(), hours: new Array<number>(24).fill(0) });
+  }
+  for (const row of rows) {
+    const { dayKey, hour } = localParts(row.hourStart);
+    const day = days.get(dayKey);
+    if (day) day.hours[hour] += row.usage.total;
+  }
+  return [...days.values()];
+}
+
+/** Weekday totals retain the dated values behind each heatmap cell. */
+export function activeHoursRows(days: ActiveHoursDay[]): ActiveHoursRow[] {
+  return [1, 2, 3, 4, 5, 6, 0].map((weekday) => {
+    const matching = days.filter((day) => day.weekday === weekday);
+    const hours = new Array<number>(24).fill(0);
+    for (const day of matching) day.hours.forEach((v, h) => (hours[h] += v));
+    return { weekday, hours, days: matching };
+  }).filter((row) => row.days.length > 0);
 }
 
 export interface MemberStat {

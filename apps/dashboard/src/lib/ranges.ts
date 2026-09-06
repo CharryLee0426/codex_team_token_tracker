@@ -19,9 +19,6 @@ export const DEFAULT_RANGE: RangeSelection = { key: "30d" };
 /** Longest custom span — the same as the 1-year preset (the calendar heatmap tops out at 53 weeks anyway). */
 export const MAX_CUSTOM_DAYS = 366;
 
-/** The active-hours grid always covers at least this many days so every weekday row has data. */
-export const MIN_ACTIVE_HOURS_DAYS = 7;
-
 /**
  * When the team's Codex plan started — the "Since team plan starts" range counts usage from this
  * instant. Defaults to 2026-08-25 00:00 Pacific Daylight Time; a deployment can override it with
@@ -93,19 +90,23 @@ export function normalizeCustom(fromKey: string, toKey: string, todayKey: string
   return { fromKey: a, toKey: b };
 }
 
-/** Days the active-hours heatmap covers: the range, widened to the trailing week when it is shorter. */
-export interface ActiveHoursWindow {
+/** The local Monday–Sunday week containing the selected range's last day. */
+export interface WeekdayWindow {
   fromKey: string;
+  toKey: string;
   fromMs: number;
-  days: number;
-  /** True when the window is wider than the selected range. */
-  widened: boolean;
+  toMs: number;
 }
 
-export function activeHoursWindow(bounds: RangeBounds): ActiveHoursWindow {
-  if (bounds.days >= MIN_ACTIVE_HOURS_DAYS) return { fromKey: bounds.fromKey, fromMs: bounds.fromMs, days: bounds.days, widened: false };
-  const fromKey = addLocalDays(bounds.toKey, -(MIN_ACTIVE_HOURS_DAYS - 1));
-  return { fromKey, fromMs: hourStartOf(dayKeyToLocalStart(fromKey)), days: MIN_ACTIVE_HOURS_DAYS, widened: true };
+export function weekdayWindow(bounds: RangeBounds): WeekdayWindow {
+  const weekday = new Date(dayKeyToLocalStart(bounds.toKey)).getDay();
+  const fromKey = addLocalDays(bounds.toKey, -((weekday + 6) % 7));
+  const toKey = addLocalDays(fromKey, 6);
+  return { fromKey, toKey, fromMs: hourStartOf(dayKeyToLocalStart(fromKey)), toMs: dayKeyToLocalStart(addLocalDays(toKey, 1)) };
+}
+
+export function usesActiveHoursCurve(bounds: RangeBounds): boolean {
+  return bounds.key === "today" || (bounds.key === "custom" && bounds.days <= 3);
 }
 
 /** Storage form of a selection. Presets are stored as their bare key so older saved values keep working. */

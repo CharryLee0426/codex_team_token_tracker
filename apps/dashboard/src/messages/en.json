@@ -156,30 +156,19 @@
   },
   "charts": {
     "usageOverTime": "Usage over time",
-    "usageOverTimeHint": "Daily tokens by model, local time",
     "heatmap": "Contribution heatmap",
-    "heatmapHint": "Tokens per local day",
     "weeksShown": "Last {count} weeks",
     "activeHours": "Active hours",
-    "activeHoursHint": "Tokens by weekday and hour, local time",
     "peak": "Peak",
     "weekday": "Weekday comparison",
-    "weekdayHint": "Total tokens Monday to Sunday",
-    "avgPerDay": "Average per {weekday}",
-    "occurrences": "{count} days in range",
     "modelDist": "Model distribution",
-    "modelDistHint": "Share of tokens by model",
     "day": "Day",
     "less": "Less",
     "more": "More",
     "noData": "No usage in this range",
     "priceEstimated": "Price estimated — model not in the pricing table",
     "hour": "{hour}:00",
-    "tokensPerDay": "tokens / day",
-    "cacheSavings": "Cache savings",
-    "activeHoursHover": "Hover or tap a cell for its hour",
-    "lastDays": "Last {count} days",
-    "activeHoursWidened": "Ranges shorter than a week show the last {count} days here, so every weekday row has data"
+    "cacheSavings": "Cache savings"
   },
   "members": {
     "title": "Members",
@@ -309,9 +298,7 @@
     "connectBody": "Run the tracker with npx on each machine — nothing to install, and every start picks up the newest version (Node.js 20+):",
     "connectStep1": "First time — sign in; this dashboard opens so you can approve the device",
     "connectStep2": "Every day after — the tray icon shows today's usage; on WSL2 or a server use the headless agent",
-    "connectStep3": "Tip — right-click the tray icon → Launch at login. Prefer a global install? Then the short `codex-tracker` command works too",
-    "pricingTitle": "Pricing",
-    "pricingBody": "Costs are computed on each device from standard OpenAI API list prices, including the long-context tier above 272K input tokens. Only Codex (OpenAI) usage is reported — other providers your agents may use are not counted. Newer models fall back to the closest known family and are marked as estimated."
+    "connectStep3": "Tip — right-click the tray icon → Launch at login. Prefer a global install? Then the short `codex-tracker` command works too"
   },
   "auth": {
     "signInTitle": "Sign in to Codex Tracker",
@@ -495,7 +482,6 @@
       "pending": "Pending"
     },
     "settingsTitle": "Guided tour",
-    "settingsBody": "A two-minute walkthrough: connect a machine, keep the tracker running, and where everything lives on the board.",
     "settingsCta": "Take the tour"
   }
 }

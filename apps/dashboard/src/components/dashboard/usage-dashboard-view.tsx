@@ -1,19 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Inbox, ArrowUpRight } from "lucide-react";
 import type { PublicUser, Scope } from "@/hooks/use-hourly-range";
-import type { RangeSelection } from "@/lib/ranges";
+import { usesActiveHoursCurve, type RangeSelection } from "@/lib/ranges";
+import { fmtDayKeyRange } from "@/lib/format";
 import type { UsageModel } from "@/lib/usage-model";
 import { useChartTheme } from "@/components/charts/use-chart-theme";
 import { ChartCard } from "@/components/charts/chart-card";
 import { UsageOverTime, UsageOverTimeTable } from "@/components/charts/usage-over-time";
 import { ContributionHeatmap } from "@/components/charts/contribution-heatmap";
 import { ActiveHoursHeatmap } from "@/components/charts/active-hours-heatmap";
+import { ActiveHoursCurve } from "@/components/charts/active-hours-curve";
 import { WeekdayComparison, WeekdayTable } from "@/components/charts/weekday-comparison";
 import { ModelDistribution, ModelTable } from "@/components/charts/model-distribution";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -55,13 +56,12 @@ export interface UsageDashboardViewProps {
  */
 export function UsageDashboardView(p: UsageDashboardViewProps) {
   const t = useTranslations();
+  const locale = useLocale();
   const theme = useChartTheme();
   const { model, loading, stale, scope } = p;
   const series = model?.series ?? [];
   const colorOf = (m: string) => theme.colorAt(series.indexOf(m));
   const hasRows = !!model && model.rangeRows.length > 0;
-  // The active-hours grid may look past a short range (at least the trailing week); say so on the card.
-  const activeWidened = !!model?.activeWindow.widened;
   const hasActive = !!model && model.active.some((r) => r.hours.some((v) => v > 0));
 
   return (
@@ -108,7 +108,6 @@ export function UsageDashboardView(p: UsageDashboardViewProps) {
 
       <ChartCard
         title={t("charts.usageOverTime")}
-        hint={t("charts.usageOverTimeHint")}
         loading={loading}
         stale={stale}
         hasData={hasRows}
@@ -117,7 +116,7 @@ export function UsageDashboardView(p: UsageDashboardViewProps) {
         {model ? <UsageOverTime data={model.daily} series={series} colorOf={colorOf} /> : null}
       </ChartCard>
 
-      <ChartCard title={t("charts.heatmap")} hint={t("charts.heatmapHint")} loading={loading} stale={stale} hasData={!!model} skeletonClassName="h-32">
+      <ChartCard title={t("charts.heatmap")} loading={loading} stale={stale} hasData={!!model} skeletonClassName="h-32">
         {model ? <ContributionHeatmap grid={model.heat} /> : null}
       </ChartCard>
 
@@ -125,25 +124,25 @@ export function UsageDashboardView(p: UsageDashboardViewProps) {
         <ChartCard
           className="@4xl:col-span-2"
           title={t("charts.activeHours")}
-          hint={t("charts.activeHoursHint")}
-          action={
-            activeWidened && model ? (
-              <Badge title={t("charts.activeHoursWidened", { count: model.activeWindow.days })}>{t("charts.lastDays", { count: model.activeWindow.days })}</Badge>
-            ) : undefined
-          }
           loading={loading}
           stale={stale}
           hasData={hasActive}
           skeletonClassName="h-44"
         >
-          {model ? <ActiveHoursHeatmap rows={model.active} /> : null}
+          {model ? (
+            usesActiveHoursCurve(model.bounds) ? <ActiveHoursCurve days={model.activeDays} /> : <ActiveHoursHeatmap key={`${model.bounds.fromKey}/${model.bounds.toKey}`} rows={model.active} />
+          ) : null}
         </ChartCard>
         <ChartCard
-          title={t("charts.weekday")}
-          hint={t("charts.weekdayHint")}
+          title={
+            <>
+              {t("charts.weekday")}
+              {model ? <span className="mt-1 block text-[11px] font-normal text-muted">{fmtDayKeyRange(model.weekdayWindow.fromKey, model.weekdayWindow.toKey, locale)}</span> : null}
+            </>
+          }
           loading={loading}
           stale={stale}
-          hasData={hasRows}
+          hasData={!!model && model.weekday.some((day) => day.total > 0)}
           table={model ? <WeekdayTable data={model.weekday} /> : null}
         >
           {model ? <WeekdayComparison data={model.weekday} /> : null}
@@ -154,7 +153,6 @@ export function UsageDashboardView(p: UsageDashboardViewProps) {
         <ChartCard
           className={scope === "team" ? "@4xl:col-span-2" : undefined}
           title={t("charts.modelDist")}
-          hint={t("charts.modelDistHint")}
           loading={loading}
           stale={stale}
           hasData={!!model && model.stats.length > 0}
@@ -178,7 +176,6 @@ export function UsageDashboardView(p: UsageDashboardViewProps) {
           <Card>
             <CardHeader
               title={t("devices.title")}
-              hint={t("devices.subtitle")}
               action={
                 !p.preview ? (
                   <Link href="/dashboard/devices" className={buttonClasses("ghost", "sm")}>
