@@ -2,6 +2,7 @@ package dev.chenli.codextracker.data
 
 import android.content.Context
 import dev.chenli.codextracker.domain.Account
+import dev.chenli.codextracker.domain.ConnectionState
 import dev.chenli.codextracker.domain.DemoFixture
 import dev.chenli.codextracker.domain.Device
 import dev.chenli.codextracker.domain.HourlyResponse
@@ -22,6 +23,7 @@ class DemoViewerRepository(private val fixture: DemoFixture) : ViewerRepository 
   override val authState = MutableStateFlow(ViewerAuthState.SignedIn("demo-user"))
   override val activeClerkOrgId =
     MutableStateFlow(fixture.organizations.firstOrNull()?.clerkOrgId)
+  override val connection = MutableStateFlow(ConnectionState.Live)
   private val currentUserId = fixture.users.firstOrNull()?.id
 
   override suspend fun ensureUser() = Unit

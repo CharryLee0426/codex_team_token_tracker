@@ -4,6 +4,7 @@ import android.content.Context
 import com.clerk.api.Clerk
 import com.clerk.api.network.serialization.ClerkResult
 import dev.chenli.codextracker.domain.Account
+import dev.chenli.codextracker.domain.ConnectionState
 import dev.chenli.codextracker.domain.Device
 import dev.chenli.codextracker.domain.HourlyResponse
 import dev.chenli.codextracker.domain.LiveDevice
@@ -15,6 +16,7 @@ import dev.chenli.codextracker.domain.UsageScope
 import dev.chenli.codextracker.domain.UsageSession
 import dev.convex.android.AuthState
 import dev.convex.android.ConvexClientWithAuth
+import dev.convex.android.WebSocketState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +67,12 @@ class LiveViewerRepository(private val convex: ConvexClientWithAuth<String>) : V
           ?.lastActiveOrganizationId
       }
       .stateIn(scope, SharingStarted.Eagerly, null)
+  override val connection =
+    convex.webSocketStateFlow
+      .map { state ->
+        if (state == WebSocketState.CONNECTED) ConnectionState.Live else ConnectionState.Reconnecting
+      }
+      .stateIn(scope, SharingStarted.Eagerly, ConnectionState.Live)
 
   override suspend fun ensureUser() {
     convex.mutation<String>("users:ensureUser")

@@ -18,10 +18,42 @@ not add a mobile API or change the upload wire contract.
 | `android` | Kotlin, Jetpack Compose, JUnit, and Compose UI-test app |
 | `../../artifacts/mobile` | Ignored local build and test exports |
 
-Each app has five native tabs: Personal, Team, Members, Devices, and Settings. Personal and Team
-provide range selection, usage KPIs, daily/model/source summaries, and recent sessions. Members and
-Devices are read-only. Settings is limited to appearance, language, account, privacy, and app
-information.
+## Shared interface
+
+Both apps render the same screens with the same structure, copy, tokens, and states, so a person
+switching between an iPhone and an Android phone sees one product. The Android app follows the iOS
+app as the reference: SwiftUI is mirrored with Jetpack Compose, SF Symbols with Material Symbols.
+
+- **Shell** — five bottom tabs (Personal, Team, Members, Devices, Settings) in a 62-point translucent
+  tab bar; widths of 600 dp and wider (iPad, tablets) use a sidebar list instead. Every screen opens
+  with an eyebrow line (`CODEX` or the organization name), a `DEMO DATA` badge in demo mode, a large
+  title, and a subtitle. Signed-out users see the same "Sign in to review usage" landing page before
+  the Clerk sign-in flow.
+- **Personal / Team** — a calendar menu selects Today, 7 days, 30 days, 90 days, 1 year, Plan start,
+  or Custom (a sheet with From/To date pickers, at most 366 days, never after today). Six KPI tiles
+  follow: total tokens with the input/output split, API-equivalent cost, cache hit with cached
+  tokens, requests with the average per request, devices (personal) or active members (team), and
+  live now. Then the cards: Sources (only when more than one agent contributed), Usage over time
+  (area + monotone line with a value axis), Contribution history (26-week daily grid), Active hours
+  (hour × weekday grid), Weekday comparison, Model distribution (top eight plus Other), Member
+  contribution (team only), and Recent sessions. Every chart carries an "Accessible data" disclosure
+  that lists the plotted values as text.
+- **Members** — one card per member: avatar or initials, name and email, an Admin/Member badge, a
+  live line ("Live · model · tok/s" with a green dot) or Offline, and the device count, last-seen time,
+  and join date. Pull down to refresh.
+- **Devices** — one card per machine: platform icon, name, platform/version/login pills, live status
+  with today's tokens and cost or Idle, hostname, timezone, last-seen time, and the added date. Pull
+  down to refresh.
+- **Settings** — Organization (account, the organization to review, sign-out in live mode),
+  Appearance (System/Light/Dark), Language (English/简体中文), Realtime connection (debug demo builds
+  add a "Simulate offline" toggle), Pricing, Privacy, and About.
+- **States** — loading, empty, error-with-retry, no-organization, and a status banner that reads
+  "Offline", "Reconnecting", or "Updating" while previous data stays visible.
+
+Numbers, dates, and relative times are formatted identically: compact token counts (`620K`, `1.2M`,
+`62万`), grouped integers, two-decimal USD, whole percents, medium dates, and abbreviated relative
+times such as `5m ago`. The selected range, appearance, and language are remembered across launches
+on both platforms.
 
 ## Build and E2E pipeline
 
@@ -293,11 +325,12 @@ See [ADR-001](../../docs/decisions/001-native-mobile-viewers.md) for the archite
 ## Local verification snapshot
 
 - iOS: 41 XCTest cases and 2 XCUITest flows passed on an iPhone 17 Pro simulator with iOS 26.5.
-- Android: 33 unit tests and 3 Compose E2E flows passed on the API-37 ARM64 emulator; lint reported
-  zero errors, and both debug APKs pass signature verification.
-- The `--local` pipeline also passed all 41 + 2 iOS and 33 + 3 Android tests; the development backend
-  deployment was verified. The tests use demo fixtures. Complete live Clerk sign-in, physical API-26
-  behavior, TalkBack/large-font manual testing, store signing, and production deployment separately.
+- Android: 50 unit tests and 5 Compose E2E flows passed on the API-37 ARM64 emulator after the
+  iOS-parity redesign; lint reported zero errors. The emulator screenshots of every tab (light/English
+  and dark/Chinese) were compared against frames captured from the iOS demo app.
+- The `--local` pipeline previously passed the iOS and Android suites against the development backend
+  deployment. The tests use demo fixtures. Complete live Clerk sign-in, physical API-26 behavior,
+  TalkBack/large-font manual testing, store signing, and production deployment separately.
 
 ## Local deliverables
 
@@ -313,6 +346,7 @@ large binaries never enter Git:
 | `ios/CodexTracker-iOS-E2E-Products-26.5.zip` | Portable app, unit-test, UI-test runner, frameworks, and `.xctestrun` |
 | `ios/CodexTracker-iOS-26.5.xcresult.zip` | Passing XCTest/XCUITest result evidence |
 | `android/codex-tracker-demo.png`, `ios/*.png` | Inspected emulator/simulator screenshots |
+| `android/screens/*.png`, `ios/frames/*.png` | Per-tab Android captures (light/English, dark/Chinese) and the iOS reference frames they were compared with |
 | `SHA256SUMS` | Checksums for every exported file |
 
 From the repository root, verify every export before installing it:

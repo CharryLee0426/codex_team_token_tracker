@@ -2,6 +2,7 @@ package dev.chenli.codextracker.data
 
 import android.content.Context
 import dev.chenli.codextracker.domain.Account
+import dev.chenli.codextracker.domain.ConnectionState
 import dev.chenli.codextracker.domain.Device
 import dev.chenli.codextracker.domain.HourlyResponse
 import dev.chenli.codextracker.domain.LiveDevice
@@ -11,6 +12,7 @@ import dev.chenli.codextracker.domain.QueryRange
 import dev.chenli.codextracker.domain.UsageScope
 import dev.chenli.codextracker.domain.UsageSession
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 sealed interface ViewerAuthState {
@@ -26,6 +28,10 @@ interface ViewerRepository {
   val referenceNow: Long?
   val authState: StateFlow<ViewerAuthState>
   val activeClerkOrgId: StateFlow<String?>
+
+  /** Realtime transport health; repositories without a live socket report [ConnectionState.Live]. */
+  val connection: StateFlow<ConnectionState>
+    get() = MutableStateFlow(ConnectionState.Live)
 
   suspend fun ensureUser()
 

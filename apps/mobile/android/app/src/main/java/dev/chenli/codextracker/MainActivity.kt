@@ -26,14 +26,16 @@ class MainActivity : AppCompatActivity() {
       if (BuildConfig.DEBUG && (forcedDemo || application.liveRepository == null)) application.demoRepository
       else checkNotNull(application.liveRepository) { "Live service configuration is required." }
     isDemoMode = repository.isDemo
+    val preferenceStore = PreferenceStore(applicationContext)
+    preferenceStore.applyDefaultLanguage()
 
     setContent {
-      val preferenceStore = remember { PreferenceStore(applicationContext) }
       var preferences by remember { mutableStateOf(preferenceStore.load()) }
       CodexTrackerTheme(preferences.theme) {
         ViewerApp(
           repository = repository,
           preferences = preferences,
+          rangeStore = preferenceStore,
           onThemeSelected = { theme ->
             preferenceStore.saveTheme(theme)
             preferences = preferences.copy(theme = theme)
