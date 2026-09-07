@@ -4,6 +4,7 @@ import android.content.Context
 import dev.chenli.codextracker.data.ViewerAuthState
 import dev.chenli.codextracker.data.ViewerRepository
 import dev.chenli.codextracker.domain.Account
+import dev.chenli.codextracker.domain.CustomDayRange
 import dev.chenli.codextracker.domain.Device
 import dev.chenli.codextracker.domain.HourlyResponse
 import dev.chenli.codextracker.domain.LiveDevice
@@ -13,10 +14,12 @@ import dev.chenli.codextracker.domain.Member
 import dev.chenli.codextracker.domain.Organization
 import dev.chenli.codextracker.domain.PublicUser
 import dev.chenli.codextracker.domain.QueryRange
+import dev.chenli.codextracker.domain.UsageRange
 import dev.chenli.codextracker.domain.UsageScope
 import dev.chenli.codextracker.domain.UsageSession
 import dev.chenli.codextracker.domain.ViewerClock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -453,6 +456,110 @@ class MainViewModelTest {
       assertEquals("backend-b", viewModel.uiState.value.selectedOrgId)
     }
 
+  @Test
+  fun `range selection is persisted and restored across view models`() =
+    runTest(dispatcher) {
+      val store = InMemoryRangeStore()
+      val repository = FakeViewerRepository()
+      val clock = MutableViewerClock(Instant.parse("2026-09-04T12:30:00Z").toEpochMilli())
+      val viewModel = MainViewModel(repository, ZoneId.of("UTC"), clock, store)
+
+      viewModel.beginSession("alice")
+      advanceUntilIdle()
+      assertEquals(UsageRange.ThirtyDays, viewModel.uiState.value.range)
+
+      viewModel.selectRange(UsageRange.SevenDays)
+      advanceUntilIdle()
+      assertEquals(UsageRange.SevenDays, store.loadRange())
+      assertEquals(
+        Instant.parse("2026-08-29T00:00:00Z").toEpochMilli(),
+        repository.personalHourlyRanges.last().from,
+      )
+
+      viewModel.applyCustomRange(LocalDate.of(2026, 9, 2), LocalDate.of(2026, 9, 1))
+      advanceUntilIdle()
+      assertEquals(UsageRange.Custom, viewModel.uiState.value.range)
+      assertEquals(
+        CustomDayRange(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 2)),
+        store.loadCustomRange(),
+      )
+      assertEquals(
+        Instant.parse("2026-09-01T00:00:00Z").toEpochMilli(),
+        repository.personalHourlyRanges.last().from,
+      )
+      assertEquals(
+        Instant.parse("2026-09-03T00:00:00Z").toEpochMilli(),
+        repository.personalHourlyRanges.last().to,
+      )
+
+      val restored = MainViewModel(repository, ZoneId.of("UTC"), clock, store)
+      assertEquals(UsageRange.Custom, restored.uiState.value.range)
+      assertEquals(store.loadCustomRange(), restored.uiState.value.customRange)
+    }
+
+  @Test
+  fun `demo repositories keep boundary-aged live state visible like the iOS viewer`() =
+    runTest(dispatcher) {
+      val now = Instant.parse("2026-09-04T12:00:00Z").toEpochMilli()
+      val live =
+        LiveSnapshot(
+          tokensPerSecond = 1.0,
+          todayTotal = 1,
+          todayCost = 0.01,
+          updatedAt = now - LiveFreshness.TtlMillis,
+        )
+      val repository = FakeViewerRepository(referenceNow = now)
+      repository.liveDevices.value =
+        Result.success(
+          listOf(
+            LiveDevice(
+              user = PublicUser("alice"),
+              deviceId = "device",
+              deviceName = "Laptop",
+              platform = "darwin",
+              live = live,
+            )
+          )
+        )
+      repository.members.value =
+        Result.success(
+          listOf(Member(id = "alice", role = "org:member", joinedAt = now, deviceCount = 1, live = live))
+        )
+      repository.devices.value =
+        Result.success(
+          listOf(
+            Device(
+              id = "device",
+              name = "Laptop",
+              platform = "darwin",
+              createdAt = now,
+              lastSeenAt = now,
+              live = live,
+              logins = 1,
+            )
+          )
+        )
+      repository.organizations.value =
+        Result.success(
+          listOf(
+            Organization(
+              id = "backend-a",
+              clerkOrgId = "clerk-a",
+              name = "Team A",
+              role = "org:member",
+            )
+          )
+        )
+      val viewModel = MainViewModel(repository, ZoneId.of("UTC"), MutableViewerClock(now))
+
+      viewModel.beginSession("alice")
+      advanceUntilIdle()
+
+      assertEquals(1, viewModel.uiState.value.personal.data?.live?.size)
+      assertTrue(viewModel.uiState.value.members.data?.single()?.live != null)
+      assertNull(viewModel.uiState.value.devices.data?.single()?.live)
+    }
+
   private class MutableViewerClock(initial: Long) : ViewerClock {
     val current = MutableStateFlow(initial)
     override val ticks: Flow<Long> = current
@@ -486,9 +593,8 @@ class MainViewModelTest {
     }
   }
 
-  private class FakeViewerRepository : ViewerRepository {
+  private class FakeViewerRepository(override val referenceNow: Long? = null) : ViewerRepository {
     override val isDemo = false
-    override val referenceNow: Long? = null
     override val authState =
       MutableStateFlow(ViewerAuthState.SignedIn("alice"))
     val aliceAccount = MutableStateFlow(Result.success<Account?>(Account("alice", name = "Alice")))

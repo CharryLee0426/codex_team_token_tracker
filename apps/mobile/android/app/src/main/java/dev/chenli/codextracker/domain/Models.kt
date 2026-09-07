@@ -37,6 +37,7 @@ fun ExpectedSummary.toSummary() =
     usage = TokenUsage(input, cached, cacheWrite, output, reasoning, total, requests),
     cost = cost,
     cacheHitRate = if (input == 0L) 0.0 else (cached.toDouble() / input).coerceIn(0.0, 1.0),
+    averageTokensPerRequest = if (requests == 0L) 0.0 else total.toDouble() / requests,
     activeUsers = activeUsers,
     models = models,
   )
@@ -205,6 +206,7 @@ data class UsageSummary(
   val usage: TokenUsage,
   val cost: Double,
   val cacheHitRate: Double,
+  val averageTokensPerRequest: Double,
   val activeUsers: Int,
   val models: Int,
 )
@@ -223,7 +225,16 @@ data class MemberContribution(
   val total: Long,
   val cost: Double,
   val share: Double,
-)
+) {
+  val displayName: String
+    get() = user.name ?: user.email ?: user.id
+}
+
+/** One local weekday × hour bucket. [weekday] uses 0 = Sunday … 6 = Saturday. */
+data class ActivityCell(val weekday: Int, val hour: Int, val total: Long)
+
+/** Local weekday total. [weekday] uses 0 = Sunday … 6 = Saturday. */
+data class WeekdayUsage(val weekday: Int, val total: Long)
 
 data class UsageSnapshot(
   val summary: UsageSummary,
@@ -231,15 +242,35 @@ data class UsageSnapshot(
   val models: List<UsageBreakdown>,
   val sources: List<UsageBreakdown>,
   val members: List<MemberContribution>,
-)
+  val activeHours: List<ActivityCell>,
+  val weekdays: List<WeekdayUsage>,
+) {
+  /** True when no Codex rows exist in the range; mirrors the dashboard's empty-usage state. */
+  val isEmpty: Boolean
+    get() = sources.isEmpty()
+}
 
 enum class UsageScope { Personal, Team }
 
-enum class UsageRange(val days: Int) {
-  Today(1),
-  SevenDays(7),
-  ThirtyDays(30),
-  NinetyDays(90),
+/** Range presets shared with the iOS viewer; [key] is the persisted/serialized identifier. */
+enum class UsageRange(val days: Int?, val key: String) {
+  Today(1, "today"),
+  SevenDays(7, "7d"),
+  ThirtyDays(30, "30d"),
+  NinetyDays(90, "90d"),
+  OneYear(365, "365d"),
+  PlanStart(null, "planStart"),
+  Custom(null, "custom");
+
+  companion object {
+    fun fromKey(key: String?): UsageRange? = entries.firstOrNull { it.key == key }
+  }
 }
 
+data class CustomDayRange(val from: LocalDate, val to: LocalDate)
+
+data class NormalizedDayRange(val from: LocalDate, val to: LocalDate, val days: Int)
+
 data class QueryRange(val from: Long, val to: Long)
+
+enum class ConnectionState { Live, Reconnecting, Offline }

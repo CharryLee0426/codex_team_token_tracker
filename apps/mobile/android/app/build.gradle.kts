@@ -26,8 +26,8 @@ android {
     applicationId = "dev.chenli.codextracker"
     minSdk = 26
     targetSdk = 37
-    versionCode = 1
-    versionName = "0.1.0"
+    versionCode = 2
+    versionName = "0.2.0"
 
     testInstrumentationRunner = "dev.chenli.codextracker.DemoTestRunner"
   }
@@ -103,6 +103,7 @@ dependencies {
   implementation(libs.compose.ui.tooling.preview)
   implementation(libs.compose.foundation)
   implementation(libs.compose.material3)
+  implementation(libs.compose.material.icons.extended)
   implementation(libs.activity.compose)
   implementation(libs.lifecycle.runtime.compose)
   implementation(libs.lifecycle.viewmodel.compose)

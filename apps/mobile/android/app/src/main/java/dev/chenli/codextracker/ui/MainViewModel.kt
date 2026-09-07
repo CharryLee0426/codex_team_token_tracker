@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import dev.chenli.codextracker.data.ViewerAuthState
 import dev.chenli.codextracker.data.ViewerRepository
 import dev.chenli.codextracker.domain.Account
+import dev.chenli.codextracker.domain.ConnectionState
+import dev.chenli.codextracker.domain.CustomDayRange
 import dev.chenli.codextracker.domain.Device
 import dev.chenli.codextracker.domain.LiveDevice
 import dev.chenli.codextracker.domain.LiveFreshness
@@ -21,11 +23,13 @@ import dev.chenli.codextracker.domain.UsageScope
 import dev.chenli.codextracker.domain.UsageSession
 import dev.chenli.codextracker.domain.UsageSnapshot
 import dev.chenli.codextracker.domain.ViewerClock
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -36,6 +40,7 @@ import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -51,11 +56,21 @@ data class Loadable<out T>(
   val loading: Boolean = true,
   val error: String? = null,
 ) {
-  val stale: Boolean get() = data != null && error != null
+  /** Previous data stays on screen while a refresh is pending or the subscription failed. */
+  val stale: Boolean
+    get() = data != null && (error != null || loading)
+
+  /** The subscription failed after data had already been shown. */
+  val failed: Boolean
+    get() = data != null && error != null
 }
 
 data class MainUiState(
   val range: UsageRange = UsageRange.ThirtyDays,
+  val customRange: CustomDayRange? = null,
+  val now: Long = System.currentTimeMillis(),
+  val connection: ConnectionState = ConnectionState.Live,
+  val refreshing: Boolean = false,
   val account: Loadable<Account?> = Loadable(),
   val organizations: Loadable<List<Organization>> = Loadable(),
   val selectedClerkOrgId: String? = null,
@@ -64,12 +79,21 @@ data class MainUiState(
   val team: Loadable<DashboardData> = Loadable(),
   val members: Loadable<List<Member>> = Loadable(),
   val devices: Loadable<List<Device>> = Loadable(),
-)
+) {
+  /** True while the selected Clerk organization is still being activated. */
+  val activatingOrganization: Boolean
+    get() = selectedOrgId == null && selectedClerkOrgId != null && team.loading && team.data == null
+
+  /** Mirrors the iOS `teamUnavailable` flag: the chosen organization could not be resolved. */
+  val teamUnavailable: Boolean
+    get() = selectedOrgId == null && team.error != null
+}
 
 private data class QueryMoment(val now: Long, val key: QueryRefreshKey)
 
 private data class DashboardSelection(
   val range: UsageRange,
+  val custom: CustomDayRange?,
   val orgId: String?,
   val queryMoment: QueryMoment,
 )
@@ -86,9 +110,18 @@ class MainViewModel(
   private val repository: ViewerRepository,
   private val zoneId: ZoneId = ZoneId.systemDefault(),
   private val clock: ViewerClock = SystemViewerClock(),
+  private val rangeStore: RangeStore = InMemoryRangeStore(),
 ) : ViewModel() {
-  private val range = MutableStateFlow(UsageRange.ThirtyDays)
+  /**
+   * Live snapshots age out only in live mode. The iOS viewer never advances a demo payload, so the
+   * fixture's live list and member states stay visible there; device cards apply the freshness rule
+   * themselves on both platforms.
+   */
+  private val expiresLiveState: Boolean = repository.referenceNow == null
+  private val range = MutableStateFlow(rangeStore.loadRange())
+  private val customRange = MutableStateFlow(rangeStore.loadCustomRange())
   private val selectedOrgId = MutableStateFlow<String?>(null)
+  private val connectionOverride = MutableStateFlow<ConnectionState?>(null)
   private var activePrincipalId: String? = null
   private var sessionGeneration = 0L
   private var sessionJob: Job? = null
@@ -96,7 +129,7 @@ class MainViewModel(
   private var pendingClerkOrgId: String? = null
   private var organizationMemberships: List<Organization> = emptyList()
   private var currentActiveClerkOrgId: String? = null
-  val uiState = MutableStateFlow(MainUiState())
+  val uiState = MutableStateFlow(MainUiState(range = range.value, customRange = customRange.value))
 
   init {
     viewModelScope.launch {
@@ -144,14 +177,41 @@ class MainViewModel(
     currentActiveClerkOrgId = null
     sessionJob?.cancel()
     sessionJob = null
-    range.value = UsageRange.ThirtyDays
     selectedOrgId.value = null
-    uiState.value = MainUiState()
+    connectionOverride.value = null
+    uiState.value =
+      MainUiState(range = range.value, customRange = customRange.value, now = uiState.value.now)
+  }
+
+  /** Re-runs the bootstrap and every subscription for the current principal. */
+  fun retry() {
+    val principalId = activePrincipalId ?: return
+    endSession(principalId)
+    beginSession(principalId)
+  }
+
+  /** Pull-to-refresh: restart the subscriptions and show the indicator until data arrives. */
+  fun refresh() {
+    val principalId = activePrincipalId ?: return
+    endSession(principalId)
+    uiState.update { it.copy(refreshing = true) }
+    beginSession(principalId)
   }
 
   fun selectRange(value: UsageRange) {
     range.value = value
+    rangeStore.saveRange(value)
     uiState.update { it.copy(range = value) }
+  }
+
+  fun applyCustomRange(from: LocalDate, to: LocalDate) {
+    val today = RangePlanner.today(effectiveNow(clock.nowMillis()), zoneId)
+    val normalized = RangePlanner.normalizeCustom(from, to, today)
+    val custom = CustomDayRange(normalized.from, normalized.to)
+    customRange.value = custom
+    rangeStore.saveCustomRange(custom)
+    uiState.update { it.copy(customRange = custom) }
+    selectRange(UsageRange.Custom)
   }
 
   fun selectOrganization(id: String) {
@@ -221,6 +281,20 @@ class MainViewModel(
     }
   }
 
+  /** Demo-only: toggles a simulated outage so the banner and settings states can be reviewed. */
+  fun simulateConnectionChange() {
+    if (!repository.isDemo) return
+    if ((connectionOverride.value ?: ConnectionState.Live) == ConnectionState.Live) {
+      connectionOverride.value = ConnectionState.Offline
+    } else {
+      connectionOverride.value = ConnectionState.Reconnecting
+      viewModelScope.launch {
+        delay(250)
+        if (connectionOverride.value == ConnectionState.Reconnecting) connectionOverride.value = null
+      }
+    }
+  }
+
   override fun onCleared() {
     endSession()
     super.onCleared()
@@ -229,12 +303,19 @@ class MainViewModel(
   private suspend fun observeRepository(generation: Long, principalId: String) =
     coroutineScope {
       val initialNow = effectiveNow(clock.nowMillis())
+      uiState.update { it.copy(now = initialNow) }
       val now =
         clock.ticks
           .map(::effectiveNow)
           .distinctUntilChanged()
           .stateIn(this, SharingStarted.Eagerly, initialNow)
 
+      launch {
+        now.collect { current ->
+          if (isCurrentSession(generation, principalId)) uiState.update { it.copy(now = current) }
+        }
+      }
+      launch { observeConnection(generation, principalId) }
       launch { observeAccount(generation, principalId) }
       launch { observeOrganizations(generation, principalId) }
       launch { observeDashboard(UsageScope.Personal, now, generation, principalId) }
@@ -242,6 +323,14 @@ class MainViewModel(
       launch { observeMembers(now, generation, principalId) }
       launch { observeDevices(now, generation, principalId) }
     }
+
+  private suspend fun observeConnection(generation: Long, principalId: String) {
+    combine(repository.connection, connectionOverride) { live, override -> override ?: live }
+      .collect { state ->
+        if (!isCurrentSession(generation, principalId)) return@collect
+        uiState.update { it.copy(connection = state) }
+      }
+  }
 
   private suspend fun observeAccount(generation: Long, principalId: String) {
     repository.account().collect { result ->
@@ -347,29 +436,35 @@ class MainViewModel(
         .distinctUntilChangedBy(QueryMoment::key)
     val selection =
       if (scope == UsageScope.Personal) {
-        combine(range, queryMoments) { selectedRange, queryMoment ->
-          DashboardSelection(selectedRange, null, queryMoment)
+        combine(range, customRange, queryMoments) { selectedRange, custom, queryMoment ->
+          DashboardSelection(selectedRange, custom, null, queryMoment)
         }
       } else {
-        combine(range, selectedOrgId, queryMoments) { selectedRange, orgId, queryMoment ->
-          DashboardSelection(selectedRange, orgId, queryMoment)
+        combine(range, customRange, selectedOrgId, queryMoments) {
+          selectedRange,
+          custom,
+          orgId,
+          queryMoment ->
+          DashboardSelection(selectedRange, custom, orgId, queryMoment)
         }
       }
     val results =
       selection
-      .distinctUntilChanged()
-      .flatMapLatest { selected ->
-        if (scope == UsageScope.Team && selected.orgId == null) {
-          flowOf(Result.success(emptyDashboard()))
-        } else {
-          dashboard(
-            scope = scope,
-            orgId = selected.orgId,
-            selectedRange = selected.range,
-            requestNow = selected.queryMoment.now,
-          )
+        .distinctUntilChanged()
+        .onEach { if (isCurrentSession(generation, principalId)) markReloading(scope) }
+        .flatMapLatest { selected ->
+          if (scope == UsageScope.Team && selected.orgId == null) {
+            flowOf(Result.success(emptyDashboard()))
+          } else {
+            dashboard(
+              scope = scope,
+              orgId = selected.orgId,
+              selectedRange = selected.range,
+              custom = selected.custom,
+              requestNow = selected.queryMoment.now,
+            )
+          }
         }
-      }
     results
       .withFreshnessMoments(
         now = now,
@@ -383,7 +478,11 @@ class MainViewModel(
         if (!isCurrentSession(generation, principalId)) return@collect
         val result =
           observation.result.map { data ->
-            data.copy(live = LiveFreshness.liveDevices(data.live, observation.now))
+            if (expiresLiveState) {
+              data.copy(live = LiveFreshness.liveDevices(data.live, observation.now))
+            } else {
+              data
+            }
           }
         if (scope == UsageScope.Personal) {
           val current = uiState.value.personal.refreshLive(observation.now)
@@ -395,13 +494,24 @@ class MainViewModel(
       }
   }
 
+  private fun markReloading(scope: UsageScope) {
+    uiState.update { state ->
+      if (scope == UsageScope.Personal) state.copy(personal = state.personal.reloading())
+      else state.copy(team = state.team.reloading())
+    }
+  }
+
+  private fun <T> Loadable<T>.reloading(): Loadable<T> =
+    if (data == null) this else copy(loading = true)
+
   private fun dashboard(
     scope: UsageScope,
     orgId: String?,
     selectedRange: UsageRange,
+    custom: CustomDayRange?,
     requestNow: Long,
   ): Flow<Result<DashboardData>> {
-    val bounds = RangePlanner.bounds(selectedRange, requestNow, zoneId)
+    val bounds = RangePlanner.bounds(selectedRange, requestNow, zoneId, custom)
     return combine(
       repository.hourly(scope, orgId, bounds),
       repository.recentSessions(scope, orgId),
@@ -421,7 +531,7 @@ class MainViewModel(
                 response.users,
                 zoneId,
                 includeMembers = scope == UsageScope.Team,
-            ),
+              ),
             sessions = sessions.getOrThrow().filter { UsageAggregator.isOpenAIModel(it.model) },
             live = live.getOrThrow(),
           )
@@ -449,12 +559,11 @@ class MainViewModel(
         if (!isCurrentSession(generation, principalId)) return@collect
         val current =
           uiState.value.members.copy(
-            data = uiState.value.members.data?.let { LiveFreshness.members(it, observation.now) }
+            data = uiState.value.members.data?.let { freshMembers(it, observation.now) }
           )
-        val result =
-          observation.result.map { members -> LiveFreshness.members(members, observation.now) }
+        val result = observation.result.map { members -> freshMembers(members, observation.now) }
         updateLoadable(current, result) { value ->
-          uiState.update { it.copy(members = value) }
+          uiState.update { it.copy(members = value, refreshing = false) }
         }
       }
   }
@@ -480,7 +589,7 @@ class MainViewModel(
         val result =
           observation.result.map { devices -> LiveFreshness.devices(devices, observation.now) }
         updateLoadable(current, result) { value ->
-          uiState.update { it.copy(devices = value) }
+          uiState.update { it.copy(devices = value, refreshing = false) }
         }
       }
   }
@@ -512,7 +621,11 @@ class MainViewModel(
     }
 
   private fun Loadable<DashboardData>.refreshLive(now: Long): Loadable<DashboardData> =
-    copy(data = data?.let { it.copy(live = LiveFreshness.liveDevices(it.live, now)) })
+    if (!expiresLiveState) this
+    else copy(data = data?.let { it.copy(live = LiveFreshness.liveDevices(it.live, now)) })
+
+  private fun freshMembers(members: List<Member>, now: Long): List<Member> =
+    if (expiresLiveState) LiveFreshness.members(members, now) else members
 
   private fun effectiveNow(tick: Long): Long = repository.referenceNow ?: tick
 
@@ -535,6 +648,7 @@ class MainViewModel(
     val message = error.message ?: error.javaClass.simpleName
     uiState.update {
       it.copy(
+        refreshing = false,
         organizations = Loadable(loading = false, error = message),
         account = Loadable(loading = false, error = message),
         personal = Loadable(loading = false, error = message),
@@ -567,11 +681,12 @@ class MainViewModel(
     fun factory(
       repository: ViewerRepository,
       clock: ViewerClock = SystemViewerClock(),
+      rangeStore: RangeStore = InMemoryRangeStore(),
     ): ViewModelProvider.Factory =
       object : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-          MainViewModel(repository, clock = clock) as T
+          MainViewModel(repository, clock = clock, rangeStore = rangeStore) as T
       }
   }
 }

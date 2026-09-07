@@ -49,8 +49,8 @@ targets:
       path: CodexTracker/Info.plist
       properties:
         CFBundleDisplayName: Codex Tracker
-        CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "0.2.0"
+        CFBundleVersion: "2"
         CLERK_PUBLISHABLE_KEY: $(CLERK_PUBLISHABLE_KEY)
         CONVEX_URL: $(CONVEX_URL)
         UILaunchScreen: {}
