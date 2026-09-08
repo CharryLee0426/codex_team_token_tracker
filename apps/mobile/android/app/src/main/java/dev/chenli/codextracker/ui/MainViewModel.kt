@@ -14,6 +14,7 @@ import dev.chenli.codextracker.domain.LiveDevice
 import dev.chenli.codextracker.domain.LiveFreshness
 import dev.chenli.codextracker.domain.Member
 import dev.chenli.codextracker.domain.Organization
+import dev.chenli.codextracker.domain.QueryRange
 import dev.chenli.codextracker.domain.QueryRefreshKey
 import dev.chenli.codextracker.domain.RangePlanner
 import dev.chenli.codextracker.domain.SystemViewerClock
@@ -44,11 +45,14 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
 
 data class DashboardData(
   val snapshot: UsageSnapshot,
   val sessions: List<UsageSession>,
   val live: List<LiveDevice>,
+  val bounds: QueryRange? = null,
 )
 
 data class Loadable<out T>(
@@ -124,6 +128,7 @@ class MainViewModel(
   private val connectionOverride = MutableStateFlow<ConnectionState?>(null)
   private var activePrincipalId: String? = null
   private var sessionGeneration = 0L
+  private var lastRecoveryAt = Long.MIN_VALUE
   private var sessionJob: Job? = null
   private var organizationActivationJob: Job? = null
   private var pendingClerkOrgId: String? = null
@@ -154,10 +159,12 @@ class MainViewModel(
     sessionJob =
       viewModelScope.launch {
         try {
-          repository.ensureUser()
+          withTimeout(25_000) { repository.ensureUser() }
           if (isCurrentSession(generation, principalId)) {
             observeRepository(generation, principalId)
           }
+        } catch (timeout: TimeoutCancellationException) {
+          if (isCurrentSession(generation, principalId)) setFatalError(timeout)
         } catch (cancelled: CancellationException) {
           throw cancelled
         } catch (error: Throwable) {
@@ -183,20 +190,32 @@ class MainViewModel(
       MainUiState(range = range.value, customRange = customRange.value, now = uiState.value.now)
   }
 
-  /** Re-runs the bootstrap and every subscription for the current principal. */
-  fun retry() {
+  /** Restart failed subscriptions for the same principal, retaining personal data while reconnecting. */
+  fun recover(force: Boolean = false) {
     val principalId = activePrincipalId ?: return
+    val previous = uiState.value
+    val failed = listOf(previous.account, previous.organizations, previous.personal,
+      previous.team, previous.members, previous.devices).any { it.error != null }
+    if (!force && !failed && previous.connection == ConnectionState.Live && sessionJob?.isActive == true) return
+    val now = clock.nowMillis()
+    if (previous.refreshing && sessionJob?.isActive == true && lastRecoveryAt != Long.MIN_VALUE && now - lastRecoveryAt < 25_000) return
+    lastRecoveryAt = now
     endSession(principalId)
     beginSession(principalId)
+    if (activePrincipalId != principalId) return
+    uiState.value = previous.copy(
+      refreshing = true,
+      connection = ConnectionState.Reconnecting,
+      personal = previous.personal.copy(loading = true),
+      selectedOrgId = null,
+      team = Loadable(),
+      members = Loadable(),
+    )
   }
 
-  /** Pull-to-refresh: restart the subscriptions and show the indicator until data arrives. */
-  fun refresh() {
-    val principalId = activePrincipalId ?: return
-    endSession(principalId)
-    uiState.update { it.copy(refreshing = true) }
-    beginSession(principalId)
-  }
+  fun retry() = recover(force = true)
+
+  fun refresh() = recover(force = true)
 
   fun selectRange(value: UsageRange) {
     range.value = value
@@ -231,7 +250,12 @@ class MainViewModel(
     clearResolvedOrganization(selectedClerkOrgId = id, loading = true)
     organizationActivationJob =
       viewModelScope.launch {
-        repository.activateOrganization(id).fold(
+        val activation = try {
+          withTimeout(20_000) { repository.activateOrganization(id) }
+        } catch (timeout: TimeoutCancellationException) {
+          Result.failure(timeout)
+        }
+        activation.fold(
           onSuccess = { organization ->
             if (
               !isCurrentSession(generation, principalId) ||
@@ -260,6 +284,7 @@ class MainViewModel(
             val unavailable = Loadable<DashboardData>(loading = false, error = error.message)
             uiState.update { state ->
               state.copy(
+                refreshing = false,
                 team = unavailable,
                 members = Loadable(loading = false, error = error.message),
               )
@@ -534,6 +559,7 @@ class MainViewModel(
               ),
             sessions = sessions.getOrThrow().filter { UsageAggregator.isOpenAIModel(it.model) },
             live = live.getOrThrow(),
+            bounds = bounds,
           )
         )
       }
@@ -649,9 +675,9 @@ class MainViewModel(
     uiState.update {
       it.copy(
         refreshing = false,
-        organizations = Loadable(loading = false, error = message),
-        account = Loadable(loading = false, error = message),
-        personal = Loadable(loading = false, error = message),
+        organizations = it.organizations.copy(loading = false, error = message),
+        account = it.account.copy(loading = false, error = message),
+        personal = it.personal.copy(loading = false, error = message),
         team = Loadable(loading = false, error = message),
         members = Loadable(loading = false, error = message),
         devices = Loadable(loading = false, error = message),

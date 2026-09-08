@@ -18,6 +18,7 @@ private enum LiveRepositoryError: Error {
   case notAuthenticated
   case organizationUnavailable
   case subscriptionEnded
+  case timedOut
 }
 
 /// A single long-lived Convex client owns every subscription for the app process.
@@ -32,6 +33,7 @@ final class LiveMobileRepository: MobileRepository, StreamingMobileRepository {
   private let clock: MobileClock
   private let loadCoordinator = RepositoryLoadCoordinator()
   private let organizationActivationQueue = OrganizationActivationQueue()
+  private var principalID: String?
   private var subscriptions: [UsageScope: ScopeSubscription] = [:]
   private var socketCancellable: AnyCancellable?
   private var payloadHandler: ((UsageScope, RepositoryPayload) -> Void)?
@@ -72,17 +74,26 @@ final class LiveMobileRepository: MobileRepository, StreamingMobileRepository {
   func prepare() async throws -> Bool {
     _ = try await Clerk.shared.refreshEnvironment()
     _ = try await Clerk.shared.refreshClient()
-    guard Clerk.shared.session?.status == .active else { return false }
+    guard Clerk.shared.session?.status == .active else {
+      invalidatePrincipal()
+      return false
+    }
+    let currentPrincipal = Clerk.shared.session?.id
+    if let principalID, principalID != currentPrincipal { invalidatePrincipal() }
+    principalID = currentPrincipal
+    _ = try await Clerk.shared.session?.getToken(.init(skipCache: true))
     try await authenticateConvexAndBootstrapUser()
     return true
   }
 
   func signIn() async throws {
     _ = try await Clerk.shared.auth.startHostedAuth(mode: .signIn)
+    principalID = Clerk.shared.session?.id
     try await authenticateConvexAndBootstrapUser()
   }
 
   func signOut() async {
+    principalID = nil
     loadCoordinator.invalidateAll()
     organizationActivationQueue.cancelAll()
     subscriptions.values.forEach { $0.cancel() }
@@ -158,7 +169,12 @@ final class LiveMobileRepository: MobileRepository, StreamingMobileRepository {
           state.devices = []
           subscribeMembers(backendOrganizationID: backendOrganizationID, state: state)
         }
+        state.timeoutTask = Task { @MainActor [weak state] in
+          do { try await Task.sleep(for: .seconds(20)) } catch { return }
+          state?.pendingResult.resume(throwing: LiveRepositoryError.timedOut)
+        }
         let payload = try await state.pendingResult.wait()
+        state.timeoutTask?.cancel()
         try loadCoordinator.requireCurrent(ticket)
         guard isAuthorizedCurrentState(state) else {
           invalidateIfTeamAuthorityWasLost(state)
@@ -334,8 +350,11 @@ final class LiveMobileRepository: MobileRepository, StreamingMobileRepository {
     publisher
       .receive(on: DispatchQueue.main)
       .sink { [weak self, weak state] completion in
-        guard case .failure(let error) = completion, let self, let state else { return }
-        self.fail(state: state, error: error)
+        guard let self, let state else { return }
+        switch completion {
+        case .failure(let error): self.fail(state: state, error: error)
+        case .finished: self.fail(state: state, error: .InternalError(msg: "Subscription ended"))
+        }
       } receiveValue: { [weak self, weak state] value in
         guard let self, let state else { return }
         guard self.isAuthorizedCurrentState(state) else {
@@ -397,6 +416,7 @@ final class LiveMobileRepository: MobileRepository, StreamingMobileRepository {
     else {
       return false
     }
+    guard principalID == Clerk.shared.session?.id, Clerk.shared.session?.status == .active else { return false }
     guard state.scope == .team else { return true }
     return state.organizationID.map(hasTeamAuthority(for:)) ?? false
   }
@@ -411,6 +431,7 @@ final class LiveMobileRepository: MobileRepository, StreamingMobileRepository {
 
   private func observeClerkAuthorityChanges() {
     withObservationTracking {
+      _ = Clerk.shared.session?.id
       _ = Clerk.shared.session?.status
       _ = Clerk.shared.session?.lastActiveOrganizationId
       _ = Clerk.shared.user?.organizationMemberships?.map { $0.organization.id }
@@ -418,10 +439,24 @@ final class LiveMobileRepository: MobileRepository, StreamingMobileRepository {
       Task { @MainActor in
         guard let self else { return }
         self.observeClerkAuthorityChanges()
+        if let principalID = self.principalID,
+          principalID != Clerk.shared.session?.id || Clerk.shared.session?.status != .active {
+          self.invalidatePrincipal()
+          return
+        }
         guard let state = self.subscriptions[.team] else { return }
         _ = self.invalidateIfTeamAuthorityWasLost(state)
       }
     }
+  }
+
+  private func invalidatePrincipal() {
+    principalID = nil
+    loadCoordinator.invalidateAll()
+    organizationActivationQueue.cancelAll()
+    subscriptions.values.forEach { $0.cancel() }
+    subscriptions.removeAll()
+    authorizationInvalidationHandler?(.personal)
   }
 
   @discardableResult
@@ -487,8 +522,14 @@ final class LiveMobileRepository: MobileRepository, StreamingMobileRepository {
 final class FirstPublisherValue<Value: Sendable> {
   private let pendingResult = PendingLoadResult<Value>()
   private var cancellable: AnyCancellable?
+  private var timeoutTask: Task<Void, Never>?
 
   func start(_ publisher: AnyPublisher<Value, ClientError>) {
+    timeoutTask = Task { @MainActor [weak self] in
+      do { try await Task.sleep(for: .seconds(20)) } catch { return }
+      self?.pendingResult.resume(throwing: LiveRepositoryError.timedOut)
+      self?.cancellable?.cancel()
+    }
     cancellable = publisher.first().receive(on: DispatchQueue.main).sink { [weak self] completion in
       switch completion {
       case .finished:
@@ -502,7 +543,8 @@ final class FirstPublisherValue<Value: Sendable> {
   }
 
   func wait() async throws -> Value {
-    try await withTaskCancellationHandler {
+    defer { timeoutTask?.cancel() }
+    return try await withTaskCancellationHandler {
       try await pendingResult.wait()
     } onCancel: { [weak self] in
       Task { @MainActor in self?.cancel() }
@@ -510,6 +552,7 @@ final class FirstPublisherValue<Value: Sendable> {
   }
 
   private func cancel() {
+    timeoutTask?.cancel()
     cancellable?.cancel()
     cancellable = nil
     pendingResult.cancel()
@@ -529,6 +572,7 @@ private final class ScopeSubscription {
   var account: PublicUser?
   var accountLoaded = false
   var cancellables: Set<AnyCancellable> = []
+  var timeoutTask: Task<Void, Never>?
   let pendingResult = PendingLoadResult<RepositoryPayload>()
 
   init(
@@ -544,6 +588,7 @@ private final class ScopeSubscription {
   }
 
   func cancel() {
+    timeoutTask?.cancel()
     cancellables.forEach { $0.cancel() }
     cancellables.removeAll()
     pendingResult.cancel()

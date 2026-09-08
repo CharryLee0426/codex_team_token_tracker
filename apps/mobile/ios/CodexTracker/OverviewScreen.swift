@@ -3,6 +3,7 @@ import SwiftUI
 struct OverviewScreen: View {
   @ObservedObject var model: AppModel
   let scope: UsageScope
+  @State private var sharing = false
   @Environment(\.locale) private var locale
 
   var body: some View {
@@ -17,6 +18,7 @@ struct OverviewScreen: View {
         LoadingState()
       }
     }
+    .sheet(isPresented: $sharing) { UsageShareSheet(model: model, scope: scope) }
     .task {
       if model.payloads[scope] == nil && (scope == .personal || model.selectedOrganizationID != nil) {
         await model.load(scope: scope)
@@ -42,6 +44,12 @@ struct OverviewScreen: View {
           Spacer(minLength: 8)
           RangeControl(model: model)
         }
+        Button { sharing = true } label: {
+          Label("share.title", systemImage: "square.and.arrow.up")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .accessibilityIdentifier("share.open")
         StatusBanner(state: model.connection, stale: model.staleScopes.contains(scope))
         KPIGrid(
           summary: summary,

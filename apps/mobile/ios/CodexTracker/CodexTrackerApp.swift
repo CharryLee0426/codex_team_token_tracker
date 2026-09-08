@@ -3,6 +3,7 @@ import SwiftUI
 
 @main
 struct CodexTrackerApp: App {
+  @Environment(\.scenePhase) private var scenePhase
   @StateObject private var model: AppModel
   @AppStorage("mobile.appearance") private var appearanceRaw = AppAppearance.system.rawValue
   @AppStorage("mobile.language") private var languageRaw = AppLanguage.english.rawValue
@@ -34,6 +35,9 @@ struct CodexTrackerApp: App {
       )
       .environment(\.locale, languageBinding.wrappedValue.locale)
       .preferredColorScheme(appearanceBinding.wrappedValue.colorScheme)
+      .onChange(of: scenePhase) { _, phase in
+        Task { await model.setForeground(phase == .active) }
+      }
       .task {
         if model.phase == .initializing { await model.start() }
       }
