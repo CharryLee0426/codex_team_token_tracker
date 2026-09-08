@@ -33,6 +33,9 @@ interface ViewerRepository {
   val connection: StateFlow<ConnectionState>
     get() = MutableStateFlow(ConnectionState.Live)
 
+  /** Rebind authentication after a suspended app or failed token refresh. */
+  suspend fun recoverAuthentication() {}
+
   suspend fun ensureUser()
 
   fun account(): Flow<Result<Account?>>

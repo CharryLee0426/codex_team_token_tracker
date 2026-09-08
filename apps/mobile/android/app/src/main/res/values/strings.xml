@@ -124,4 +124,14 @@
   <string name="a11y_selected">Selected</string>
   <string name="a11y_expand">Expand</string>
   <string name="a11y_collapse">Collapse</string>
+  <string name="share_title">Share usage</string>
+  <string name="share_action">Share image</string>
+  <string name="share_save">Save image</string>
+  <string name="share_done">Done</string>
+  <string name="share_description">The preview updates with your usage. Sharing or saving captures an image of the current card.</string>
+  <string name="share_input_output">Input / Output</string>
+  <string name="share_demo">DEMO DATA</string>
+  <string name="share_stale">CACHED DATA · Reconnecting</string>
+  <string name="share_saved">Image saved.</string>
+  <string name="share_error">Could not export the image. Please try again.</string>
 </resources>

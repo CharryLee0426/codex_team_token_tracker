@@ -182,3 +182,14 @@ test('CLI dry runs use the selected file despite ambient production credentials'
     assert.equal(run('build', '--demo', '--dry-run', '--env-file', join(dir, 'missing')).status, 0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test('iOS demo validation permits an unset public key but rejects production credentials in Debug', () => {
+  const script = new URL('../ios/Config/validate-environment.sh', import.meta.url).pathname;
+  const demo = spawnSync('/bin/sh', [script], { env: { CONFIGURATION: 'Debug' }, encoding: 'utf8' });
+  assert.equal(demo.status, 0, demo.stderr);
+  const production = spawnSync('/bin/sh', [script], {
+    env: { CONFIGURATION: 'Debug', CLERK_PUBLISHABLE_KEY: 'pk_live_placeholder' }, encoding: 'utf8',
+  });
+  assert.notEqual(production.status, 0);
+});

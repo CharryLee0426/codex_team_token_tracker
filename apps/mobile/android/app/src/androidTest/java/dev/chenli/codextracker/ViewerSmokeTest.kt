@@ -44,6 +44,18 @@ class ViewerSmokeTest {
   }
 
   @Test
+  fun usageCardPreviewOpensAndSavesAnImage() {
+    compose.waitUntilExactlyOneExists(hasTestTag("share_open"))
+    compose.onNodeWithTag("share_open").performClick()
+    compose.onNodeWithTag("share_preview").assertIsDisplayed()
+    compose.onNodeWithTag("share_save").performClick()
+    compose.waitUntil(timeoutMillis = 10_000) {
+      compose.onAllNodesWithText("Image saved.").fetchSemanticsNodes().isNotEmpty()
+    }
+    compose.onNodeWithText("Image saved.").assertIsDisplayed()
+  }
+
+  @Test
   fun demoOverviewTraversesAllReadOnlyTabs() {
     compose.waitUntilExactlyOneExists(hasTestTag("demo_badge"))
     compose.onNodeWithTag("personal_screen").assertIsDisplayed()

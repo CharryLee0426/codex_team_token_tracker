@@ -33,6 +33,9 @@ final class AppModel: ObservableObject {
   let isDemo: Bool
   private let repository: any MobileRepository
   private let clock: MobileClock
+  private var recoveryTask: Task<Void, Never>?
+  private var recovering = false
+  private var foreground = true
   private var clockTask: Task<Void, Never>?
   private var boundaryRefreshTasks: [UsageScope: Task<Void, Never>] = [:]
   private var lastRefreshMarker: ClockRefreshMarker
@@ -61,16 +64,30 @@ final class AppModel: ObservableObject {
       streaming.setConnectionHandler { [weak self] state in
         guard let self, self.acceptsRepositoryUpdates else { return }
         self.connection = state
-        if state != .live { self.staleScopes.formUnion(self.payloads.keys) }
+        if state != .live {
+          self.staleScopes.formUnion(self.payloads.keys)
+          self.scheduleRecovery()
+        }
       }
       streaming.setAuthorizationInvalidationHandler { [weak self] scope in
         guard let self, self.acceptsRepositoryUpdates else { return }
+        if scope == .personal {
+          _ = self.invalidateSession()
+          self.acceptsRepositoryUpdates = false
+          self.stopClockAndBoundaryRefreshes()
+          self.payloads.removeAll()
+          self.staleScopes.removeAll()
+          self.selectedOrganizationID = nil
+          self.phase = .signedOut
+          return
+        }
         self.invalidatePresentationLoad(scope)
         self.payloads[scope] = nil
         self.staleScopes.remove(scope)
         if scope == .team {
           self.selectedOrganizationID = nil
           self.teamUnavailable = true
+          self.scheduleRecovery()
           if self.payloads[.personal] != nil { self.phase = .loaded }
         }
       }
@@ -94,9 +111,9 @@ final class AppModel: ObservableObject {
       await loadInitial(expectedSession: session)
     } catch {
       guard isCurrentSession(session) else { return }
-      acceptsRepositoryUpdates = false
-      stopClockAndBoundaryRefreshes()
+      connection = .offline
       phase = .failed(String(localized: "error.load"))
+      scheduleRecovery()
     }
   }
 
@@ -141,6 +158,14 @@ final class AppModel: ObservableObject {
     phase = .loading
     await load(scope: .personal)
     guard isCurrentSession(session) else { return }
+    let organizations = payloads[.personal]?.organizations ?? []
+    if let selectedOrganizationID, !organizations.contains(where: { $0.clerkOrgId == selectedOrganizationID }) {
+      self.selectedOrganizationID = nil
+      payloads[.team] = nil
+      staleScopes.remove(.team)
+      (repository as? any StreamingMobileRepository)?.cancel(scope: .team)
+    }
+    if organizations.isEmpty { teamUnavailable = false }
     if selectedOrganizationID == nil {
       selectedOrganizationID = payloads[.personal]?.organizations.first?.clerkOrgId
     }
@@ -176,7 +201,9 @@ final class AppModel: ObservableObject {
     } catch {
       guard isCurrentPresentationLoad(loadTicket) else { return }
       guard scope != .team || requestedOrganizationID == selectedOrganizationID else { return }
-      staleScopes.remove(scope)
+      connection = .offline
+      if payloads[scope] != nil { staleScopes.insert(scope) }
+      scheduleRecovery()
       if scope == .team && payloads[.personal] != nil {
         payloads[.team] = nil
         teamUnavailable = true
@@ -188,10 +215,72 @@ final class AppModel: ObservableObject {
   }
 
   func retry() async {
-    acceptsRepositoryUpdates = true
-    startClockIfNeeded()
-    phase = .loading
-    await loadInitial()
+    await recover()
+  }
+
+  func setForeground(_ active: Bool) async {
+    guard !isDemo else { return }
+    foreground = active
+    if !active {
+      recoveryTask?.cancel()
+      recoveryTask = nil
+      return
+    }
+    guard phase != .initializing, phase != .bootstrapping,
+      phase != .signedOut, phase != .signingOut else { return }
+    await recover()
+  }
+
+  /// Refresh credentials before replacing terminated subscriptions. Only one recovery owns a session.
+  func recover() async {
+    guard !recovering, phase != .signedOut, phase != .signingOut else { return }
+    recovering = true
+    defer { recovering = false }
+    let session = sessionGeneration
+    staleScopes.formUnion(payloads.keys)
+    connection = .reconnecting
+    do {
+      guard try await repository.prepare() else {
+        guard isCurrentSession(session) else { return }
+        _ = invalidateSession()
+        acceptsRepositoryUpdates = false
+        stopClockAndBoundaryRefreshes()
+        payloads.removeAll()
+        staleScopes.removeAll()
+        selectedOrganizationID = nil
+        phase = .signedOut
+        return
+      }
+      guard isCurrentSession(session), !Task.isCancelled else { return }
+      acceptsRepositoryUpdates = true
+      startClockIfNeeded()
+      await loadInitial(expectedSession: session)
+      guard isCurrentSession(session) else { return }
+      if staleScopes.isEmpty && !teamUnavailable, case .loaded = phase { connection = .live }
+    } catch is CancellationError {
+      return
+    } catch {
+      guard isCurrentSession(session) else { return }
+      connection = .offline
+      if payloads.isEmpty { phase = .failed(String(localized: "error.load")) }
+    }
+    if connection != .live || teamUnavailable { scheduleRecovery() }
+  }
+
+  private func scheduleRecovery() {
+    guard !isDemo, foreground, recoveryTask == nil,
+      phase != .signedOut, phase != .signingOut else { return }
+    recoveryTask = Task { @MainActor [weak self] in
+      var delay = 1
+      while !Task.isCancelled {
+        do { try await Task.sleep(for: .seconds(delay)) } catch { break }
+        guard let self else { return }
+        await self.recover()
+        if self.connection == .live && self.staleScopes.isEmpty && !self.teamUnavailable { break }
+        delay = min(delay * 2, 30)
+      }
+      self?.recoveryTask = nil
+    }
   }
 
   func chooseOrganization(_ organizationID: String?) async {
@@ -328,6 +417,8 @@ final class AppModel: ObservableObject {
   }
 
   private func stopClockAndBoundaryRefreshes() {
+    recoveryTask?.cancel()
+    recoveryTask = nil
     clockTask?.cancel()
     clockTask = nil
     boundaryRefreshTasks.values.forEach { $0.cancel() }

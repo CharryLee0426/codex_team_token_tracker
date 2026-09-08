@@ -20,7 +20,7 @@ if [ "$CONFIGURATION" = Release ]; then
     echo 'error: Release requires the Clerk Frontend API host for Associated Domains.'; exit 1
   fi
 else
-  case "$CLERK_PUBLISHABLE_KEY" in
+  case "${CLERK_PUBLISHABLE_KEY:-}" in
     pk_live_*) echo 'error: Production Clerk credentials require a Release build.'; exit 1 ;;
   esac
 fi

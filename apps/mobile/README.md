@@ -9,6 +9,29 @@ Both apps open in a clearly labeled, credential-free demo mode when local servic
 missing. Live mode uses Clerk authentication and the existing authenticated Convex queries; it does
 not add a mobile API or change the upload wire contract.
 
+## Mobile 0.2.1
+
+- Returning to the foreground refreshes authentication and restarts failed data subscriptions.
+  Foreground retries recover from transient token, connection and organization-loading failures;
+  cached personal usage stays visible during recovery. Session or membership loss still clears
+  data that is no longer authorized.
+- **Share usage** on Personal and Team opens a preview that follows the current usage and selected
+  date range. **Share image** captures a PNG for the system share sheet (destinations depend on
+  installed apps). **Save image** saves to Photos on iOS and Pictures/Codex Tracker on Android 10+;
+  Android 8–9 uses the system file picker. An exported image is a snapshot and does not update later.
+- Cards include aggregate token counts, API-equivalent cost, requests, cache hit, date range and
+  capture time. Demo and cached data are labeled. Emails, account IDs, device details, project names
+  and session contents are excluded. Exports are generated locally; only the platform/destination
+  chosen by the user receives the image. iOS requests add-only Photos permission when saving;
+  Android requires no broad storage permission.
+- Both native apps use version **0.2.1**, build **3**; desktop package versions are independent.
+
+Validated with `mobile:test` (15 tests), `mobile:e2e --demo --platform ios` (48 unit + 4 UI tests,
+including native sharing and Photos saving, iPhone 17 Pro Max / iOS 26.3.1), and
+`mobile:e2e --demo --platform android` (52 unit + 7 device tests, API 37). These checks use demo
+fixtures and simulated repository failures; a signed-in, long-idle session against live services
+still needs device verification.
+
 ## Project map
 
 | Path | Purpose |
@@ -316,13 +339,13 @@ the full Clerk/Convex environment pair.
 - The same model-name rule as the web dashboard excludes non-OpenAI rows while retaining `unknown`
   entries attributable to Codex.
 - Cost is displayed from the server's existing `usd` values; mobile never recalculates or uploads it.
-- The apps request no transcript, storage, or file-system access and expose no ingestion, onboarding,
+- The apps request no transcript or broad file-system access and expose no ingestion, onboarding,
   invitation, device-authorization, or revoke actions.
 
 See [ADR-001](../../docs/decisions/001-native-mobile-viewers.md) for the architecture decision and
 [the feature spec](../../SPEC-mobile-app.md) for acceptance criteria.
 
-## Local verification snapshot
+## Previous local verification snapshot
 
 - iOS: 41 XCTest cases and 2 XCUITest flows passed on an iPhone 17 Pro simulator with iOS 26.5.
 - Android: 50 unit tests and 5 Compose E2E flows passed on the API-37 ARM64 emulator after the

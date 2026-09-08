@@ -3,6 +3,8 @@ package dev.chenli.codextracker.data
 import android.content.Context
 import com.clerk.api.Clerk
 import com.clerk.api.network.serialization.ClerkResult
+import com.clerk.api.session.GetTokenOptions
+import com.clerk.api.session.fetchToken
 import dev.chenli.codextracker.domain.Account
 import dev.chenli.codextracker.domain.ConnectionState
 import dev.chenli.codextracker.domain.Device
@@ -29,6 +31,9 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 class LiveViewerRepository(private val convex: ConvexClientWithAuth<String>) : ViewerRepository {
@@ -74,7 +79,34 @@ class LiveViewerRepository(private val convex: ConvexClientWithAuth<String>) : V
       }
       .stateIn(scope, SharingStarted.Eagerly, ConnectionState.Live)
 
+  private val authenticationMutex = Mutex()
+
+  override suspend fun recoverAuthentication() {
+    authenticationMutex.withLock {
+      val sessionId = Clerk.activeSession?.id ?: return
+      withTimeout(20_000) {
+        when (val result = Clerk.refreshClient()) {
+          is ClerkResult.Success -> Unit
+          is ClerkResult.Failure -> throw result.throwable ?: IllegalStateException("Could not refresh session")
+        }
+        check(Clerk.activeSession?.id == sessionId) { "Session changed during recovery" }
+        forceTokenAndLogin()
+      }
+    }
+  }
+
+  private suspend fun forceTokenAndLogin() {
+    val session = Clerk.activeSession ?: error("No active Clerk session")
+    when (val result = session.fetchToken(GetTokenOptions(skipCache = true))) {
+      is ClerkResult.Success -> Unit
+      is ClerkResult.Failure -> throw result.throwable ?: IllegalStateException("Could not refresh authentication")
+    }
+    check(Clerk.activeSession?.id == session.id) { "Session changed during authentication" }
+    convex.loginFromCache().getOrThrow()
+  }
+
   override suspend fun ensureUser() {
+    recoverAuthentication()
     convex.mutation<String>("users:ensureUser")
   }
 
@@ -144,7 +176,7 @@ class LiveViewerRepository(private val convex: ConvexClientWithAuth<String>) : V
           check(updatedSession.id == session.id)
           requireCurrentClerkAuthority(session.id, user.id)
 
-          convex.loginFromCache().getOrThrow()
+          authenticationMutex.withLock { forceTokenAndLogin() }
           requireCurrentClerkAuthority(session.id, user.id)
 
           val clerkOrganization = membership.organization

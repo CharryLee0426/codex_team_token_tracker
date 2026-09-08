@@ -113,3 +113,15 @@
 "state.emptyMembers" = "No members are available.";
 "state.emptyDevices" = "No devices are available.";
 "error.load" = "Usage could not be loaded. Your previous data remains available.";
+
+"share.title" = "Share usage";
+"share.action" = "Share image";
+"share.save" = "Save image";
+"share.done" = "Done";
+"share.description" = "The preview updates with your usage. Sharing or saving captures an image of the current card.";
+"share.inputOutput" = "Input / Output";
+"share.demo" = "DEMO DATA";
+"share.stale" = "CACHED DATA · Reconnecting";
+"share.saved" = "Image saved to Photos.";
+"share.error" = "Could not export the image. Please try again.";
+"share.permission" = "Allow adding photos in Settings to save this image.";

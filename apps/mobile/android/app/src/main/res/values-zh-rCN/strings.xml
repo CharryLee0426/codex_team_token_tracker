@@ -122,4 +122,14 @@
   <string name="a11y_selected">已选择</string>
   <string name="a11y_expand">展开</string>
   <string name="a11y_collapse">收起</string>
+  <string name="share_title">分享用量</string>
+  <string name="share_action">分享图片</string>
+  <string name="share_save">保存图片</string>
+  <string name="share_done">完成</string>
+  <string name="share_description">预览随用量实时更新。分享或保存时会生成当前卡片的图片。</string>
+  <string name="share_input_output">输入 / 输出</string>
+  <string name="share_demo">演示数据</string>
+  <string name="share_stale">缓存数据 · 正在重连</string>
+  <string name="share_saved">图片已保存。</string>
+  <string name="share_error">无法导出图片，请重试。</string>
 </resources>

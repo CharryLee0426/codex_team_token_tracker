@@ -113,3 +113,15 @@
 "state.emptyMembers" = "没有可用成员。";
 "state.emptyDevices" = "没有可用设备。";
 "error.load" = "无法加载用量。之前的数据仍会保留。";
+
+"share.title" = "分享用量";
+"share.action" = "分享图片";
+"share.save" = "保存图片";
+"share.done" = "完成";
+"share.description" = "预览随用量实时更新。分享或保存时会生成当前卡片的图片。";
+"share.inputOutput" = "输入 / 输出";
+"share.demo" = "演示数据";
+"share.stale" = "缓存数据 · 正在重连";
+"share.saved" = "图片已保存到相册。";
+"share.error" = "无法导出图片，请重试。";
+"share.permission" = "请在设置中允许添加照片，以保存此图片。";

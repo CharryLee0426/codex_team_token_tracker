@@ -17,6 +17,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,6 +90,7 @@ private fun Dashboard(
   contentPadding: PaddingValues,
   actions: ShellActions,
 ) {
+  var sharing by remember { mutableStateOf(false) }
   val locale = currentAppLocale()
   val snapshot = data.snapshot
   val organizationName =
@@ -95,6 +101,7 @@ private fun Dashboard(
   val connection = bannerConnection(state.connection, loadable)
   val showBanner = connection != ConnectionState.Live || loadable.stale
   val today = RangePlanner.today(state.now, ZoneId.systemDefault())
+  if (sharing) UsageShareDialog(state, scope, snapshot.summary, isDemo) { sharing = false }
   Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
     LazyColumn(
       modifier =
@@ -127,6 +134,11 @@ private fun Dashboard(
             onRangeSelected = actions.onRangeSelected,
             onCustomRangeApplied = actions.onCustomRangeApplied,
           )
+        }
+      }
+      item("share") {
+        OutlinedButton(onClick = { sharing = true }, modifier = Modifier.testTag("share_open")) {
+          Text(stringResource(R.string.share_title))
         }
       }
       if (showBanner) item("status") { StatusBanner(connection, loadable.stale) }

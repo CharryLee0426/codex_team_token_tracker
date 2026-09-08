@@ -292,6 +292,17 @@ final class AppModelCoordinationTests: XCTestCase {
     await model.signOut()
   }
 
+  func testPrincipalInvalidationClearsBothScopesAndRejectsLateUpdates() async {
+    let repository = StreamingAuthorityRepository()
+    let model = AppModel(repository: repository)
+    await model.start()
+    repository.invalidatePrincipalAuthorization()
+    repository.emitTeamPayload()
+    XCTAssertTrue(model.payloads.isEmpty)
+    XCTAssertEqual(model.phase, .signedOut)
+    XCTAssertNil(model.selectedOrganizationID)
+  }
+
   func testClearingOrganizationSelectionCancelsAndRejectsQueuedTeamUpdates() async {
     let repository = StreamingAuthorityRepository()
     let model = AppModel(repository: repository)
@@ -429,6 +440,8 @@ private final class StreamingAuthorityRepository: MobileRepository, StreamingMob
   func setAuthorizationInvalidationHandler(_ handler: @escaping (UsageScope) -> Void) {
     invalidationHandler = handler
   }
+
+  func invalidatePrincipalAuthorization() { invalidationHandler?(.personal) }
 
   func invalidateTeamAuthorization() {
     invalidationHandler?(.team)

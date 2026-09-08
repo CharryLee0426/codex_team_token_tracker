@@ -49,10 +49,11 @@ targets:
       path: CodexTracker/Info.plist
       properties:
         CFBundleDisplayName: Codex Tracker
-        CFBundleShortVersionString: "0.2.0"
-        CFBundleVersion: "2"
+        CFBundleShortVersionString: "0.2.1"
+        CFBundleVersion: "3"
         CLERK_PUBLISHABLE_KEY: $(CLERK_PUBLISHABLE_KEY)
         CONVEX_URL: $(CONVEX_URL)
+        NSPhotoLibraryAddUsageDescription: Save usage cards to your photo library.
         UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
     settings:

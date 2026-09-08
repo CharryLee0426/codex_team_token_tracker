@@ -32,6 +32,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -95,6 +102,22 @@ fun ViewerApp(
   onThemeSelected: (ThemeMode) -> Unit,
   onLanguageSelected: (LanguageMode) -> Unit,
 ) {
+  val lifecycleOwner = LocalLifecycleOwner.current
+  LaunchedEffect(repository, lifecycleOwner) {
+    if (!repository.isDemo) lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+      var resumed = true
+      while (true) {
+        if (resumed || repository.authState.value == ViewerAuthState.Loading) {
+          try { repository.recoverAuthentication() }
+          catch (_: TimeoutCancellationException) { /* Retry after the next foreground interval. */ }
+          catch (cancelled: CancellationException) { throw cancelled }
+          catch (_: Exception) { /* Retry while foregrounded; no credentials or raw errors are logged. */ }
+        }
+        resumed = false
+        delay(30_000)
+      }
+    }
+  }
   val colors = TrackerTheme.colors
   val authState by repository.authState.collectAsStateWithLifecycle()
   Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
@@ -112,6 +135,15 @@ fun ViewerApp(
         DisposableEffect(viewModel, currentAuth.principalId) {
           viewModel.beginSession(currentAuth.principalId)
           onDispose { viewModel.endSession(currentAuth.principalId) }
+        }
+        LaunchedEffect(viewModel, currentAuth.principalId, lifecycleOwner) {
+          if (!repository.isDemo) lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            viewModel.recover(force = true)
+            while (true) {
+              delay(30_000)
+              viewModel.recover()
+            }
+          }
         }
         val state by viewModel.uiState.collectAsStateWithLifecycle()
         val context = LocalContext.current
