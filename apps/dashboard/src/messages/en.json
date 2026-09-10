@@ -394,6 +394,28 @@
   "preview": {
     "banner": "Design preview — sample data, not your account"
   },
+  "share": {
+    "open": "Share usage",
+    "title": "Share usage",
+    "description": "The figures above as an image card. Copy it, download it or send it — nothing leaves your browser until you do.",
+    "preview": "Usage card preview",
+    "rendering": "Rendering the image…",
+    "copy": "Copy image",
+    "copied": "Copied to the clipboard",
+    "copyFailed": "This browser cannot copy images. Download the PNG instead.",
+    "download": "Download PNG",
+    "downloaded": "Image downloaded",
+    "share": "Share…",
+    "shareFailed": "Sharing failed. Copy or download the image instead.",
+    "error": "Could not render the image. Please try again.",
+    "close": "Close",
+    "card": {
+      "inputOutput": "Input / Output",
+      "models": "Models",
+      "demo": "DEMO DATA",
+      "stale": "CACHED DATA · Reconnecting"
+    }
+  },
   "onboarding": {
     "eyebrow": "Mission plan",
     "stage": "Stage {current} / {total}",

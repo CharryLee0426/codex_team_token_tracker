@@ -20,5 +20,5 @@ export function TeamView() {
       </Card>
     );
   }
-  return <UsageDashboard scope="team" orgId={org.id} orgName={org.name} />;
+  return <UsageDashboard scope="team" orgId={org.id} orgName={org.name} orgImageUrl={org.imageUrl} />;
 }
