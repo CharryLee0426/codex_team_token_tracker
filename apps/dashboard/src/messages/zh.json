@@ -394,6 +394,28 @@
   "preview": {
     "banner": "设计预览 —— 示例数据，并非你的账号"
   },
+  "share": {
+    "open": "分享用量",
+    "title": "分享用量",
+    "description": "把上方数据生成一张图片卡片，可复制、下载或分享。在你操作之前，任何内容都不会离开浏览器。",
+    "preview": "用量卡片预览",
+    "rendering": "正在生成图片…",
+    "copy": "复制图片",
+    "copied": "已复制到剪贴板",
+    "copyFailed": "当前浏览器不支持复制图片，请改为下载 PNG。",
+    "download": "下载 PNG",
+    "downloaded": "图片已下载",
+    "share": "分享…",
+    "shareFailed": "分享失败，请改为复制或下载图片。",
+    "error": "无法生成图片，请重试。",
+    "close": "关闭",
+    "card": {
+      "inputOutput": "输入 / 输出",
+      "models": "模型",
+      "demo": "演示数据",
+      "stale": "缓存数据 · 正在重连"
+    }
+  },
   "onboarding": {
     "eyebrow": "任务计划",
     "stage": "阶段 {current} / {total}",

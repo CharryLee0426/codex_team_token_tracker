@@ -67,6 +67,7 @@ export function PreviewApp({ view, initialSidebar }: { view: PreviewView; initia
           devices={devices}
           meId={DEMO_ME_ID}
           now={now}
+          share={scope === "team" ? { name: DEMO_ORG_NAME, imageUrl: null, demo: true } : { name: DEMO_USERS[0].name, imageUrl: DEMO_USERS[0].imageUrl, demo: true }}
         />
       );
       break;

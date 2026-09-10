@@ -18,10 +18,11 @@ interface Props {
   scope: Scope;
   orgId?: Id<"orgs">;
   orgName?: string;
+  orgImageUrl?: string | null;
 }
 
 /** Container: subscriptions and preferences for the live personal / team boards. */
-export function UsageDashboard({ scope, orgId, orgName }: Props) {
+export function UsageDashboard({ scope, orgId, orgName, orgImageUrl }: Props) {
   const now = useNow(60_000);
   const { me, ready } = useMe();
 
@@ -51,6 +52,11 @@ export function UsageDashboard({ scope, orgId, orgName }: Props) {
   // Codex-only: hide sessions an older client uploaded for a non-OpenAI model.
   const codexSessions = useMemo(() => sessions?.filter((s) => isOpenAIModel(s.model)), [sessions]);
   const liveUserIds = useMemo(() => new Set((liveNow ?? []).map((l) => l.user.id)), [liveNow]);
+  // The share card names the person (personal) or the organization (team); never emails.
+  const share = useMemo(
+    () => (scope === "team" ? (orgName ? { name: orgName, imageUrl: orgImageUrl ?? null } : undefined) : me ? { name: me.name, imageUrl: me.imageUrl } : undefined),
+    [scope, orgName, orgImageUrl, me],
+  );
 
   return (
     <UsageDashboardView
@@ -71,6 +77,7 @@ export function UsageDashboard({ scope, orgId, orgName }: Props) {
       devices={devices}
       meId={me?.id ?? null}
       now={now}
+      share={share}
     />
   );
 }

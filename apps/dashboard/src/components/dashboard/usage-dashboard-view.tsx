@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { RangeControl } from "./range-control";
+import { ShareUsageButton, type ShareIdentity } from "./share-usage";
 import { KpiRow } from "./kpi-row";
 import { Leaderboard } from "./leaderboard";
 import { RecentSessions, type SessionItem } from "./recent-sessions";
@@ -46,6 +47,8 @@ export interface UsageDashboardViewProps {
   devices?: DeviceItem[];
   meId: string | null;
   now: number;
+  /** Who a shared usage card is about; omitted = no share button (e.g. the organization is still syncing). */
+  share?: ShareIdentity;
   /** Landing-page preview: no page header, sessions or sources; a shorter board. */
   preview?: boolean;
 }
@@ -72,9 +75,12 @@ export function UsageDashboardView(p: UsageDashboardViewProps) {
           title={scope === "team" ? t("team.title") : t("personal.title")}
           subtitle={scope === "team" ? t("team.subtitle", { org: p.orgName ?? "" }) : t("personal.subtitle")}
           actions={
-            <div data-tour="range" className="w-full md:w-auto">
-              <RangeControl value={p.range} onChange={p.onRangeChange} nowMs={p.now} />
-            </div>
+            <>
+              {p.share ? <ShareUsageButton scope={scope} model={model} identity={p.share} deviceCount={p.deviceCount} stale={stale} loading={loading} className="max-md:w-full" /> : null}
+              <div data-tour="range" className="w-full md:w-auto">
+                <RangeControl value={p.range} onChange={p.onRangeChange} nowMs={p.now} />
+              </div>
+            </>
           }
         />
       ) : (
