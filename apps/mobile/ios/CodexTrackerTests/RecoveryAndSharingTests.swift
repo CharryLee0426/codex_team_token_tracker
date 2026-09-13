@@ -56,6 +56,37 @@ final class RecoveryAndSharingTests: XCTestCase {
     await model.signOut()
   }
 
+  func testClosingClerkSignInWithoutSessionStaysSignedOutSilently() async throws {
+    let repository = try RecoveryRepository()
+    repository.signedIn = false
+    let model = AppModel(repository: repository)
+    await model.start()
+    XCTAssertEqual(model.phase, .signedOut)
+    repository.signInFailure = SignInCancelledError()
+    await model.signIn()
+    XCTAssertEqual(model.phase, .signedOut)
+    XCTAssertNil(model.signInMessage)
+    XCTAssertTrue(model.payloads.isEmpty)
+  }
+
+  func testSignInBindingFailureReturnsToSignInWithMessage() async throws {
+    let repository = try RecoveryRepository()
+    repository.signedIn = false
+    let model = AppModel(repository: repository)
+    await model.start()
+    repository.signInFailure = URLError(.notConnectedToInternet)
+    await model.signIn()
+    XCTAssertEqual(model.phase, .signedOut)
+    XCTAssertNotNil(model.signInMessage)
+    repository.signInFailure = nil
+    repository.signedIn = true
+    await model.signIn()
+    XCTAssertEqual(model.phase, .loaded)
+    XCTAssertNil(model.signInMessage)
+    XCTAssertNotNil(model.payloads[.personal])
+    await model.signOut()
+  }
+
   func testCardExportsPNGInBothLanguages() async throws {
     let model = AppModel(repository: try DemoRepository())
     await model.start()
@@ -88,8 +119,12 @@ private final class RecoveryRepository: MobileRepository {
   var preparations = 0
   var fail = false
   var signedIn = true
+  var signInFailure: (any Error)?
 
   init() throws { demo = try DemoRepository() }
+  func signIn() async throws {
+    if let signInFailure { throw signInFailure }
+  }
   func prepare() async throws -> Bool {
     preparations += 1
     if fail { throw URLError(.notConnectedToInternet) }

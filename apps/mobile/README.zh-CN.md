@@ -7,6 +7,30 @@ iOS 和 Android 应用是现有 Codex Tracker 仪表盘的原生只读入口，�
 未提供本地服务配置时，两个应用都会进入带明显标识、无需凭据的演示模式。实时模式通过 Clerk
 认证并调用现有的 Convex 认证查询，不会新增移动端 API，也不会修改上传 wire contract。
 
+## iOS 0.2.2
+
+- 修复 iOS 生产版无法登录的问题：点击**登录**后只显示几秒加载，然后回到登录页。根因：应用
+  启动的是 Clerk 托管 Account Portal 流程，而生产 Clerk 实例会以 "Redirect url mismatch" 拒绝
+  该流程的自定义 scheme 回调（`dev.chenli.codextracker://callback`），除非已加入白名单，
+  因此浏览器根本没有打开。开发实例接受任意回调，所以只有 release 构建失败。
+- iOS 现在改用 Clerk 原生 `AuthView` 弹层，与 Android 端使用的组件一致。邮箱验证码和通行密钥
+  登录完全在应用内完成，无需回调 URL。弹层中的 Google/GitHub 按钮使用 `clerk://dev.chenli.codextracker.callback`，
+  与 Android 和现有生产白名单一致，认证会话的回调 scheme 为 `clerk`（见[启用实时登录](#启用实时登录)）。未登录就关闭弹层会停留在登录页；
+  Clerk 已创建会话但 Convex 无法绑定时会显示内联提示。
+- iOS 版本为 **0.2.2**，构建号 **4**，与 Android 对齐。
+
+## Android 0.2.2
+
+- 修复 Android 端在应用内停留几分钟或切回应用后一直显示"正在重连 · 显示之前的数据"/"离线"
+  的问题。根因：内置的 Convex 客户端不会在 Clerk 会话令牌（有效期 60 秒）过期前主动续期，
+  后端约每分钟拒绝一次身份并断开 socket；应用又把每次 socket 抖动直接映射为"正在重连"，
+  并由 30 秒轮询在捕捉到抖动时重建整个会话（引导、组织激活、全部订阅），因此始终无法稳定。
+- Android 端现在每次 Convex 登录都签发新的 Clerk 令牌，并在过期前 20 秒续期；续期重试期间
+  保持登录状态；socket 断开超过 4 秒才显示"正在重连"；用户引导失败按退避重试；订阅通道
+  终止时自动重建；不再按定时器或前台切换重启会话（回到前台只安装新令牌）。重试和下拉刷新
+  仍是手动的完整重启，并保留已加载的数据。
+- Android 版本为 **0.2.2**，构建号 **4**；iOS 随后发布了上文的 0.2.2。
+
 ## 移动端 0.2.1
 
 - 返回前台时刷新身份认证并重建失败的数据订阅。在前台自动重试临时令牌、连接和组织加载错误，
@@ -18,7 +42,7 @@ iOS 和 Android 应用是现有 Codex Tracker 仪表盘的原生只读入口，�
 - 卡片包含令牌汇总、API 等价费用、请求数、缓存命中率、日期区间和生成时间，并标记演示或
   缓存数据。不包含邮箱、账户 ID、设备详情、项目名称或会话内容。图片在本地生成，只交给用户
   选择的平台或目标。iOS 仅在保存时请求添加照片权限，Android 无需广泛存储权限。
-- 两端版本均为 **0.2.1**，构建号 **3**；桌面包版本独立管理。
+- 两端曾以版本 **0.2.1**、构建号 **3** 发布；桌面包版本独立管理。
 
 已通过 `mobile:test`（15 项）、`mobile:e2e --demo --platform ios`（48 项单元测试和 4 项
 UI 测试，包含原生分享与相册保存，iPhone 17 Pro Max / iOS 26.3.1），以及
@@ -277,6 +301,11 @@ ANDROID_SDK_ROOT="$HOME/Library/Android/sdk" \
    开发实例；生产使用 release/Play 签名证书。iOS 用 Apple App ID Prefix 和 bundle ID
    `dev.chenli.codextracker` 登记 Native Application。仓库 entitlements 已通过
    `webcredentials:$(CLERK_FRONTEND_API_HOST)` 配置 Associated Domains，由流水线按环境填值。
+   两端都通过 Clerk 原生 `AuthView` 登录；邮箱验证码和通行密钥流程不需要回调 URL。若要在
+   **生产**实例提供 Google/GitHub 按钮，需把原生回调 `clerk://dev.chenli.codextracker.callback`
+   加入白名单（Clerk 控制台 → Configure → Native applications → redirect URLs，或 Backend API
+   的 `redirect_urls` 资源）；生产实例会以 "Redirect url mismatch" 拒绝未登记的回调，开发实例
+   则接受任意回调。
 3. 启用 Clerk 当前的 **Convex integration**。在 *Sessions → Claims* 中保留集成生成的
    `aud: convex` 映射，并加入 `docs/clerk-jwt-template.json` 中的组织/用户映射。官方原生桥接
    请求的是 Clerk 原生 session token，无法选择仓库中旧的、名为 `convex` 的 JWT template；

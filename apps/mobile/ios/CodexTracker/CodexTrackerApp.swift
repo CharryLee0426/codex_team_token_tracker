@@ -1,4 +1,5 @@
 import ClerkKit
+import ClerkKitUI
 import SwiftUI
 
 @main
@@ -20,7 +21,15 @@ struct CodexTrackerApp: App {
         preconditionFailure("The deterministic demo fixture is missing from the app bundle.")
       }
     } else {
-      Clerk.configure(publishableKey: configuration.clerkPublishableKey)
+      Clerk.configure(
+        publishableKey: configuration.clerkPublishableKey,
+        options: .init(redirectConfig: .init(
+          // Match Android and the existing production mobile SSO allowlist.
+          // ASWebAuthenticationSession must listen on the same scheme it sends.
+          redirectUrl: "clerk://dev.chenli.codextracker.callback",
+          callbackUrlScheme: "clerk"
+        ))
+      )
       repository = LiveMobileRepository(deploymentURL: configuration.convexURL)
     }
     _model = StateObject(wrappedValue: AppModel(repository: repository))
@@ -95,8 +104,11 @@ private struct RootContent: View {
   }
 }
 
+/// Mirrors the Android `SignInFlow`: the landing page opens Clerk's native `AuthView` as a sheet.
+/// Once the sheet closes, the model binds whatever session Clerk created (or stays signed out).
 private struct SignInScreen: View {
   @ObservedObject var model: AppModel
+  @State private var showAuth = false
 
   var body: some View {
     VStack(spacing: 18) {
@@ -110,13 +122,25 @@ private struct SignInScreen: View {
         .font(.subheadline)
         .foregroundStyle(Color.appSecondaryText)
         .multilineTextAlignment(.center)
-      Button("state.signIn") { Task { await model.signIn() } }
+      if let message = model.signInMessage {
+        Text(message)
+          .font(.footnote)
+          .foregroundStyle(Color.red)
+          .multilineTextAlignment(.center)
+          .accessibilityIdentifier("sign_in_message")
+      }
+      Button("state.signIn") { showAuth = true }
         .buttonStyle(.borderedProminent)
         .tint(Color.appAccent)
         .frame(minHeight: 44)
+        .accessibilityIdentifier("sign_in")
     }
     .padding(32)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(Color.appBackground)
+    .sheet(isPresented: $showAuth, onDismiss: { Task { await model.signIn() } }) {
+      AuthView(mode: .signIn, isDismissible: true)
+        .environment(Clerk.shared)
+    }
   }
 }

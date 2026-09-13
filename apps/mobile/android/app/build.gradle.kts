@@ -26,8 +26,8 @@ android {
     applicationId = "dev.chenli.codextracker"
     minSdk = 26
     targetSdk = 37
-    versionCode = 3
-    versionName = "0.2.1"
+    versionCode = 4
+    versionName = "0.2.2"
 
     testInstrumentationRunner = "dev.chenli.codextracker.DemoTestRunner"
   }
@@ -93,7 +93,6 @@ for (variant in listOf("Debug", "Release")) {
 
 dependencies {
   implementation(libs.clerk.ui)
-  implementation(libs.clerk.convex)
   implementation("dev.convex:android-convexmobile:0.8.0@aar") { isTransitive = true }
   implementation(libs.kotlinx.coroutines)
   implementation(libs.kotlinx.serialization)

@@ -3,8 +3,7 @@ package dev.chenli.codextracker.data
 import android.content.Context
 import com.clerk.api.Clerk
 import com.clerk.api.network.serialization.ClerkResult
-import com.clerk.api.session.GetTokenOptions
-import com.clerk.api.session.fetchToken
+import com.clerk.api.session.Session
 import dev.chenli.codextracker.domain.Account
 import dev.chenli.codextracker.domain.ConnectionState
 import dev.chenli.codextracker.domain.Device
@@ -22,7 +21,9 @@ import dev.convex.android.WebSocketState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -31,12 +32,17 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
-class LiveViewerRepository(private val convex: ConvexClientWithAuth<String>) : ViewerRepository {
+class LiveViewerRepository(
+  private val convex: ConvexClientWithAuth<String>,
+  private val applicationContext: Context,
+) : ViewerRepository {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
   override val isDemo = false
@@ -74,35 +80,90 @@ class LiveViewerRepository(private val convex: ConvexClientWithAuth<String>) : V
       .stateIn(scope, SharingStarted.Eagerly, null)
   override val connection =
     convex.webSocketStateFlow
-      .map { state ->
-        if (state == WebSocketState.CONNECTED) ConnectionState.Live else ConnectionState.Reconnecting
-      }
+      .map { state -> state == WebSocketState.CONNECTED }
+      .toConnectionStates(TokenRefreshPolicy.ReconnectGraceMillis)
       .stateIn(scope, SharingStarted.Eagerly, ConnectionState.Live)
 
   private val authenticationMutex = Mutex()
+  private var sessionLoginJob: Job? = null
 
-  override suspend fun recoverAuthentication() {
-    authenticationMutex.withLock {
-      val sessionId = Clerk.activeSession?.id ?: return
-      withTimeout(20_000) {
-        when (val result = Clerk.refreshClient()) {
-          is ClerkResult.Success -> Unit
-          is ClerkResult.Failure -> throw result.throwable ?: IllegalStateException("Could not refresh session")
+  init {
+    scope.launch { syncClerkSession() }
+    scope.launch {
+      ConvexAuthRefresher(
+          authState = convex.authState,
+          nowMillis = System::currentTimeMillis,
+          canRefresh = { Clerk.activeSession != null },
+          refresh = ::refreshAuthentication,
+        )
+        .run()
+    }
+  }
+
+  /**
+   * Logs Convex in when a Clerk session becomes active and out when it disappears. A failed login
+   * (for example, no network at launch) is retried until it succeeds or the session changes.
+   */
+  private suspend fun syncClerkSession() {
+    var previous: Session? = null
+    Clerk.sessionFlow.collect { session ->
+      val before = previous
+      previous = session
+      when {
+        ClerkSessionSyncPolicy.shouldLogin(before, session) -> {
+          sessionLoginJob?.cancel()
+          sessionLoginJob =
+            scope.launch {
+              var attempt = 0
+              while (isActive) {
+                val loggedIn =
+                  try {
+                    authenticationMutex.withLock { convex.loginFromCache().isSuccess }
+                  } catch (cancelled: CancellationException) {
+                    throw cancelled
+                  } catch (_: Throwable) {
+                    false
+                  }
+                if (loggedIn) break
+                delay(minOf(5_000L shl attempt, 30_000L))
+                attempt = minOf(attempt + 1, 3)
+              }
+            }
         }
-        check(Clerk.activeSession?.id == sessionId) { "Session changed during recovery" }
-        forceTokenAndLogin()
+        ClerkSessionSyncPolicy.shouldLogout(before, session) -> {
+          sessionLoginJob?.cancel()
+          sessionLoginJob = null
+          convex.logout(applicationContext)
+        }
       }
     }
   }
 
-  private suspend fun forceTokenAndLogin() {
-    val session = Clerk.activeSession ?: error("No active Clerk session")
-    when (val result = session.fetchToken(GetTokenOptions(skipCache = true))) {
-      is ClerkResult.Success -> Unit
-      is ClerkResult.Failure -> throw result.throwable ?: IllegalStateException("Could not refresh authentication")
+  /**
+   * Foreground re-entry: refresh the Clerk client so memberships stay current, then install a new
+   * token. Neither step signs the viewer out when it fails; the refresher keeps retrying.
+   */
+  override suspend fun recoverAuthentication() {
+    val sessionId = Clerk.activeSession?.id ?: return
+    withTimeout(20_000) {
+      try {
+        Clerk.refreshClient()
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Throwable) {
+        // Membership metadata is best effort here; the token refresh below is what restores data.
+      }
+      check(Clerk.activeSession?.id == sessionId) { "Session changed during recovery" }
+      refreshAuthentication()
     }
-    check(Clerk.activeSession?.id == session.id) { "Session changed during authentication" }
-    convex.loginFromCache().getOrThrow()
+  }
+
+  /** Installs a freshly minted Clerk token on the Convex client; serialized with other logins. */
+  private suspend fun refreshAuthentication() {
+    authenticationMutex.withLock {
+      if (Clerk.activeSession == null) throw NoActiveClerkSession()
+      convex.loginFromCache().getOrThrow()
+    }
   }
 
   override suspend fun ensureUser() {
@@ -176,7 +237,7 @@ class LiveViewerRepository(private val convex: ConvexClientWithAuth<String>) : V
           check(updatedSession.id == session.id)
           requireCurrentClerkAuthority(session.id, user.id)
 
-          authenticationMutex.withLock { forceTokenAndLogin() }
+          refreshAuthentication()
           requireCurrentClerkAuthority(session.id, user.id)
 
           val clerkOrganization = membership.organization
@@ -302,8 +363,14 @@ class LiveViewerRepository(private val convex: ConvexClientWithAuth<String>) : V
     checkpoint(Clerk.activeSession?.lastActiveOrganizationId)
   }
 
-  private companion object {
-    val organizationActivations = OrganizationActivationCoordinator()
+  companion object {
+    private val organizationActivations = OrganizationActivationCoordinator()
+
+    fun create(convexUrl: String, context: Context): LiveViewerRepository {
+      val applicationContext = context.applicationContext
+      val client = ConvexClientWithAuth(convexUrl, ClerkSessionAuthProvider())
+      return LiveViewerRepository(client, applicationContext)
+    }
   }
 }
 
@@ -353,14 +420,21 @@ internal fun Flow<AuthObservation>.projectViewerAuth(): Flow<ViewerAuthState> =
             else -> previous.copy(viewerState = ViewerAuthState.Loading)
           }
         }
-        is AuthState.Unauthenticated ->
-          AuthProjection(
-            viewerState =
-              if (observation.clerkInitialized && observation.principalId == null) {
-                ViewerAuthState.SignedOut
-              }
-              else ViewerAuthState.Loading,
-          )
+        is AuthState.Unauthenticated -> {
+          val principalId = observation.principalId
+          val reauthenticatingSamePrincipal =
+            principalId != null &&
+              principalId == previous.principalId &&
+              previous.viewerState is ViewerAuthState.SignedIn
+          when {
+            // A failed token renewal for the signed-in principal is retried by the repository;
+            // the viewer keeps its data instead of falling back to the loading screen.
+            reauthenticatingSamePrincipal -> previous.copy(token = null)
+            observation.clerkInitialized && principalId == null ->
+              AuthProjection(viewerState = ViewerAuthState.SignedOut)
+            else -> AuthProjection(viewerState = ViewerAuthState.Loading)
+          }
+        }
       }
     }
     .map { projection -> projection.viewerState }

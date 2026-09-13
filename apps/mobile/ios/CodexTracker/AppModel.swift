@@ -23,6 +23,8 @@ final class AppModel: ObservableObject {
   @Published private(set) var staleScopes: Set<UsageScope> = []
   @Published private(set) var connection: ConnectionState = .live
   @Published private(set) var teamUnavailable = false
+  /// Shown on the sign-in screen after Clerk sign-in completed but the account could not be bound.
+  @Published private(set) var signInMessage: String?
   @Published var selectedOrganizationID: String?
   @Published var range: UsageRange {
     didSet { UserDefaults.standard.set(range.rawValue, forKey: Self.rangeKey) }
@@ -120,6 +122,7 @@ final class AppModel: ObservableObject {
   func signIn() async {
     let session = beginSessionFlow()
     startClockIfNeeded()
+    signInMessage = nil
     phase = .bootstrapping
     do {
       try await repository.signIn()
@@ -129,6 +132,9 @@ final class AppModel: ObservableObject {
       guard isCurrentSession(session) else { return }
       acceptsRepositoryUpdates = false
       stopClockAndBoundaryRefreshes()
+      if !(error is SignInCancelledError) {
+        signInMessage = String(localized: "state.authCancelled")
+      }
       phase = .signedOut
     }
   }

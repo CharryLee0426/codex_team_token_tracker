@@ -41,6 +41,8 @@ targets:
     dependencies:
       - package: Clerk
         product: ClerkKit
+      - package: Clerk
+        product: ClerkKitUI
       - package: ClerkConvex
         product: ClerkConvex
       - package: Convex
@@ -49,8 +51,8 @@ targets:
       path: CodexTracker/Info.plist
       properties:
         CFBundleDisplayName: Codex Tracker
-        CFBundleShortVersionString: "0.2.1"
-        CFBundleVersion: "3"
+        CFBundleShortVersionString: "0.2.2"
+        CFBundleVersion: "4"
         CLERK_PUBLISHABLE_KEY: $(CLERK_PUBLISHABLE_KEY)
         CONVEX_URL: $(CONVEX_URL)
         NSPhotoLibraryAddUsageDescription: Save usage cards to your photo library.

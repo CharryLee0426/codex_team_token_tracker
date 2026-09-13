@@ -109,7 +109,7 @@
   <string name="state_loading">正在加载用量</string>
   <string name="state_initializing">正在启动安全服务</string>
   <string name="state_signed_out">登录后查看用量</string>
-  <string name="state_sign_in_body">使用已启用的登录方式在安全浏览器中继续。</string>
+  <string name="state_sign_in_body">使用邮箱验证码、通行密钥或已关联的账户继续。</string>
   <string name="state_sign_in">登录</string>
   <string name="state_no_organization">选择一个组织以查看团队数据。</string>
   <string name="state_no_organizations">此账户没有可用组织。</string>

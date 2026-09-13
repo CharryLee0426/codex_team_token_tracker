@@ -9,6 +9,37 @@ Both apps open in a clearly labeled, credential-free demo mode when local servic
 missing. Live mode uses Clerk authentication and the existing authenticated Convex queries; it does
 not add a mobile API or change the upload wire contract.
 
+## iOS 0.2.2
+
+- Fixes production sign-in on iOS: tapping **Sign in** showed a spinner for a few seconds and then
+  returned to the landing page. Root cause: the app started Clerk's hosted Account Portal flow, and a
+  production Clerk instance rejects that flow's custom-scheme callback (`dev.chenli.codextracker://callback`)
+  with "Redirect url mismatch" unless the URL is allowlisted, so the browser never opened.
+  Development instances accept any callback, which is why only the release build failed.
+- iOS now presents Clerk's native `AuthView` sheet, the same component the Android app already uses.
+  Email-code and passkey sign-in complete entirely in-app with no redirect URL. Google/GitHub buttons
+  inside that sheet use `clerk://dev.chenli.codextracker.callback`, matching Android and the existing
+  production allowlist, with `clerk` as the authentication-session callback scheme
+  (see [Enabling live sign-in](#enabling-live-sign-in)). Closing the sheet without signing in stays on
+  the landing page; a session that Clerk created but Convex could not bind shows an inline message.
+- iOS is version **0.2.2**, build **4**, aligned with Android.
+
+## Android 0.2.2
+
+- Fixes the Android viewer getting stuck on "Reconnecting · showing previous data" / "Offline" after
+  a few minutes in the app or after returning to it. Root cause: the bundled Convex client never
+  renews the Clerk session token (60 s lifetime) before it expires, so the backend rejected the
+  identity about once a minute and the socket was torn down; the app then mapped every socket blip
+  to *Reconnecting* and a 30-second poll rebuilt the whole session (bootstrap, organization
+  activation, all subscriptions) each time it caught one, which could never settle.
+- The Android app now mints a fresh Clerk token for every Convex login, renews it 20 s before
+  expiry, keeps the viewer signed in while a renewal is retried, reports *Reconnecting* only after the
+  socket has been down for 4 s, retries the user bootstrap with backoff, re-establishes a
+  subscription whose channel terminates, and no longer restarts the session on a timer or on
+  foreground entry (returning to the foreground only installs a new token). Retry and
+  pull-to-refresh remain the manual full restart and keep loaded data visible.
+- Android is version **0.2.2**, build **4**; iOS followed with its own 0.2.2 above.
+
 ## Mobile 0.2.1
 
 - Returning to the foreground refreshes authentication and restarts failed data subscriptions.
@@ -24,7 +55,7 @@ not add a mobile API or change the upload wire contract.
   and session contents are excluded. Exports are generated locally; only the platform/destination
   chosen by the user receives the image. iOS requests add-only Photos permission when saving;
   Android requires no broad storage permission.
-- Both native apps use version **0.2.1**, build **3**; desktop package versions are independent.
+- Both native apps shipped as version **0.2.1**, build **3**; desktop package versions are independent.
 
 Validated with `mobile:test` (15 tests), `mobile:e2e --demo --platform ios` (48 unit + 4 UI tests,
 including native sharing and Photos saving, iPhone 17 Pro Max / iOS 26.3.1), and
@@ -306,6 +337,11 @@ Demo mode needs no account or network. Live mode requires owner-controlled Clerk
    certificate. For iOS, register a Native Application with your Apple App ID Prefix plus bundle ID
    `dev.chenli.codextracker`. The checked-in entitlements configure Associated Domains using
    `webcredentials:$(CLERK_FRONTEND_API_HOST)`, filled from the selected environment by the pipeline.
+   Both apps sign in through Clerk's native `AuthView`; email-code and passkey flows need no redirect
+   URL. To offer the Google/GitHub buttons on a **production** instance, allowlist the native callback
+   `clerk://dev.chenli.codextracker.callback` (Clerk Dashboard → Configure → Native applications → redirect
+   URLs, or the Backend API `redirect_urls` resource); production rejects unlisted callbacks with
+   "Redirect url mismatch", while development instances accept any callback.
 3. Activate Clerk's current **Convex integration**. In *Sessions → Claims*, keep the integration's
    generated `aud: convex` mapping and add the organization/user mappings from
    `docs/clerk-jwt-template.json`. The official native bridges request Clerk's native session token;

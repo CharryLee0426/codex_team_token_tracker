@@ -16,10 +16,14 @@ struct RepositoryPayload: Equatable, Sendable {
   let live: [LiveItem]
 }
 
+/// Thrown by `MobileRepository.signIn()` when Clerk's sign-in UI was closed before a session existed.
+struct SignInCancelledError: Error, Equatable {}
+
 @MainActor
 protocol MobileRepository {
   var isDemo: Bool { get }
   func prepare() async throws -> Bool
+  /// Binds the active Clerk session (created by Clerk's native `AuthView`) to Convex.
   func signIn() async throws
   func signOut() async
   func load(scope: UsageScope, organizationID: String?) async throws -> RepositoryPayload
