@@ -16,6 +16,7 @@ import type * as ingest from "../ingest.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as orgInvites from "../orgInvites.js";
 import type * as orgs from "../orgs.js";
+import type * as pricing from "../pricing.js";
 import type * as usage from "../usage.js";
 import type * as users from "../users.js";
 import type * as webhooks from "../webhooks.js";
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   orgInvites: typeof orgInvites;
   orgs: typeof orgs;
+  pricing: typeof pricing;
   usage: typeof usage;
   users: typeof users;
   webhooks: typeof webhooks;
