@@ -4,6 +4,7 @@ import android.content.Context
 import dev.chenli.codextracker.data.ViewerAuthState
 import dev.chenli.codextracker.data.ViewerRepository
 import dev.chenli.codextracker.domain.Account
+import dev.chenli.codextracker.domain.ConnectionState
 import dev.chenli.codextracker.domain.CustomDayRange
 import dev.chenli.codextracker.domain.Device
 import dev.chenli.codextracker.domain.HourlyResponse
@@ -29,11 +30,13 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -41,6 +44,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -595,47 +599,164 @@ class MainViewModelTest {
   }
 
   @Test
-  fun `foreground recovery retains personal cache and replaces failed subscriptions`() = runTest(dispatcher) {
-    val repository = FakeViewerRepository()
-    val clock = MutableViewerClock(Instant.parse("2026-09-04T12:30:00Z").toEpochMilli())
-    val model = MainViewModel(repository, ZoneId.of("UTC"), clock)
-    model.beginSession("alice")
-    advanceUntilIdle()
-    val previous = model.uiState.value.personal.data
-    repository.liveDevices.value = Result.failure(IllegalStateException("Socket expired"))
-    advanceUntilIdle()
-    assertTrue(model.uiState.value.personal.failed)
-    model.recover()
-    assertEquals(previous, model.uiState.value.personal.data)
-    assertTrue(model.uiState.value.personal.stale)
-    repository.liveDevices.value = Result.success(emptyList())
-    advanceUntilIdle()
-    assertEquals(2, repository.ensureUserCalls)
-    assertEquals(1, repository.activeAccountSubscriptions)
-    assertNull(model.uiState.value.personal.error)
-    assertTrue(!model.uiState.value.personal.stale)
-    model.endSession()
-  }
+  fun `a failed subscription keeps its data and heals in place without restarting the session`() =
+    runTest(dispatcher) {
+      val repository = FakeViewerRepository()
+      val clock = MutableViewerClock(Instant.parse("2026-09-04T12:30:00Z").toEpochMilli())
+      val model = MainViewModel(repository, ZoneId.of("UTC"), clock)
+      model.beginSession("alice")
+      advanceUntilIdle()
+      val previous = model.uiState.value.personal.data
+
+      repository.liveDevices.value = Result.failure(IllegalStateException("Not authenticated"))
+      advanceUntilIdle()
+      assertTrue(model.uiState.value.personal.failed)
+      assertEquals(previous, model.uiState.value.personal.data)
+      assertEquals(ConnectionState.Live, model.uiState.value.connection)
+
+      // The same subscription recovers once the backend re-runs the query; nothing is torn down.
+      repository.liveDevices.value = Result.success(emptyList())
+      advanceUntilIdle()
+      assertNull(model.uiState.value.personal.error)
+      assertFalse(model.uiState.value.personal.stale)
+      assertEquals(1, repository.ensureUserCalls)
+      assertEquals(1, repository.activeAccountSubscriptions)
+      model.endSession()
+    }
 
   @Test
-  fun `recovery retries a bootstrap failure and does nothing after sign out`() = runTest(dispatcher) {
+  fun `bootstrap failures retry with backoff and stop after sign out`() = runTest(dispatcher) {
     val repository = FakeViewerRepository()
     val clock = MutableViewerClock(Instant.parse("2026-09-04T12:30:00Z").toEpochMilli())
     val model = MainViewModel(repository, ZoneId.of("UTC"), clock)
     repository.bootstrapError = IllegalStateException("Token expired")
     model.beginSession("alice")
-    advanceUntilIdle()
+    runCurrent()
+    assertEquals(1, repository.ensureUserCalls)
     assertTrue(model.uiState.value.personal.error != null)
+
+    advanceTimeBy(MainViewModel.retryDelayMillis(0) + 1)
+    runCurrent()
+    assertEquals(2, repository.ensureUserCalls)
+    assertTrue(model.uiState.value.personal.error != null)
+
     repository.bootstrapError = null
+    advanceTimeBy(MainViewModel.retryDelayMillis(1) + 1)
+    advanceUntilIdle()
+    assertEquals(3, repository.ensureUserCalls)
+    assertNull(model.uiState.value.personal.error)
+    assertEquals("Alice", model.uiState.value.account.data?.name)
+
+    model.endSession()
     model.recover()
     advanceUntilIdle()
-    assertNull(model.uiState.value.personal.error)
-    assertEquals(2, repository.ensureUserCalls)
-    model.endSession()
-    model.recover(force = true)
-    advanceUntilIdle()
-    assertEquals(2, repository.ensureUserCalls)
+    assertEquals(3, repository.ensureUserCalls)
     assertNull(model.uiState.value.personal.data)
+  }
+
+  @Test
+  fun `connection state follows the repository from session start and manual recovery keeps data`() =
+    runTest(dispatcher) {
+      val repository = FakeViewerRepository()
+      val clock = MutableViewerClock(Instant.parse("2026-09-04T12:30:00Z").toEpochMilli())
+      val model = MainViewModel(repository, ZoneId.of("UTC"), clock)
+      repository.connection.value = ConnectionState.Reconnecting
+      val gate = CompletableDeferred<Unit>()
+      repository.bootstrapGate = gate
+
+      model.beginSession("alice")
+      runCurrent()
+      // Transport health is visible while the bootstrap is still pending.
+      assertEquals(ConnectionState.Reconnecting, model.uiState.value.connection)
+      repository.connection.value = ConnectionState.Live
+      runCurrent()
+      assertEquals(ConnectionState.Live, model.uiState.value.connection)
+
+      gate.complete(Unit)
+      advanceUntilIdle()
+      val previous = model.uiState.value.personal.data
+      assertTrue(previous != null)
+
+      repository.bootstrapGate = CompletableDeferred()
+      model.recover()
+      runCurrent()
+      assertEquals(ConnectionState.Live, model.uiState.value.connection)
+      assertTrue(model.uiState.value.refreshing)
+      assertEquals(previous, model.uiState.value.personal.data)
+      assertTrue(model.uiState.value.personal.stale)
+      assertEquals("Alice", model.uiState.value.account.data?.name)
+
+      repository.bootstrapGate?.complete(Unit)
+      advanceUntilIdle()
+      assertEquals(2, repository.ensureUserCalls)
+      assertFalse(model.uiState.value.refreshing)
+      assertFalse(model.uiState.value.personal.stale)
+      model.endSession()
+    }
+
+  @Test
+  fun `a terminated subscription channel is re-established with backoff`() = runTest(dispatcher) {
+    val repository = FakeViewerRepository()
+    val clock = MutableViewerClock(Instant.parse("2026-09-04T12:30:00Z").toEpochMilli())
+    var personalRequests = 0
+    repository.hourlyFlow = { scope, _, _ ->
+      // Like a Convex subscription, each collection opens a new channel; the first one dies.
+      flow {
+        if (scope == UsageScope.Personal && personalRequests++ == 0) {
+          throw IllegalStateException("error handling data from FFI")
+        }
+        emit(Result.success(HourlyResponse(emptyList(), emptyList())))
+      }
+    }
+    val model = MainViewModel(repository, ZoneId.of("UTC"), clock)
+    model.beginSession("alice")
+    runCurrent()
+    assertEquals(1, personalRequests)
+    assertTrue(model.uiState.value.personal.error != null)
+    assertNull(model.uiState.value.personal.data)
+
+    advanceTimeBy(MainViewModel.retryDelayMillis(0) + 1)
+    advanceUntilIdle()
+    assertEquals(2, personalRequests)
+    assertNull(model.uiState.value.personal.error)
+    assertTrue(model.uiState.value.personal.data != null)
+    assertEquals(1, repository.ensureUserCalls)
+    model.endSession()
+  }
+
+  @Test
+  fun `re-resolving the same organization keeps team data visible`() = runTest(dispatcher) {
+    val organization =
+      Organization(id = "backend-a", clerkOrgId = "clerk-a", name = "Team A", role = "org:member")
+    val repository = FakeViewerRepository()
+    repository.organizations.value = Result.success(listOf(organization))
+    repository.members.value =
+      Result.success(listOf(Member(id = "alice", role = "org:member", joinedAt = 1, deviceCount = 1)))
+    val clock = MutableViewerClock(Instant.parse("2026-09-04T12:30:00Z").toEpochMilli())
+    val model = MainViewModel(repository, ZoneId.of("UTC"), clock)
+    model.beginSession("alice")
+    advanceUntilIdle()
+    assertEquals("backend-a", model.uiState.value.selectedOrgId)
+    val team = model.uiState.value.team.data
+    assertTrue(team != null)
+
+    val release = CompletableDeferred<Unit>()
+    repository.activation = { clerkOrgId ->
+      release.await()
+      Result.success(organization.takeIf { it.clerkOrgId == clerkOrgId } ?: error("No organization"))
+    }
+    model.recover()
+    runCurrent()
+    assertNull(model.uiState.value.selectedOrgId)
+    assertTrue(model.uiState.value.activatingOrganization)
+    assertEquals(team, model.uiState.value.team.data)
+    assertEquals(1, model.uiState.value.members.data?.size)
+
+    release.complete(Unit)
+    advanceUntilIdle()
+    assertEquals("backend-a", model.uiState.value.selectedOrgId)
+    assertFalse(model.uiState.value.team.stale)
+    model.endSession()
   }
 
   private class FakeViewerRepository(override val referenceNow: Long? = null) : ViewerRepository {
@@ -644,8 +765,10 @@ class MainViewModelTest {
       MutableStateFlow(ViewerAuthState.SignedIn("alice"))
     val aliceAccount = MutableStateFlow(Result.success<Account?>(Account("alice", name = "Alice")))
     private val bobAccount = MutableStateFlow(Result.success<Account?>(Account("bob", name = "Bob")))
+    override val connection = MutableStateFlow(ConnectionState.Live)
     var ensureUserCalls = 0
     var bootstrapError: Exception? = null
+    var bootstrapGate: CompletableDeferred<Unit>? = null
     var activeAccountSubscriptions = 0
     val personalHourlyRanges = mutableListOf<QueryRange>()
     val organizations = MutableStateFlow(Result.success<List<Organization>>(emptyList()))
@@ -667,6 +790,7 @@ class MainViewModelTest {
 
     override suspend fun ensureUser() {
       ensureUserCalls += 1
+      bootstrapGate?.await()
       bootstrapError?.let { throw it }
     }
 

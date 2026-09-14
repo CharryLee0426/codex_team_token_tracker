@@ -36,9 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.TimeoutCancellationException
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -103,18 +101,16 @@ fun ViewerApp(
   onLanguageSelected: (LanguageMode) -> Unit,
 ) {
   val lifecycleOwner = LocalLifecycleOwner.current
+  // Each return to the foreground installs a fresh token. Everything else (socket reconnects, token
+  // renewal, query re-evaluation) is handled continuously by the repository and the Convex client.
   LaunchedEffect(repository, lifecycleOwner) {
     if (!repository.isDemo) lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-      var resumed = true
-      while (true) {
-        if (resumed || repository.authState.value == ViewerAuthState.Loading) {
-          try { repository.recoverAuthentication() }
-          catch (_: TimeoutCancellationException) { /* Retry after the next foreground interval. */ }
-          catch (cancelled: CancellationException) { throw cancelled }
-          catch (_: Exception) { /* Retry while foregrounded; no credentials or raw errors are logged. */ }
-        }
-        resumed = false
-        delay(30_000)
+      try {
+        repository.recoverAuthentication()
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        // The repository keeps retrying; no credentials or raw errors are logged.
       }
     }
   }
@@ -135,15 +131,6 @@ fun ViewerApp(
         DisposableEffect(viewModel, currentAuth.principalId) {
           viewModel.beginSession(currentAuth.principalId)
           onDispose { viewModel.endSession(currentAuth.principalId) }
-        }
-        LaunchedEffect(viewModel, currentAuth.principalId, lifecycleOwner) {
-          if (!repository.isDemo) lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            viewModel.recover(force = true)
-            while (true) {
-              delay(30_000)
-              viewModel.recover()
-            }
-          }
         }
         val state by viewModel.uiState.collectAsStateWithLifecycle()
         val context = LocalContext.current

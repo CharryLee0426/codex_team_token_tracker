@@ -86,9 +86,16 @@ final class LiveMobileRepository: MobileRepository, StreamingMobileRepository {
     return true
   }
 
+  /// Clerk's native `AuthView` (the same component the Android app uses) creates the session in-app.
+  /// The hosted Account Portal flow is not used: its custom-scheme callback must be allowlisted per
+  /// production instance, which rejected sign-in before the browser could open.
   func signIn() async throws {
-    _ = try await Clerk.shared.auth.startHostedAuth(mode: .signIn)
-    principalID = Clerk.shared.session?.id
+    guard let session = Clerk.shared.session, session.status == .active else {
+      throw SignInCancelledError()
+    }
+    if let principalID, principalID != session.id { invalidatePrincipal() }
+    principalID = session.id
+    _ = try await session.getToken(.init(skipCache: true))
     try await authenticateConvexAndBootstrapUser()
   }
 

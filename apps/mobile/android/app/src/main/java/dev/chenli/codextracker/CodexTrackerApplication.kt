@@ -3,7 +3,6 @@ package dev.chenli.codextracker
 import android.app.Application
 import com.clerk.api.Clerk
 import com.clerk.api.ClerkConfigurationOptions
-import com.clerk.convex.createClerkConvexClient
 import dev.chenli.codextracker.data.DemoViewerRepository
 import dev.chenli.codextracker.data.LiveViewerRepository
 import dev.chenli.codextracker.data.ViewerRepository
@@ -28,8 +27,7 @@ class CodexTrackerApplication : Application() {
         publishableKey = AppConfig.clerkPublishableKey,
         options = ClerkConfigurationOptions(enableDebugMode = false),
       )
-      val client = createClerkConvexClient(AppConfig.convexUrl, applicationContext)
-      liveRepository = LiveViewerRepository(client)
+      liveRepository = LiveViewerRepository.create(AppConfig.convexUrl, applicationContext)
     }
   }
 }

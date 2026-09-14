@@ -111,7 +111,7 @@
   <string name="state_loading">Loading usage</string>
   <string name="state_initializing">Starting secure services</string>
   <string name="state_signed_out">Sign in to review usage</string>
-  <string name="state_sign_in_body">Continue in a secure browser with an enabled sign-in method.</string>
+  <string name="state_sign_in_body">Continue with your email code, passkey, or a connected account.</string>
   <string name="state_sign_in">Sign in</string>
   <string name="state_no_organization">Choose an organization to review team data.</string>
   <string name="state_no_organizations">No organizations are available for this account.</string>

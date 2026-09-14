@@ -30,6 +30,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,12 +39,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.retryWhen
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
@@ -84,9 +87,9 @@ data class MainUiState(
   val members: Loadable<List<Member>> = Loadable(),
   val devices: Loadable<List<Device>> = Loadable(),
 ) {
-  /** True while the selected Clerk organization is still being activated. */
+  /** True while the selected Clerk organization is still being activated; earlier team data may stay visible. */
   val activatingOrganization: Boolean
-    get() = selectedOrgId == null && selectedClerkOrgId != null && team.loading && team.data == null
+    get() = selectedOrgId == null && selectedClerkOrgId != null && team.loading
 
   /** Mirrors the iOS `teamUnavailable` flag: the chosen organization could not be resolved. */
   val teamUnavailable: Boolean
@@ -128,7 +131,6 @@ class MainViewModel(
   private val connectionOverride = MutableStateFlow<ConnectionState?>(null)
   private var activePrincipalId: String? = null
   private var sessionGeneration = 0L
-  private var lastRecoveryAt = Long.MIN_VALUE
   private var sessionJob: Job? = null
   private var organizationActivationJob: Job? = null
   private var pendingClerkOrgId: String? = null
@@ -158,19 +160,39 @@ class MainViewModel(
     val generation = sessionGeneration
     sessionJob =
       viewModelScope.launch {
+        coroutineScope {
+          // Transport health is reported from the first moment, independent of the bootstrap below.
+          launch { observeConnection(generation, principalId) }
+          if (bootstrap(generation, principalId)) observeRepository(generation, principalId)
+        }
+      }
+  }
+
+  /**
+   * Runs the user bootstrap until it succeeds. A failure is shown on the loadables (existing data
+   * stays visible) and retried with backoff; only ending the session stops the attempts.
+   */
+  private suspend fun bootstrap(generation: Long, principalId: String): Boolean {
+    var attempt = 0
+    while (currentCoroutineContext().isActive) {
+      val failure =
         try {
-          withTimeout(25_000) { repository.ensureUser() }
-          if (isCurrentSession(generation, principalId)) {
-            observeRepository(generation, principalId)
-          }
+          withTimeout(BootstrapTimeoutMillis) { repository.ensureUser() }
+          null
         } catch (timeout: TimeoutCancellationException) {
-          if (isCurrentSession(generation, principalId)) setFatalError(timeout)
+          timeout
         } catch (cancelled: CancellationException) {
           throw cancelled
         } catch (error: Throwable) {
-          if (isCurrentSession(generation, principalId)) setFatalError(error)
+          error
         }
-      }
+      if (!isCurrentSession(generation, principalId)) return false
+      if (failure == null) return true
+      markBootstrapFailure(failure)
+      delay(retryDelayMillis(attempt))
+      attempt += 1
+    }
+    return false
   }
 
   fun endSession(expectedPrincipalId: String? = null) {
@@ -187,35 +209,45 @@ class MainViewModel(
     selectedOrgId.value = null
     connectionOverride.value = null
     uiState.value =
-      MainUiState(range = range.value, customRange = customRange.value, now = uiState.value.now)
+      MainUiState(
+        range = range.value,
+        customRange = customRange.value,
+        now = uiState.value.now,
+        connection = uiState.value.connection,
+      )
   }
 
-  /** Restart failed subscriptions for the same principal, retaining personal data while reconnecting. */
-  fun recover(force: Boolean = false) {
+  /**
+   * User-initiated restart (retry button, pull-to-refresh): rebuilds the session for the same
+   * principal while every loaded value stays on screen until its replacement arrives. Automatic
+   * recovery does not go through here; the repository and subscriptions heal themselves.
+   */
+  fun recover() {
     val principalId = activePrincipalId ?: return
     val previous = uiState.value
-    val failed = listOf(previous.account, previous.organizations, previous.personal,
-      previous.team, previous.members, previous.devices).any { it.error != null }
-    if (!force && !failed && previous.connection == ConnectionState.Live && sessionJob?.isActive == true) return
-    val now = clock.nowMillis()
-    if (previous.refreshing && sessionJob?.isActive == true && lastRecoveryAt != Long.MIN_VALUE && now - lastRecoveryAt < 25_000) return
-    lastRecoveryAt = now
     endSession(principalId)
     beginSession(principalId)
     if (activePrincipalId != principalId) return
-    uiState.value = previous.copy(
-      refreshing = true,
-      connection = ConnectionState.Reconnecting,
-      personal = previous.personal.copy(loading = true),
-      selectedOrgId = null,
-      team = Loadable(),
-      members = Loadable(),
-    )
+    uiState.value =
+      previous.copy(
+        refreshing = true,
+        connection = uiState.value.connection,
+        account = previous.account.retrying(),
+        organizations = previous.organizations.retrying(),
+        personal = previous.personal.retrying(),
+        selectedOrgId = null,
+        team = previous.team.retrying(),
+        members = previous.members.retrying(),
+        devices = previous.devices.retrying(),
+      )
   }
 
-  fun retry() = recover(force = true)
+  /** A manual restart clears the last error and shows progress; loaded data stays visible. */
+  private fun <T> Loadable<T>.retrying(): Loadable<T> = copy(loading = true, error = null)
 
-  fun refresh() = recover(force = true)
+  fun retry() = recover()
+
+  fun refresh() = recover()
 
   fun selectRange(value: UsageRange) {
     range.value = value
@@ -340,7 +372,6 @@ class MainViewModel(
           if (isCurrentSession(generation, principalId)) uiState.update { it.copy(now = current) }
         }
       }
-      launch { observeConnection(generation, principalId) }
       launch { observeAccount(generation, principalId) }
       launch { observeOrganizations(generation, principalId) }
       launch { observeDashboard(UsageScope.Personal, now, generation, principalId) }
@@ -358,7 +389,7 @@ class MainViewModel(
   }
 
   private suspend fun observeAccount(generation: Long, principalId: String) {
-    repository.account().collect { result ->
+    repository.account().resubscribing().collect { result ->
       if (!isCurrentSession(generation, principalId)) return@collect
       updateLoadable(uiState.value.account, result) { value ->
         uiState.update { it.copy(account = value) }
@@ -437,17 +468,22 @@ class MainViewModel(
     clerkOrgId == repository.activeClerkOrgId.value &&
       organizationMemberships.any { it.clerkOrgId == clerkOrgId }
 
+  /** Drops the resolved team; data for the same Clerk organization stays visible while it re-resolves. */
   private fun clearResolvedOrganization(selectedClerkOrgId: String?, loading: Boolean) {
     selectedOrgId.value = null
     uiState.update {
+      val sameOrganization = selectedClerkOrgId != null && selectedClerkOrgId == it.selectedClerkOrgId
       it.copy(
         selectedClerkOrgId = selectedClerkOrgId,
         selectedOrgId = null,
-        team = Loadable(loading = loading),
-        members = Loadable(loading = loading),
+        team = if (sameOrganization) it.team.retained(loading) else Loadable(loading = loading),
+        members = if (sameOrganization) it.members.retained(loading) else Loadable(loading = loading),
       )
     }
   }
+
+  private fun <T> Loadable<T>.retained(loading: Boolean): Loadable<T> =
+    if (data == null) Loadable(loading = loading) else copy(loading = loading, error = null)
 
   private suspend fun observeDashboard(
     scope: UsageScope,
@@ -479,7 +515,8 @@ class MainViewModel(
         .onEach { if (isCurrentSession(generation, principalId)) markReloading(scope) }
         .flatMapLatest { selected ->
           if (scope == UsageScope.Team && selected.orgId == null) {
-            flowOf(Result.success(emptyDashboard()))
+            // No resolved organization: the loadable already reflects activation or absence.
+            emptyFlow()
           } else {
             dashboard(
               scope = scope,
@@ -488,6 +525,7 @@ class MainViewModel(
               custom = selected.custom,
               requestNow = selected.queryMoment.now,
             )
+              .resubscribing()
           }
         }
     results
@@ -573,8 +611,8 @@ class MainViewModel(
   ) {
     selectedOrgId
       .flatMapLatest { orgId ->
-        if (orgId == null) flowOf(Result.success(emptyList()))
-        else repository.members(orgId)
+        // Without a resolved organization the loadable already reflects activation or absence.
+        if (orgId == null) emptyFlow() else repository.members(orgId).resubscribing()
       }
       .withFreshnessMoments(
         now = now,
@@ -601,6 +639,7 @@ class MainViewModel(
   ) {
     repository
       .devices()
+      .resubscribing()
       .withFreshnessMoments(
         now = now,
         dataOnFailure = { uiState.value.devices.data },
@@ -663,14 +702,7 @@ class MainViewModel(
       sessionGeneration == generation &&
       hasPrincipalAuthority(principalId)
 
-  private fun emptyDashboard(): DashboardData =
-    DashboardData(
-      snapshot = UsageAggregator.snapshot(emptyList(), emptyList(), zoneId, false),
-      sessions = emptyList(),
-      live = emptyList(),
-    )
-
-  private fun setFatalError(error: Throwable) {
+  private fun markBootstrapFailure(error: Throwable) {
     val message = error.message ?: error.javaClass.simpleName
     uiState.update {
       it.copy(
@@ -678,12 +710,25 @@ class MainViewModel(
         organizations = it.organizations.copy(loading = false, error = message),
         account = it.account.copy(loading = false, error = message),
         personal = it.personal.copy(loading = false, error = message),
-        team = Loadable(loading = false, error = message),
-        members = Loadable(loading = false, error = message),
-        devices = Loadable(loading = false, error = message),
+        team = it.team.copy(loading = false, error = message),
+        members = it.members.copy(loading = false, error = message),
+        devices = it.devices.copy(loading = false, error = message),
       )
     }
   }
+
+  /**
+   * Convex subscriptions deliver query failures as values and recover on their own once the identity
+   * or data is restored. A subscription whose channel terminates (for example, an undecodable
+   * payload) is reported as a failure and re-established with backoff instead of going silent.
+   */
+  private fun <T> Flow<Result<T>>.resubscribing(): Flow<Result<T>> =
+    retryWhen { cause, attempt ->
+      if (cause is CancellationException && !currentCoroutineContext().isActive) return@retryWhen false
+      emit(Result.failure(cause))
+      delay(retryDelayMillis(attempt.toInt()))
+      true
+    }
 
   private fun <T> updateLoadable(
     current: Loadable<T>,
@@ -704,6 +749,14 @@ class MainViewModel(
   }
 
   companion object {
+    const val BootstrapTimeoutMillis = 25_000L
+    private const val InitialRetryDelayMillis = 2_000L
+    private const val MaximumRetryDelayMillis = 30_000L
+
+    /** Exponential backoff for automatic retries: 2 s, 4 s, 8 s, 16 s, then 30 s. */
+    fun retryDelayMillis(attempt: Int): Long =
+      minOf(InitialRetryDelayMillis shl attempt.coerceIn(0, 4), MaximumRetryDelayMillis)
+
     fun factory(
       repository: ViewerRepository,
       clock: ViewerClock = SystemViewerClock(),

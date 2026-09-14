@@ -101,7 +101,7 @@
 "state.loading" = "正在加载用量";
 "state.initializing" = "正在启动安全服务";
 "state.signedOut" = "登录后查看用量";
-"state.signInBody" = "使用已启用的登录方式在安全浏览器中继续。";
+"state.signInBody" = "使用邮箱验证码、通行密钥或已关联的账户继续。";
 "state.signIn" = "登录";
 "state.authCancelled" = "登录已取消或无法完成。";
 "state.syncing" = "正在同步账户";

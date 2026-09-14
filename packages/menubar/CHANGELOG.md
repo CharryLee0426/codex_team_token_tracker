@@ -2,7 +2,7 @@
 
 All notable changes to `codex-token-tracker`. This project follows [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## 0.4.0 — 2026-09-13
 
 Run it with `npx` — nothing to install.
 

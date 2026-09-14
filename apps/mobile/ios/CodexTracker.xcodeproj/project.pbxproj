@@ -17,7 +17,7 @@
 		3354EBDB1F8046FADE5D5D6B /* ClockRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E64FE19C853387B73B07BF /* ClockRefreshTests.swift */; };
 		37A0AC56D71A15390642AF17 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69774D0F107811E31261A876 /* AppModel.swift */; };
 		3BA1A7B842F7FCFB2C410D3F /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 136FE257618243B4C5740B11 /* InfoPlist.strings */; };
-		4893C418DB7CEF7B42F71788 /* ClerkConvex in Frameworks */ = {isa = PBXBuildFile; productRef = 2866E9DFA8799EB5EB94D57A /* ClerkConvex */; };
+		4893C418DB7CEF7B42F71788 /* ClerkKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = DE32F1265A2494306C8C5300 /* ClerkKitUI */; };
 		4D6122ABB0DE44B7177B8F3C /* CodexTrackerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A57AA8C19FE048A02903E36 /* CodexTrackerUITests.swift */; };
 		74C7A63A040EA5E497AD70F5 /* RepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38DD975C5CD1B0EDF5CDB31D /* RepositoryTests.swift */; };
 		77C50BDC5ADDD321FD7BB2AC /* RangeControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C265E1B8B7C091D47BCE375 /* RangeControl.swift */; };
@@ -26,7 +26,8 @@
 		860BACAAD61871C4D50C8D46 /* LiveMobileRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 966E7379CE60295ADD10A321 /* LiveMobileRepository.swift */; };
 		93CD743393CCA788716688F7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7F4CB998FD677EC30FA87FB9 /* Assets.xcassets */; };
 		992EF6F79E0A4C204405E7B3 /* dashboard-demo.json in Resources */ = {isa = PBXBuildFile; fileRef = 2CB54F0A933E73ED25038729 /* dashboard-demo.json */; };
-		AB31687142322CFB0EDED6FD /* ConvexMobile in Frameworks */ = {isa = PBXBuildFile; productRef = AE3ED5DFA61D893646731AB0 /* ConvexMobile */; };
+		A8F933FD2D2F799314F96379 /* ConvexMobile in Frameworks */ = {isa = PBXBuildFile; productRef = AE3ED5DFA61D893646731AB0 /* ConvexMobile */; };
+		AB31687142322CFB0EDED6FD /* ClerkConvex in Frameworks */ = {isa = PBXBuildFile; productRef = 2866E9DFA8799EB5EB94D57A /* ClerkConvex */; };
 		AC728E4C22D20E77DFEC98F7 /* HeatmapCharts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DB4251CFE71C11B484B9CDA /* HeatmapCharts.swift */; };
 		B18F9977BF50F171F26EE446 /* ConvexWireModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004CE1A768F341A9C57EA20E /* ConvexWireModels.swift */; };
 		B5CC9047FEFC3706887A983B /* RepositoryCoordinationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FEB79E28971E073677EFC24 /* RepositoryCoordinationTests.swift */; };
@@ -117,8 +118,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				7EB531D52E728D037754EB1C /* ClerkKit in Frameworks */,
-				4893C418DB7CEF7B42F71788 /* ClerkConvex in Frameworks */,
-				AB31687142322CFB0EDED6FD /* ConvexMobile in Frameworks */,
+				4893C418DB7CEF7B42F71788 /* ClerkKitUI in Frameworks */,
+				AB31687142322CFB0EDED6FD /* ClerkConvex in Frameworks */,
+				A8F933FD2D2F799314F96379 /* ConvexMobile in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -285,6 +287,7 @@
 			name = CodexTracker;
 			packageProductDependencies = (
 				08737B7537A45027F1FB9DDD /* ClerkKit */,
+				DE32F1265A2494306C8C5300 /* ClerkKitUI */,
 				2866E9DFA8799EB5EB94D57A /* ClerkConvex */,
 				AE3ED5DFA61D893646731AB0 /* ConvexMobile */,
 			);
@@ -788,6 +791,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 2A23135CD16CB6E682045685 /* XCRemoteSwiftPackageReference "convex-swift" */;
 			productName = ConvexMobile;
+		};
+		DE32F1265A2494306C8C5300 /* ClerkKitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1911034F159A67FCECEEBC0D /* XCRemoteSwiftPackageReference "clerk-ios" */;
+			productName = ClerkKitUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

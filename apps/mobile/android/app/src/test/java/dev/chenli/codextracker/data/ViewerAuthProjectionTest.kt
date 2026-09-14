@@ -34,6 +34,38 @@ class ViewerAuthProjectionTest {
     }
 
   @Test
+  fun `a failed Convex re-authentication keeps the same principal signed in until Clerk signs out`() =
+    runTest {
+      val states =
+        flowOf(
+            AuthObservation(AuthState.Authenticated("token-1"), "user:session", true),
+            // The Convex client reports unauthenticated after a token renewal failed.
+            AuthObservation(AuthState.Unauthenticated(), "user:session", true),
+            AuthObservation(AuthState.AuthLoading(), "user:session", true),
+            AuthObservation(AuthState.Authenticated("token-2"), "user:session", true),
+            // A different principal must never inherit the previous session.
+            AuthObservation(AuthState.Unauthenticated(), "user:other", true),
+            // Clerk itself signed out.
+            AuthObservation(AuthState.Unauthenticated(), null, true),
+          )
+          .projectViewerAuth()
+          .toList()
+
+      assertEquals(
+        listOf(
+          ViewerAuthState.Loading,
+          ViewerAuthState.SignedIn("user:session"),
+          ViewerAuthState.SignedIn("user:session"),
+          ViewerAuthState.SignedIn("user:session"),
+          ViewerAuthState.SignedIn("user:session"),
+          ViewerAuthState.Loading,
+          ViewerAuthState.SignedOut,
+        ),
+        states,
+      )
+    }
+
+  @Test
   fun `signed out Clerk initialization emits signed out without user or session change`() =
     runTest {
       val convex = MutableStateFlow<AuthState<String>>(AuthState.Unauthenticated())

@@ -7,7 +7,7 @@ and carries **the same version number**, because it is built from the same sourc
 application itself, see [that package's changelog](https://github.com/CharryLee0426/codex_team_token_tracker/blob/main/packages/menubar/CHANGELOG.md).
 Entries here cover only what is specific to the Node 16 build.
 
-## Unreleased
+## 0.4.0 — 2026-09-13
 
 ### Notes
 

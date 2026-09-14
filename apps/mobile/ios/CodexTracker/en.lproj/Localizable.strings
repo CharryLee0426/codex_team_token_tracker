@@ -101,7 +101,7 @@
 "state.loading" = "Loading usage";
 "state.initializing" = "Starting secure services";
 "state.signedOut" = "Sign in to review usage";
-"state.signInBody" = "Continue in a secure browser with an enabled sign-in method.";
+"state.signInBody" = "Continue with your email code, passkey, or a connected account.";
 "state.signIn" = "Sign in";
 "state.authCancelled" = "Sign-in was canceled or could not be completed.";
 "state.syncing" = "Syncing your account";
