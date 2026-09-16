@@ -1,6 +1,6 @@
 import { hourStartOf, localParts, addLocalDays, dayKeyRange } from "./time.ts";
 import { emptyUsage, tryAddUsageInPlace, type TokenUsage } from "./usage.ts";
-import { resolvePrice, computeCost, type ModelPrice } from "./pricing.ts";
+import { LONG_CONTEXT_THRESHOLD, resolvePrice, computeCost, type ModelPrice } from "./pricing.ts";
 import type { UsageEvent } from "./codex-parser.ts";
 
 /** One (UTC hour, model) bucket – the unit uploaded to and stored in the realtime database. */
@@ -9,6 +9,12 @@ export interface HourBucket {
   model: string;
   agent: string; // "codex" | "pi" | ...
   usage: TokenUsage;
+  /**
+   * The part of `usage` from requests whose prompt exceeded `LONG_CONTEXT_THRESHOLD`. Uploaded with
+   * the bucket so the backend can bill it at the long-context tier although it prices aggregates.
+   */
+  long: TokenUsage;
+  /** Local display only (priced with whatever table this client holds); the backend prices uploads itself. */
   cost: number;
 }
 
@@ -29,10 +35,11 @@ export function bucketEvents(
     let b = into.get(key);
     const created = !b;
     if (!b) {
-      b = { hourStart, model: e.model, agent, usage: emptyUsage(), cost: 0 };
+      b = { hourStart, model: e.model, agent, usage: emptyUsage(), long: emptyUsage(), cost: 0 };
     }
     if (!tryAddUsageInPlace(b.usage, e.usage)) continue;
     if (created) into.set(key, b);
+    if (e.usage.input > LONG_CONTEXT_THRESHOLD) tryAddUsageInPlace(b.long, e.usage);
     let p = priceCache.get(e.model);
     if (!p) {
       p = resolvePrice(e.model, pricing).price;

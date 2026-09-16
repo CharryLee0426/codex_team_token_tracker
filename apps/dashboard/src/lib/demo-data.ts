@@ -1,5 +1,7 @@
-import { computeCost, resolvePrice } from "@codex-tracker/shared/pricing";
+import { DEFAULT_PRICING, computeCost, resolvePrice } from "@codex-tracker/shared/pricing";
+import { OPENAI_PRICING_URL } from "@codex-tracker/shared/openai-pricing-page";
 import { DAY, HOUR, hourStartOf, localParts } from "@codex-tracker/shared/time";
+import type { PricingTableResponse } from "@codex-tracker/shared/wire";
 import type { PublicUser } from "@/hooks/use-hourly-range";
 import type { UsageRow } from "./analytics";
 import type { SessionItem } from "@/components/dashboard/recent-sessions";
@@ -120,6 +122,14 @@ export function demoSessions(nowMs: number): SessionItem[] {
       source: null,
     };
   });
+}
+
+/** The bundled table as the backend would report it after a refresh (preview harness only). */
+export function demoPricing(nowMs: number): PricingTableResponse {
+  const entries = Object.entries(DEFAULT_PRICING)
+    .map(([model, price]) => ({ model, source: model.endsWith("-codex") && !(model in { "gpt-5.3-codex": 1 }) ? ("alias" as const) : ("openai" as const), ...price }))
+    .sort((a, b) => a.model.localeCompare(b.model));
+  return { entries, version: "demo", fetchedAt: nowMs - 5 * HOUR, checkedAt: nowMs - 23 * 60_000, lastError: null, sourceUrl: OPENAI_PRICING_URL };
 }
 
 export function demoDevices(nowMs: number): DeviceItem[] {

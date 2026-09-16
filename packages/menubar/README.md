@@ -113,8 +113,8 @@ The tracker discovers the Convex deployment through `<dashboard>/api/config`.
 
 The tracker uploads continuously in the background: every 60 s it sends the hour buckets and sessions
 that *changed* since the last push. **Sync** does the full version instead — use it when the dashboard's
-numbers for this machine look wrong, after you install a new agent, or after an update that changes the
-pricing table.
+numbers for this machine look wrong, after you install a new agent, or after an update that changes
+what is uploaded.
 
 Press the **⟳** button in the popover header (or *Sync now* in the Account card and the tray menu, or run
 `codex-tracker sync`). It:
@@ -124,7 +124,7 @@ Press the **⟳** button in the popover header (or *Sync now* in the Account car
    the coding agents running on your Codex subscription (pi, oh-my-pi, Cline, Kilo, Hermes, OpenClaw,
    retained OpenCode / Roo readers) and any
    `extraSessionDirs` you configured — instead of skipping files whose size and mtime are unchanged;
-3. recomputes all aggregates with the current pricing table;
+3. downloads the backend's current price table and recomputes the local aggregates with it;
 4. re-uploads every still-present bucket and session, not just what changed. The API uses idempotent
    upserts, so this refreshes current local records but does not delete older remote rows whose source
    file is no longer present;
@@ -202,19 +202,21 @@ with a long-context tier (GPT-6 Astra, GPT-5.6, GPT-5.5, GPT-5.4) bill the whole
 2× input and cache rates, 1.5× output — when its prompt exceeds 272K tokens. `-codex` variants are priced at
 their base model's rate.
 
+**The dashboard's backend does the pricing, not this app.** The tracker uploads token counts only (per
+hour and model, per session and model, and the share of each that ran above the 272K threshold); the
+backend prices them with a table it re-reads from OpenAI's pricing page every hour and re-prices all
+history whenever a rate changes. For its own tray / CLI numbers the app downloads that same table
+(`~/.codex-tracker/pricing-cache.json`, refreshed hourly and on every sync; `codex-tracker status` shows
+when), so what you see locally is what the dashboard shows. Until the first download, or while signed out
+on a fresh machine, a bundled copy of the list applies. Models missing from the table are priced by
+family and marked **est.**
+
+There is no local price override: a wrong or missing rate is fixed on the backend once, for every device
+(see the admin guide). Backends older than wire version 3 still receive a device-computed cost.
+
 **Codex only.** Some supported sources (Cline/Roo/Kilo, OpenCode, DeepSeek Harness) can also drive Anthropic, Google or local
 models. That usage is *not* counted: this tool reports Codex consumption, and pricing a Claude request
 against an OpenAI table would be meaningless.
-
-Models missing from the built-in table are priced by family and marked **est.** Override or add prices in
-`~/.codex-tracker/pricing.json` (`cacheWrite` is optional and defaults to `input`; an override is one flat
-rate with no long-context tier):
-
-```json
-{
-  "gpt-5.7-nova": { "input": 1.75, "cachedInput": 0.175, "output": 14 }
-}
-```
 
 ## Sources
 
@@ -280,7 +282,7 @@ accurate number; the values inside Codex logs are just snapshots from Codex's ow
 
 ## What gets uploaded
 
-Only aggregates: token counts per UTC hour and model, per-session totals, the model name, the project **folder name** and a SHA-256 of its path, plus a heartbeat (tokens/s, today's totals) that carries a SHA-256 of the machine's hardware id (so one computer maps to one device however often it logs in). Prompts, code, file paths, session contents and the raw hardware id never leave your machine. Timestamps are stored in UTC; the app and dashboard display them in your local time zone.
+Only aggregates: token counts per UTC hour and model (with the share from requests whose prompt exceeded 272K tokens, so the backend can apply the long-context tier), per-session totals and their per-model split, the model name, the project **folder name** and a SHA-256 of its path, plus a heartbeat (tokens/s, today's totals) that carries a SHA-256 of the machine's hardware id (so one computer maps to one device however often it logs in). No dollar figures: the backend prices the counts itself. Prompts, code, file paths, session contents and the raw hardware id never leave your machine. Timestamps are stored in UTC; the app and dashboard display them in your local time zone.
 
 ## Development
 

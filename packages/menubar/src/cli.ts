@@ -205,6 +205,17 @@ async function runStatus(json: boolean): Promise<number> {
   if (s.byAgentMonth.length) {
     line(t("cliStatusSources"), s.byAgentMonth.map((a) => `${a.agent} ${formatTokens(a.usage.total)} (${formatPercent(a.share)})`).join(" · "));
   }
+  if (s.pricing) {
+    const when = relativeTime(L, s.pricing.syncedAt);
+    line(
+      t("cliStatusPricing"),
+      s.pricing.fetchedAt
+        ? t("cliStatusPricingSynced", { models: String(s.pricing.models), when, date: new Intl.DateTimeFormat(tag, { dateStyle: "medium" }).format(new Date(s.pricing.fetchedAt)) })
+        : t("cliStatusPricingSeed", { models: String(s.pricing.models), when }),
+    );
+  } else {
+    line(t("cliStatusPricing"), t("cliStatusPricingNone"));
+  }
   console.log("");
   console.log(t("cliStatusModels"));
   for (const m of s.modelsMonth.slice(0, 8)) {

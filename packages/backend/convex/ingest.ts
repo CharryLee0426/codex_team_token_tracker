@@ -1,13 +1,20 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireDevice, publicUser } from "./lib/auth";
-import { usageFields, liveValidator } from "./schema";
+import { tokenFields, longContextValidator, liveValidator } from "./schema";
 import { MAX_BUCKETS_PER_PUSH, MAX_SESSIONS_PER_PUSH } from "@codex-tracker/shared/wire";
 import { isMachineId } from "@codex-tracker/shared/device-identity";
 import { noteMachineId } from "./devices";
+import { effectivePricing, ensureRefreshScheduled, priceSession, priceUsage, sanitizeLong } from "./pricing";
 import type { Doc } from "./_generated/dataModel";
 
-const bucketValidator = v.object({ hourStart: v.number(), model: v.string(), agent: v.optional(v.string()), ...usageFields });
+/**
+ * Uploads carry token counts; the backend prices them (`pricing.ts`). `cost` is still accepted from
+ * clients older than wire 3 but ignored — the stored cost is always the backend's.
+ */
+const uploadFields = { ...tokenFields, cost: v.optional(v.number()), long: v.optional(longContextValidator) };
+
+const bucketValidator = v.object({ hourStart: v.number(), model: v.string(), agent: v.optional(v.string()), ...uploadFields });
 
 function sumModels(models: Array<{ input: number; cached: number; cacheWrite: number; output: number; reasoning: number; total: number; requests: number; cost: number }>) {
   const t = { input: 0, cached: 0, cacheWrite: 0, output: 0, reasoning: 0, total: 0, requests: 0, cost: 0 };
@@ -55,6 +62,8 @@ export const pushHourly = mutation({
     }
     const { device, user } = await requireDevice(ctx, token);
     const now = Date.now();
+    const { table } = await effectivePricing(ctx);
+    await ensureRefreshScheduled(ctx);
     const byHour = new Map<number, typeof buckets>();
     for (const b of buckets) {
       if (!Number.isFinite(b.hourStart) || b.hourStart % 3_600_000 !== 0) continue;
@@ -68,14 +77,17 @@ export const pushHourly = mutation({
         .query("hourlyUsage")
         .withIndex("by_device_hour", (q) => q.eq("deviceId", device._id).eq("hourStart", hourStart))
         .unique();
-      type ModelEntry = { model: string; agent?: string; input: number; cached: number; cacheWrite: number; output: number; reasoning: number; total: number; requests: number; cost: number };
+      type ModelEntry = Doc<"hourlyUsage">["models"][number];
       const keyOf = (m: { model: string; agent?: string }) => `${m.agent ?? "codex"}|${m.model}`;
       const models = new Map<string, ModelEntry>();
       for (const m of existing?.models ?? []) models.set(keyOf(m), m);
       for (const b of list) {
+        const long = sanitizeLong(b, b.long);
         models.set(keyOf(b), {
           model: b.model, agent: b.agent ?? "codex", input: b.input, cached: b.cached, cacheWrite: b.cacheWrite, output: b.output,
-          reasoning: b.reasoning, total: b.total, requests: b.requests, cost: b.cost,
+          reasoning: b.reasoning, total: b.total, requests: b.requests,
+          cost: priceUsage(table, b.model, b, long),
+          ...(long ? { long } : {}),
         });
       }
       const arr = [...models.values()].filter((m) => m.total > 0 || m.requests > 0);
@@ -100,7 +112,9 @@ const sessionValidator = v.object({
   cwdHash: v.union(v.string(), v.null()),
   startedAt: v.number(),
   lastActivityAt: v.number(),
-  ...usageFields,
+  ...uploadFields,
+  /** Wire ≥ 3: the totals above split by model, so a session that switched models is priced exactly. */
+  models: v.optional(v.array(v.object({ model: v.string(), ...uploadFields }))),
   source: v.union(v.string(), v.null()),
   cliVersion: v.union(v.string(), v.null()),
 });
@@ -113,8 +127,19 @@ export const pushSessions = mutation({
     }
     const { device, user } = await requireDevice(ctx, token);
     const now = Date.now();
+    const { table } = await effectivePricing(ctx);
     for (const s of sessions) {
       const agent = s.agent ?? "codex";
+      const models = s.models?.length
+        ? s.models.map((m) => {
+            const long = sanitizeLong(m, m.long);
+            return {
+              model: m.model, input: m.input, cached: m.cached, cacheWrite: m.cacheWrite, output: m.output,
+              reasoning: m.reasoning, total: m.total, requests: m.requests, cost: 0, ...(long ? { long } : {}),
+            };
+          })
+        : undefined;
+      const priced = priceSession(table, { ...s, cost: 0, models });
       const candidates = await ctx.db
         .query("sessions")
         .withIndex("by_device_session", (q) => q.eq("deviceId", device._id).eq("sessionId", s.sessionId))
@@ -134,7 +159,8 @@ export const pushSessions = mutation({
         startedAt: s.startedAt,
         lastActivityAt: s.lastActivityAt,
         input: s.input, cached: s.cached, cacheWrite: s.cacheWrite, output: s.output, reasoning: s.reasoning,
-        total: s.total, requests: s.requests, cost: s.cost,
+        total: s.total, requests: s.requests, cost: priced.cost,
+        models: priced.models ?? undefined,
         source: s.source ?? undefined,
         cliVersion: s.cliVersion ?? undefined,
         updatedAt: now,

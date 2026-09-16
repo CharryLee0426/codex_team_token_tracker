@@ -2,19 +2,27 @@ import { ConvexHttpClient } from "convex/browser";
 import { ConvexError } from "convex/values";
 import { api } from "@codex-tracker/backend/convex/_generated/api";
 import {
+  emptyUsage,
   expandCompactRows,
   hourStartOf,
   isCanonicalTokenUsage,
+  isEmptyUsage,
   sha256Hex,
+  tryAddUsageInPlace,
+  LONG_CONTEXT_THRESHOLD,
   MAX_BUCKETS_PER_PUSH,
   MAX_SESSIONS_PER_PUSH,
+  WIRE_SERVER_PRICING,
   type DashboardConfigResponse,
   type HourBucket,
   type HourRow,
   type LiveSnapshot,
   type ParsedSession,
+  type PricingTableResponse,
+  type TokenUsage,
   type UploadHourBucket,
   type UploadSession,
+  type UploadSessionModel,
 } from "@codex-tracker/shared";
 import { backendSupports, loadState, saveState, updateConfig, type TrackerConfig, type UploadState } from "./config";
 import { machineId } from "./platform";
@@ -79,9 +87,37 @@ function isNetworkError(err: unknown): boolean {
   return !(err instanceof ConvexError) && err instanceof Error && /fetch|network|ECONN|ENOTFOUND|timeout/i.test(err.message);
 }
 
-function bucketHash(b: HourBucket): string {
-  const u = b.usage;
-  return `${u.input}|${u.cached}|${u.cacheWrite}|${u.output}|${u.reasoning}|${u.total}|${u.requests}|${b.cost.toFixed(6)}`;
+/** A long-context share is uploaded only when there is one and it is a well-formed subset. */
+function longShare(usage: TokenUsage, long: TokenUsage | undefined): TokenUsage | undefined {
+  if (!long || isEmptyUsage(long) || !isCanonicalTokenUsage(long)) return undefined;
+  const keys: Array<keyof TokenUsage> = ["input", "cached", "cacheWrite", "output", "reasoning", "total", "requests"];
+  return keys.every((k) => long[k] <= usage[k]) ? { ...long } : undefined;
+}
+
+/**
+ * The bucket as sent. Backends that price uploads (wire ≥ 3) get token counts plus the long-context
+ * share; older backends still need the device-computed `cost`.
+ */
+function uploadBucket(b: HourBucket, serverPricing: boolean): UploadHourBucket {
+  const long = longShare(b.usage, b.long);
+  return {
+    hourStart: b.hourStart,
+    model: b.model,
+    agent: b.agent,
+    input: b.usage.input,
+    cached: b.usage.cached,
+    cacheWrite: b.usage.cacheWrite,
+    output: b.usage.output,
+    reasoning: b.usage.reasoning,
+    total: b.usage.total,
+    requests: b.usage.requests,
+    ...(serverPricing ? (long ? { long } : {}) : { cost: b.cost }),
+  };
+}
+
+/** Hash exactly the outbound bucket, so a local price-table refresh does not re-send unchanged rows. */
+function bucketHash(payload: UploadHourBucket): string {
+  return sha256Hex(JSON.stringify(payload));
 }
 
 function uploadableBucket(bucket: HourBucket): boolean {
@@ -90,6 +126,30 @@ function uploadableBucket(bucket: HourBucket): boolean {
     && Number.isFinite(bucket.cost)
     && bucket.cost >= 0
     && isCanonicalTokenUsage(bucket.usage);
+}
+
+/**
+ * A session's usage per model (with each model's long-context share), summed from its events. Lets
+ * the backend price a session that switched models exactly; the totals stay on the session itself.
+ */
+export function sessionModels(s: ParsedSession): UploadSessionModel[] {
+  const byModel = new Map<string, { usage: TokenUsage; long: TokenUsage }>();
+  for (const e of s.events) {
+    let m = byModel.get(e.model);
+    if (!m) {
+      m = { usage: emptyUsage(), long: emptyUsage() };
+      byModel.set(e.model, m);
+    }
+    if (!tryAddUsageInPlace(m.usage, e.usage)) continue;
+    if (e.usage.input > LONG_CONTEXT_THRESHOLD) tryAddUsageInPlace(m.long, e.usage);
+  }
+  const out: UploadSessionModel[] = [];
+  for (const [model, m] of byModel) {
+    if (isEmptyUsage(m.usage)) continue;
+    const long = longShare(m.usage, m.long);
+    out.push({ model, ...m.usage, ...(long ? { long } : {}) });
+  }
+  return out.sort((a, b) => a.model.localeCompare(b.model));
 }
 
 function uploadableSession(session: ParsedSession, cost: number): boolean {
@@ -112,7 +172,8 @@ function uploadableLive(live: LiveSnapshot): boolean {
     && live.todayCost >= 0;
 }
 
-function uploadSession(s: ParsedSession, cost: number): UploadSession {
+/** The session as sent (see `uploadBucket` for the wire-version split). */
+export function uploadSession(s: ParsedSession, cost: number, serverPricing = false): UploadSession {
   return {
     sessionId: s.sessionId,
     agent: s.agent,
@@ -128,15 +189,15 @@ function uploadSession(s: ParsedSession, cost: number): UploadSession {
     reasoning: s.cumulative.reasoning,
     total: s.cumulative.total,
     requests: s.cumulative.requests,
-    cost,
+    ...(serverPricing ? { models: sessionModels(s) } : { cost }),
     source: s.source ?? s.originator ?? null,
     cliVersion: s.cliVersion,
   };
 }
 
 /** Hash exactly the normalized session payload; any outbound correction must invalidate local state. */
-export function sessionUploadHash(s: ParsedSession, cost: number): string {
-  return sha256Hex(JSON.stringify(uploadSession(s, cost)));
+export function sessionUploadHash(s: ParsedSession, cost: number, serverPricing = false): string {
+  return sha256Hex(JSON.stringify(uploadSession(s, cost, serverPricing)));
 }
 
 function bucketStateKey(b: { hourStart: number; model: string; agent: string }): string {
@@ -265,27 +326,18 @@ export class Uploader {
         this.state.pushedBuckets = {};
         this.state.pushedSessions = {};
       }
+      // Backends ≥ wire 3 price uploads themselves; only older ones still take the device's cost.
+      const serverPricing = backendSupports(this.opts.getConfig(), WIRE_SERVER_PRICING);
       const changed: UploadHourBucket[] = [];
       const hashes = new Map<string, string>();
       for (const b of buckets.sort((a, b) => a.hourStart - b.hourStart)) {
         if (!uploadableBucket(b)) continue;
         const key = bucketStateKey(b);
-        const h = bucketHash(b);
+        const payload = uploadBucket(b, serverPricing);
+        const h = bucketHash(payload);
         if (this.state.pushedBuckets[key] === h) continue;
         hashes.set(key, h);
-        changed.push({
-          hourStart: b.hourStart,
-          model: b.model,
-          agent: b.agent,
-          input: b.usage.input,
-          cached: b.usage.cached,
-          cacheWrite: b.usage.cacheWrite,
-          output: b.usage.output,
-          reasoning: b.usage.reasoning,
-          total: b.usage.total,
-          requests: b.usage.requests,
-          cost: b.cost,
-        });
+        changed.push(payload);
       }
       let pushedBuckets = 0;
       for (let i = 0; i < changed.length; i += MAX_BUCKETS_PER_PUSH) {
@@ -308,10 +360,11 @@ export class Uploader {
         const sKey = sessionStateKey(s);
         const cost = sessionCosts.get(costKey) ?? 0;
         if (!uploadableSession(s, cost)) continue;
-        const h = sessionUploadHash(s, cost);
+        const payload = uploadSession(s, cost, serverPricing);
+        const h = sha256Hex(JSON.stringify(payload));
         if (this.state.pushedSessions[sKey] === h) continue;
         sHashes.set(sKey, h);
-        changedSessions.push(uploadSession(s, cost));
+        changedSessions.push(payload);
       }
       let pushedSessions = 0;
       for (let i = 0; i < changedSessions.length; i += MAX_SESSIONS_PER_PUSH) {
@@ -354,5 +407,18 @@ export class Uploader {
 
   async whoami() {
     return this.call((c, token) => c.query(api.ingest.whoami, { token }));
+  }
+
+  /**
+   * The price table the backend bills with, for the local display. List prices are public, so this
+   * needs no device token: a signed-out tracker still shows the same dollars as the dashboard.
+   */
+  async fetchPricing(): Promise<PricingTableResponse> {
+    try {
+      return await (await this.getClient()).query(api.pricing.current, {});
+    } catch (err) {
+      if (!isNetworkError(err)) throw err;
+      return await (await this.getClient(true)).query(api.pricing.current, {});
+    }
   }
 }

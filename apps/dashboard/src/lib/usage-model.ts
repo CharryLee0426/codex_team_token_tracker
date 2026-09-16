@@ -1,5 +1,6 @@
 import { buildHeatmap, groupByLocalDay, type HeatmapGrid } from "@codex-tracker/shared/aggregate";
 import { addLocalDays, dayKeyToLocalStart, hourStartOf } from "@codex-tracker/shared/time";
+import type { ModelPrice } from "@codex-tracker/shared/pricing";
 import {
   activeHoursRows,
   activeHoursDays,
@@ -54,13 +55,21 @@ export function spanStart(bounds: RangeBounds, weeks: number): { fromKey: string
   return { fromKey, fromMs: hourStartOf(dayKeyToLocalStart(fromKey)) };
 }
 
-export function deriveUsageModel(rows: UsageRow[], bounds: RangeBounds, weeks: number, previousSeries: string[], includeMembers: boolean): UsageModel {
+export function deriveUsageModel(
+  rows: UsageRow[],
+  bounds: RangeBounds,
+  weeks: number,
+  previousSeries: string[],
+  includeMembers: boolean,
+  /** The backend's current price table; flags models it prices by family fallback as estimated. */
+  pricing?: Record<string, ModelPrice>,
+): UsageModel {
   const spanRows = rows.filter((r) => r.hourStart < bounds.toMs);
   const rangeRows = spanRows.filter((r) => r.hourStart >= bounds.fromMs);
   const week = weekdayWindow(bounds);
   const weekRows = rows.filter((r) => r.hourStart >= week.fromMs && r.hourStart < week.toMs);
   const activeDays = activeHoursDays(rangeRows, bounds.fromKey, bounds.toKey);
-  const stats = modelBreakdown(rangeRows);
+  const stats = modelBreakdown(rangeRows, pricing);
   const series = orderModels(stats, previousSeries);
   const daily = dailyStack(rangeRows, bounds.fromKey, bounds.toKey, series);
   return {

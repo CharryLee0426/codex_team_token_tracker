@@ -1,6 +1,6 @@
 import { expandCompactRows } from "@codex-tracker/shared/wire";
 import { addUsageInPlace, cacheHitRate, emptyUsage, type TokenUsage } from "@codex-tracker/shared/usage";
-import { isOpenAIModel, resolvePrice } from "@codex-tracker/shared/pricing";
+import { isOpenAIModel, resolvePrice, type ModelPrice } from "@codex-tracker/shared/pricing";
 import { groupByAgent, groupByLocalDay, groupByModel } from "@codex-tracker/shared/aggregate";
 import { dayKeyRange, localParts, dayKeyToLocalStart } from "@codex-tracker/shared/time";
 
@@ -48,12 +48,17 @@ export interface ModelStat {
   matchedKey: string | null;
 }
 
-export function modelBreakdown(rows: UsageRow[]): ModelStat[] {
+/**
+ * Costs come from the stored rows (the backend priced them); `table` — the backend's current price
+ * table (`api.pricing.current`) — only decides which models to flag as *estimated*. Without it the
+ * bundled seed table is consulted.
+ */
+export function modelBreakdown(rows: UsageRow[], table?: Record<string, ModelPrice>): ModelStat[] {
   const grouped = groupByModel(rows);
   const total = [...grouped.values()].reduce((a, c) => a + c.usage.total, 0) || 1;
   return [...grouped.values()]
     .map((c) => {
-      const p = resolvePrice(c.key);
+      const p = resolvePrice(c.key, table);
       return { model: c.key, usage: c.usage, cost: c.cost, share: c.usage.total / total, estimated: p.estimated, matchedKey: p.matchedKey };
     })
     .sort((a, b) => b.usage.total - a.usage.total);

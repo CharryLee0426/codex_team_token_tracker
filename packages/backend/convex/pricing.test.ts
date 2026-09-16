@@ -1,142 +1,255 @@
 /// <reference types="vite/client" />
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { convexTest } from "convex-test";
-import { makeFunctionReference } from "convex/server";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+import { api, internal } from "./_generated/api";
 import schema from "./schema";
-import { DEFAULT_PRICING, FALLBACK_PRICE_KEY, computeCost } from "@codex-tracker/shared/pricing";
+import { DEFAULT_PRICING, LONG_CONTEXT_THRESHOLD, computeAggregateCost, computeCost, resolvePrice } from "@codex-tracker/shared/pricing";
+import { OPENAI_PRICING_URL } from "@codex-tracker/shared/openai-pricing-page";
+import { hashToken } from "./lib/auth";
 
 const modules = import.meta.glob("./**/*.ts");
 
-interface RepriceReport {
-  apply: boolean;
-  model: string;
-  scanned: number;
-  hourlyUsage: { rows: number; entries: number; delta: number };
-  sessions: { rows: number; delta: number };
-  skipped: Array<Record<string, string | number>>;
+const HOUR = 1_780_000_000_000 - (1_780_000_000_000 % 3_600_000);
+const TOKEN = "cxt_test-device-token-0001";
+
+/** One hour of gpt-6-astra usage, one request of which ran past the long-context threshold. */
+const USAGE = { input: 500_000, cached: 300_000, cacheWrite: 20_000, output: 9_000, reasoning: 2_000, total: 509_000, requests: 5 };
+const LONG = { input: 300_000, cached: 250_000, cacheWrite: 0, output: 3_000, reasoning: 1_000, total: 303_000, requests: 1 };
+const SMALL = { input: 50_000, cached: 10_000, cacheWrite: 5_000, output: 1_000, reasoning: 100, total: 51_000, requests: 2 };
+
+const FIXTURES = path.join(import.meta.dirname, "../../shared/src/__tests__/fixtures");
+const PRICING_PAGE = readFileSync(path.join(FIXTURES, "openai-pricing-page.html"), "utf8");
+const ASTRA_PAGE = readFileSync(path.join(FIXTURES, "openai-model-gpt-6-astra.html"), "utf8");
+
+function createTest() {
+  return convexTest(schema, modules);
 }
 
-/**
- * `internal.pricing.reprice`, addressed by name. A one-off migration module reaches the committed
- * `_generated` bindings only when `convex deploy` next regenerates them, and this test should not
- * have to wait for that to run.
- */
-const reprice = makeFunctionReference<"mutation", { model: string; apply: boolean }, RepriceReport>("pricing:reprice");
-
-const HOUR = 1_780_000_000_000 - (1_780_000_000_000 % 3_600_000);
-const STALE = DEFAULT_PRICING[FALLBACK_PRICE_KEY];
-const ASTRA = DEFAULT_PRICING["gpt-6-astra"];
-const ASTRA_FLAT = { input: ASTRA.input, cachedInput: ASTRA.cachedInput, cacheWrite: ASTRA.cacheWrite, output: ASTRA.output };
-
-/** A single request's worth of usage, small enough that no long-context tier is involved. */
-const USAGE = { input: 100_000, cached: 60_000, cacheWrite: 10_000, output: 4_000, reasoning: 1_000, total: 104_000, requests: 7 };
-/** Aggregate whose *total* input crosses 272K although no single request need have. */
-const BIG = { input: 900_000, cached: 700_000, cacheWrite: 50_000, output: 20_000, reasoning: 5_000, total: 920_000, requests: 40 };
-
-async function seed(t: ReturnType<typeof convexTest>, astraCost: number, otherCost: number, sessionCost: number) {
+async function seedDevice(t: ReturnType<typeof createTest>) {
   return await t.run(async (ctx) => {
     const userId = await ctx.db.insert("users", { clerkId: "u1", createdAt: HOUR, updatedAt: HOUR });
     const deviceId = await ctx.db.insert("devices", {
-      userId, name: "Mac", platform: "darwin", tokenHash: "h", createdAt: HOUR, lastSeenAt: HOUR,
+      userId, name: "Mac", platform: "darwin", tokenHash: hashToken(TOKEN), createdAt: HOUR, lastSeenAt: HOUR,
     });
-    const astra = { model: "gpt-6-astra", agent: "codex", ...USAGE, cost: astraCost };
-    const other = { model: "gpt-5.5", agent: "codex", ...USAGE, cost: otherCost };
-    const hourId = await ctx.db.insert("hourlyUsage", {
-      userId, deviceId, hourStart: HOUR, models: [astra, other],
-      input: USAGE.input * 2, cached: USAGE.cached * 2, cacheWrite: USAGE.cacheWrite * 2, output: USAGE.output * 2,
-      reasoning: USAGE.reasoning * 2, total: USAGE.total * 2, requests: USAGE.requests * 2,
-      cost: astraCost + otherCost, updatedAt: HOUR,
-    });
-    const sessionId = await ctx.db.insert("sessions", {
-      userId, deviceId, sessionId: "s1", agent: "codex", model: "gpt-6-astra",
-      startedAt: HOUR, lastActivityAt: HOUR, ...USAGE, cost: sessionCost, updatedAt: HOUR,
-    });
-    return { userId, deviceId, hourId, sessionId };
+    return { userId, deviceId };
   });
 }
 
-test("re-prices only the target model, leaving other models and the row invariant intact", async () => {
-  const t = convexTest(schema, modules);
-  const staleAstra = computeCost(USAGE, STALE);
-  const otherCost = computeCost(USAGE, DEFAULT_PRICING["gpt-5.5"]);
-  const ids = await seed(t, staleAstra, otherCost, staleAstra);
+/** Serve the fixture pages instead of developers.openai.com. */
+function stubOpenAI(responses: Record<string, string | number> = {}) {
+  const calls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    calls.push(url);
+    const body = responses[url] ?? (url === OPENAI_PRICING_URL ? PRICING_PAGE : url.includes("gpt-6-astra") ? ASTRA_PAGE : "<html>no rule</html>");
+    if (typeof body === "number") return new Response("nope", { status: body });
+    return new Response(body, { status: 200, headers: { "content-type": "text/html" } });
+  }));
+  return calls;
+}
 
-  const dry = await t.mutation(reprice, { model: "gpt-6-astra", apply: false });
-  expect(dry.hourlyUsage.entries).toBe(1);
-  expect(dry.sessions.rows).toBe(1);
-  expect(dry.skipped).toEqual([]);
-  await t.run(async (ctx) => {
-    expect((await ctx.db.get(ids.hourId))!.models[0].cost).toBe(staleAstra); // dry run wrote nothing
-  });
+/** Run whatever `scheduler.runAfter` queued (the re-price sweep, a first refresh) to completion. */
+async function settle(t: ReturnType<typeof createTest>) {
+  vi.useFakeTimers();
+  try {
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+  } finally {
+    vi.useRealTimers();
+  }
+}
 
-  const run = await t.mutation(reprice, { model: "gpt-6-astra", apply: true });
-  expect(run.hourlyUsage.entries).toBe(1);
-  const expected = computeCost(USAGE, ASTRA_FLAT);
-  expect(expected).toBeGreaterThan(staleAstra);
-
-  await t.run(async (ctx) => {
-    const row = (await ctx.db.get(ids.hourId))!;
-    expect(row.models[0].cost).toBeCloseTo(expected, 12);
-    expect(row.models[1].cost).toBe(otherCost); // untouched
-    expect(row.cost).toBeCloseTo(row.models[0].cost + row.models[1].cost, 12);
-    expect(row.total).toBe(USAGE.total * 2); // token totals never move
-    const s = (await ctx.db.get(ids.sessionId))!;
-    expect(s.cost).toBeCloseTo(expected, 12);
-  });
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
-test("is idempotent: a second run finds nothing at the stale rate", async () => {
-  const t = convexTest(schema, modules);
-  const staleAstra = computeCost(USAGE, STALE);
-  await seed(t, staleAstra, computeCost(USAGE, DEFAULT_PRICING["gpt-5.5"]), staleAstra);
+test("hourly uploads are priced by the backend from their token counts, long-context share at the long tier", async () => {
+  const t = createTest();
+  const { deviceId } = await seedDevice(t);
+  const astra = resolvePrice("gpt-6-astra").price;
 
-  const first = await t.mutation(reprice, { model: "gpt-6-astra", apply: true });
-  expect(first.hourlyUsage.entries).toBe(1);
-  const second = await t.mutation(reprice, { model: "gpt-6-astra", apply: true });
-  expect(second.hourlyUsage.entries).toBe(0);
-  expect(second.sessions.rows).toBe(0);
-  expect(second.hourlyUsage.delta).toBe(0);
-  expect(second.skipped).toHaveLength(2); // both now sit at the corrected rate, and are reported
-});
-
-test("skips entries that were not costed at the stale rate", async () => {
-  const t = convexTest(schema, modules);
-  const mixed = computeCost(USAGE, STALE) * 1.4; // e.g. a session that spanned two models
-  const ids = await seed(t, computeCost(USAGE, STALE), 0.5, mixed);
-
-  const run = await t.mutation(reprice, { model: "gpt-6-astra", apply: true });
-  expect(run.sessions.rows).toBe(0);
-  expect(run.skipped.some((s: Record<string, string | number>) => s.table === "sessions" && s.id === ids.sessionId)).toBe(true);
-  await t.run(async (ctx) => {
-    expect((await ctx.db.get(ids.sessionId))!.cost).toBe(mixed); // left exactly as found
-  });
-});
-
-test("prices aggregates at the standard tier even when their summed input crosses the threshold", async () => {
-  const t = convexTest(schema, modules);
-  const stale = computeCost(BIG, STALE);
-  const ids = await t.run(async (ctx) => {
-    const userId = await ctx.db.insert("users", { clerkId: "u2", createdAt: HOUR, updatedAt: HOUR });
-    const deviceId = await ctx.db.insert("devices", { userId, name: "Mac", platform: "darwin", tokenHash: "h2", createdAt: HOUR, lastSeenAt: HOUR });
-    const hourId = await ctx.db.insert("hourlyUsage", {
-      userId, deviceId, hourStart: HOUR,
-      models: [{ model: "gpt-6-astra", agent: "codex", ...BIG, cost: stale }],
-      ...BIG, cost: stale, updatedAt: HOUR,
-    });
-    return { hourId };
+  await t.mutation(api.ingest.pushHourly, {
+    token: TOKEN,
+    buckets: [
+      // A wire-3 client: no `cost`, but the long-context split.
+      { hourStart: HOUR, model: "gpt-6-astra", agent: "codex", ...USAGE, long: LONG },
+      // A wire-2 client: its own (stale) cost is ignored, and with no split the standard tier applies throughout.
+      { hourStart: HOUR, model: "gpt-5.5", agent: "pi", ...USAGE, cost: 0.01 },
+    ],
   });
 
-  await t.mutation(reprice, { model: "gpt-6-astra", apply: true });
-  await t.run(async (ctx) => {
-    const got = (await ctx.db.get(ids.hourId))!.models[0].cost;
-    expect(got).toBeCloseTo(computeCost(BIG, ASTRA_FLAT), 12);
-    // the long tier would have doubled the input rates; an aggregate must not reach for it
-    expect(got).toBeLessThan(computeCost(BIG, ASTRA.long!));
-  });
+  const row = await t.run(async (ctx) => await ctx.db.query("hourlyUsage").withIndex("by_device_hour", (q) => q.eq("deviceId", deviceId)).unique());
+  expect(row).not.toBeNull();
+  const byModel = new Map(row!.models.map((m) => [m.model, m]));
+  expect(byModel.get("gpt-6-astra")!.cost).toBeCloseTo(computeAggregateCost(USAGE, astra, LONG), 9);
+  expect(byModel.get("gpt-6-astra")!.long).toEqual(LONG);
+  expect(byModel.get("gpt-5.5")!.cost).toBeCloseTo(computeAggregateCost(USAGE, resolvePrice("gpt-5.5").price), 9);
+  expect(byModel.get("gpt-5.5")!.cost).not.toBe(0.01);
+  expect(byModel.get("gpt-5.5")!.long).toBeUndefined();
+  expect(row!.cost).toBeCloseTo(byModel.get("gpt-6-astra")!.cost + byModel.get("gpt-5.5")!.cost, 9);
+
+  // The long share equals what a device would have billed per request.
+  const perRequest = computeCost(LONG, astra) + computeCost({ ...USAGE, input: USAGE.input - LONG.input, cached: USAGE.cached - LONG.cached, cacheWrite: USAGE.cacheWrite, output: USAGE.output - LONG.output }, astra);
+  expect(byModel.get("gpt-6-astra")!.cost).toBeCloseTo(perRequest, 9);
 });
 
-test("refuses a model the table would only price by inference", async () => {
-  const t = convexTest(schema, modules);
-  await expect(t.mutation(reprice, { model: "gpt-6-nebula", apply: false })).rejects.toThrow(/no exact entry/);
+test("a long-context share that is not a subset of its bucket is ignored, not billed", async () => {
+  const t = createTest();
+  await seedDevice(t);
+  await t.mutation(api.ingest.pushHourly, {
+    token: TOKEN,
+    buckets: [{ hourStart: HOUR, model: "gpt-6-astra", agent: "codex", ...SMALL, long: { ...LONG, input: SMALL.input + 1 } }],
+  });
+  const row = await t.run(async (ctx) => await ctx.db.query("hourlyUsage").first());
+  expect(row!.models[0].long).toBeUndefined();
+  expect(row!.models[0].cost).toBeCloseTo(computeAggregateCost(SMALL, resolvePrice("gpt-6-astra").price), 9);
+});
+
+test("sessions are priced per model when the client sends the breakdown, else by their last model", async () => {
+  const t = createTest();
+  await seedDevice(t);
+  const base = { projectName: "demo", cwdHash: null, startedAt: HOUR, lastActivityAt: HOUR + 1000, source: null, cliVersion: null };
+  await t.mutation(api.ingest.pushSessions, {
+    token: TOKEN,
+    sessions: [
+      { sessionId: "mixed", agent: "codex", model: "gpt-5.4-mini", ...base, ...USAGE, models: [
+        { model: "gpt-6-astra", ...LONG, long: LONG },
+        { model: "gpt-5.4-mini", input: 200_000, cached: 50_000, cacheWrite: 20_000, output: 6_000, reasoning: 1_000, total: 206_000, requests: 4 },
+      ] },
+      { sessionId: "legacy", agent: "codex", model: "gpt-6-astra", ...base, ...USAGE, cost: 123 },
+    ],
+  });
+  const sessions = await t.run(async (ctx) => await ctx.db.query("sessions").collect());
+  const mixed = sessions.find((s) => s.sessionId === "mixed")!;
+  const legacy = sessions.find((s) => s.sessionId === "legacy")!;
+  const astraPart = computeAggregateCost(LONG, resolvePrice("gpt-6-astra").price, LONG);
+  const miniPart = computeAggregateCost({ input: 200_000, cached: 50_000, cacheWrite: 20_000, output: 6_000 }, resolvePrice("gpt-5.4-mini").price);
+  expect(mixed.cost).toBeCloseTo(astraPart + miniPart, 9);
+  expect(mixed.models!.map((m) => m.cost)).toEqual([expect.closeTo(astraPart, 9), expect.closeTo(miniPart, 9)]);
+  expect(legacy.cost).toBeCloseTo(computeAggregateCost(USAGE, resolvePrice("gpt-6-astra").price), 9);
+  expect(legacy.models).toBeUndefined();
+});
+
+test("refresh reads OpenAI's page into a snapshot once, re-prices history, and stays quiet when nothing changed", async () => {
+  const t = createTest();
+  const calls = stubOpenAI();
+  await seedDevice(t);
+  // History priced by the seed table.
+  await t.mutation(api.ingest.pushHourly, { token: TOKEN, buckets: [{ hourStart: HOUR, model: "gpt-6-astra", agent: "codex", ...USAGE, long: LONG }] });
+  await t.mutation(api.ingest.pushSessions, { token: TOKEN, sessions: [{ sessionId: "s", agent: "codex", model: "gpt-5.5", projectName: null, cwdHash: null, startedAt: HOUR, lastActivityAt: HOUR, source: null, cliVersion: null, ...SMALL }] });
+  const before = await t.query(api.pricing.current, {});
+  expect(before.version).toBeNull();
+  expect(before.entries.every((e) => e.source === "builtin")).toBe(true);
+
+  const first = await t.action(internal.pricing.refresh, {});
+  expect(first).toEqual({ changed: true, models: expect.any(Number), error: null });
+  // Unchanged rates keep the tier the seed already knew: only the page itself was fetched.
+  expect(calls).toEqual([OPENAI_PRICING_URL]);
+
+  const after = await t.query(api.pricing.current, {});
+  expect(after.version).not.toBeNull();
+  expect(after.fetchedAt).toEqual(expect.any(Number));
+  expect(after.lastError).toBeNull();
+  const byModel = new Map(after.entries.map((e) => [e.model, e]));
+  expect(byModel.get("gpt-6-astra")).toMatchObject({ source: "openai", input: 10, cachedInput: 1, cacheWrite: 12.5, output: 50, long: { threshold: LONG_CONTEXT_THRESHOLD, input: 20, cachedInput: 2, cacheWrite: 25, output: 75 } });
+  expect(byModel.get("gpt-5.5-codex")?.source).toBe("alias");
+  expect(byModel.get("codex-mini-latest")?.source).toBe("builtin");
+
+  // The sweep ran (rates equal the seed, so costs are unchanged but the pass completed).
+  await settle(t);
+  const status = await t.run(async (ctx) => await ctx.db.query("pricingStatus").first());
+  expect(status?.repriceFinishedAt).toEqual(expect.any(Number));
+  expect(status?.repriced).toBe(0);
+
+  // Same page again: no new snapshot, just a fresh check time.
+  const second = await t.action(internal.pricing.refresh, {});
+  expect(second.changed).toBe(false);
+  const snapshots = await t.run(async (ctx) => await ctx.db.query("pricingSnapshots").collect());
+  expect(snapshots).toHaveLength(1);
+  expect((await t.query(api.pricing.current, {})).version).toBe(after.version);
+});
+
+test("a changed rate produces a new snapshot and re-prices every stored row", async () => {
+  const t = createTest();
+  await seedDevice(t);
+  await t.mutation(api.ingest.pushHourly, { token: TOKEN, buckets: [{ hourStart: HOUR, model: "gpt-6-astra", agent: "codex", ...USAGE, long: LONG }, { hourStart: HOUR, model: "gpt-5.4-mini", agent: "codex", ...SMALL }] });
+  await t.mutation(api.ingest.pushSessions, { token: TOKEN, sessions: [{ sessionId: "s", agent: "codex", model: "gpt-6-astra", projectName: null, cwdHash: null, startedAt: HOUR, lastActivityAt: HOUR, source: null, cliVersion: null, ...USAGE, models: [{ model: "gpt-6-astra", ...USAGE, long: LONG }] }] });
+
+  // OpenAI doubles Astra's rates (and the model page still states the 2x / 1.5x rule).
+  const doubled = PRICING_PAGE.replace("gpt-6-astra&quot;],[0,10],[0,1],[0,12.5],[0,50]", "gpt-6-astra&quot;],[0,20],[0,2],[0,25],[0,100]");
+  expect(doubled).not.toBe(PRICING_PAGE);
+  const calls = stubOpenAI({ [OPENAI_PRICING_URL]: doubled });
+  const r = await t.action(internal.pricing.refresh, {});
+  expect(r.changed).toBe(true);
+  expect(calls).toContain("https://developers.openai.com/api/docs/models/gpt-6-astra");
+  await settle(t);
+
+  const astra = { input: 20, cachedInput: 2, cacheWrite: 25, output: 100, long: { threshold: LONG_CONTEXT_THRESHOLD, input: 40, cachedInput: 4, cacheWrite: 50, output: 150 } };
+  const row = await t.run(async (ctx) => await ctx.db.query("hourlyUsage").first());
+  const entry = row!.models.find((m) => m.model === "gpt-6-astra")!;
+  expect(entry.cost).toBeCloseTo(computeAggregateCost(USAGE, astra, LONG), 9);
+  expect(entry.cost).toBeCloseTo(2 * computeAggregateCost(USAGE, DEFAULT_PRICING["gpt-6-astra"], LONG), 9);
+  expect(row!.cost).toBeCloseTo(entry.cost + row!.models.find((m) => m.model === "gpt-5.4-mini")!.cost, 9);
+  const session = await t.run(async (ctx) => await ctx.db.query("sessions").first());
+  expect(session!.cost).toBeCloseTo(entry.cost, 9);
+  expect(session!.models![0].cost).toBeCloseTo(entry.cost, 9);
+  const status = await t.run(async (ctx) => await ctx.db.query("pricingStatus").first());
+  expect(status?.repriced).toBe(2);
+});
+
+test("an unreadable page keeps the current table and records the error", async () => {
+  const t = createTest();
+  stubOpenAI({ [OPENAI_PRICING_URL]: 503 });
+  const r = await t.action(internal.pricing.refresh, {});
+  expect(r.changed).toBe(false);
+  expect(r.error).toMatch(/503/);
+  const current = await t.query(api.pricing.current, {});
+  expect(current.version).toBeNull();
+  expect(current.lastError).toMatch(/503/);
+  expect(current.checkedAt).toEqual(expect.any(Number));
+  expect(await t.run(async (ctx) => await ctx.db.query("pricingSnapshots").collect())).toHaveLength(0);
+
+  // A page whose tables cannot be found is rejected the same way.
+  stubOpenAI({ [OPENAI_PRICING_URL]: "<html><body>Under maintenance</body></html>" });
+  const r2 = await t.action(internal.pricing.refresh, {});
+  expect(r2.error).toMatch(/no price tables/);
+});
+
+test("overrides win over the snapshot and re-price stored rows; clearing one re-prices again", async () => {
+  const t = createTest();
+  await seedDevice(t);
+  await t.mutation(api.ingest.pushHourly, { token: TOKEN, buckets: [{ hourStart: HOUR, model: "gpt-5.4-mini", agent: "codex", ...SMALL }] });
+  const seedCost = (await t.run(async (ctx) => await ctx.db.query("hourlyUsage").first()))!.cost;
+
+  await t.mutation(internal.pricing.setOverride, { model: "GPT-5.4-mini", input: 3, output: 18, note: "negotiated" });
+  await settle(t);
+  const current = await t.query(api.pricing.current, {});
+  expect(current.entries.find((e) => e.model === "gpt-5.4-mini")).toMatchObject({ source: "override", input: 3, cachedInput: 3, output: 18 });
+  const overridden = (await t.run(async (ctx) => await ctx.db.query("hourlyUsage").first()))!.cost;
+  expect(overridden).toBeCloseTo(computeAggregateCost(SMALL, { input: 3, cachedInput: 3, output: 18 }), 9);
+  expect(overridden).not.toBeCloseTo(seedCost, 9);
+
+  // New uploads use it too.
+  await t.mutation(api.ingest.pushHourly, { token: TOKEN, buckets: [{ hourStart: HOUR + 3_600_000, model: "gpt-5.4-mini", agent: "codex", ...SMALL }] });
+  const rows = await t.run(async (ctx) => await ctx.db.query("hourlyUsage").collect());
+  expect(rows.map((r) => r.cost)).toEqual([expect.closeTo(overridden, 9), expect.closeTo(overridden, 9)]);
+
+  expect(await t.mutation(internal.pricing.clearOverride, { model: "gpt-5.4-mini" })).toEqual({ model: "gpt-5.4-mini", removed: true });
+  await settle(t);
+  const restored = await t.run(async (ctx) => await ctx.db.query("hourlyUsage").collect());
+  expect(restored.every((r) => Math.abs(r.cost - seedCost) < 1e-9)).toBe(true);
+});
+
+test("the first upload on a deployment that never fetched the page schedules a refresh", async () => {
+  const t = createTest();
+  const calls = stubOpenAI();
+  await seedDevice(t);
+  await t.mutation(api.ingest.pushHourly, { token: TOKEN, buckets: [{ hourStart: HOUR, model: "gpt-5.4-mini", agent: "codex", ...SMALL }] });
+  await t.mutation(api.ingest.pushHourly, { token: TOKEN, buckets: [{ hourStart: HOUR + 3_600_000, model: "gpt-5.4-mini", agent: "codex", ...SMALL }] });
+  await settle(t);
+  expect(calls.filter((u) => u === OPENAI_PRICING_URL)).toHaveLength(1);
+  expect((await t.query(api.pricing.current, {})).version).not.toBeNull();
 });

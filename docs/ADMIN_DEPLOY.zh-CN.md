@@ -136,7 +136,11 @@ git push origin main --tags
 - **先部署仪表盘 / 后端，再发布依赖它的追踪器。** 追踪器会从 `/api/config` 读取 `wireVersion`，只向声明支持新字段的后端发送这些字段（0.3.0 从 wire version 2 起发送 `machineId`）。会话身份也由服务端保证：在发布扩展了智能体来源的客户端前，必须先部署 `(device, agent, sessionId)` upsert 逻辑，否则重用同一会话 ID 的两个智能体在后端升级前可能互相覆盖。
 - **预览部署（Preview）**（任何非 `main` 分支 / PR）：`CONVEX_DEPLOY_KEY` 只在 Production 环境设置，因此预览构建只执行 `next build`，并使用 **开发** Convex 部署和 **开发** Clerk 实例（Preview 环境变量）—— 这是一个不会触碰生产数据的安全预发布环境。
 - **旧版已启用 `trackAllProviders` 时的一次性清理：** 旧客户端可能已上传 API Key 形式的 OpenAI 记录。新客户端不会再上传它们，但 v2 upsert 协议无法判断本地消失的记录是否应被删除。请先备份部署，再从 Convex 控制台删除该设备的 `hourlyUsage` 与 `sessions` 记录（删除整台设备的这两类记录最稳妥），然后在该设备上运行 `codex-tracker sync`。撤销设备不会删除其用量。
-- **定价表**：`packages/shared/src/pricing.ts`（每 100 万 token 的美元价格），与 <https://developers.openai.com/api/docs/pricing> 保持一致，并包含缓存写入价格与输入超过 272K token 时的长上下文档位。未知模型会回退到同系列价格并标记为 *est.*；用户可在本地 `~/.codex-tracker/pricing.json` 中覆盖。仅统计具有精确 Codex OAuth 归因的 OpenAI 模型 —— API Key 与非 OpenAI 用量都会在设备端丢弃。
+- **费用**由后端计算，绝不在设备上计算（wire version 3，追踪器 0.5.0）。客户端只上传 token 数量 —— 外加每个小时桶中超过 272K 长上下文阈值的那部分，以及每个会话按模型的拆分 —— 由 `packages/backend/convex/pricing.ts` 计价（每 100 万 token 的美元价格，含缓存写入价格与长上下文档位）。旧客户端仍会发送设备端计算的 `cost`，后端会忽略它，其数据在该设备更新并重新同步前按标准档位计价。价目表由每小时运行的定时任务（`refresh OpenAI pricing`）从 <https://developers.openai.com/api/docs/pricing> 读取；只有价格发生变化时才会写入新的 `pricingSnapshots` 记录，随后所有已存储的数据会自动重新计价。仪表盘的 设置 → 价目表 展示当前生效的价目、上次检查时间以及抓取错误（抓取失败时沿用之前的价目表）。首次成功读取之前使用 `packages/shared/src/pricing.ts` 中的种子价目表；页面未列出的模型保留种子价格，未知模型回退到同系列价格并标记为 *est.*。管理命令在 `apps/dashboard` 目录下执行（生产环境加 `--prod`）：
+  - `npx convex run pricing:refresh` —— 立即读取页面，不等定时任务。
+  - `npx convex run pricing:setOverride '{"model":"gpt-5.7-nova","input":1.75,"cachedInput":0.175,"output":14}'` —— 固定某个模型的价格（也可用于页面未列出的模型）；`cacheWrite` 与 `long` 可选。`pricing:clearOverride '{"model":"…"}'` 可移除。两者都会重新计价历史数据。
+  - `npx convex run pricing:repriceAll '{}'` —— 手动重跑重新计价；该操作是幂等的。
+  仅统计具有精确 Codex OAuth 归因的 OpenAI 模型 —— API Key 与非 OpenAI 用量都会在设备端丢弃。
 - **撤销设备**：用户在 Dashboard → Devices 中操作；管理员可以在 Convex 控制台中为 `devices` 表对应行设置 `revokedAt`。
 - **移除成员**：从 Clerk 组织中移除该成员；Webhook 会删除成员关系，团队视图不再包含此人（其数据行仍然关联到该用户）。
 - **备份 / 导出**：Convex 控制台 → Settings → Export，或执行 `npx convex export --prod`。
