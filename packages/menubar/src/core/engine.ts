@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { fromLogRateLimits, machineTimeZone, type LiveRateLimits, type LiveSnapshot } from "@codex-tracker/shared";
-import { configDir, loadConfig, loadPricingOverrides, updateConfig, type TrackerConfig } from "./config";
+import { configDir, loadConfig, loadPricingCache, pricingTableOf, savePricingCache, updateConfig, type PricingCache, type TrackerConfig } from "./config";
 import { SessionStore } from "./store";
 import { computeStats, type Stats } from "./stats";
 import { Uploader, SignedOutError, errorMessage, resolveConvexUrl } from "./uploader";
@@ -38,6 +38,8 @@ const SYNC_BANNER_MS = 25_000;
 const UPLOAD_DEBOUNCE_MS = 5_000;
 /** … but never more often than this; the periodic upload remains the fallback. */
 const UPLOAD_MIN_GAP_MS = 15_000;
+/** How often the local display's price table is re-downloaded from the backend (which refreshes hourly). */
+const PRICING_MS = 60 * 60 * 1000;
 
 /** Composes the file store, statistics, live rate limits and uploader; emits `snapshot` whenever the picture changes. */
 export class Engine extends EventEmitter {
@@ -45,7 +47,14 @@ export class Engine extends EventEmitter {
   readonly store: SessionStore;
   readonly uploader: Uploader;
   stats: Stats | null = null;
-  private pricing = loadPricingOverrides();
+  /**
+   * Price table for the local display, as last downloaded from the backend (`refreshPricing`). The
+   * backend prices everything uploaded, so this only decides what the tray and CLI show; without a
+   * download yet, the bundled seed table applies.
+   */
+  private pricingCache: PricingCache | null = loadPricingCache();
+  private pricing = pricingTableOf(this.pricingCache);
+  private pricingInFlight = false;
   private timers: NodeJS.Timeout[] = [];
   private pending: { code: string | null; url: string | null; abort: AbortController } | null = null;
   private authError: string | null = null;
@@ -112,7 +121,6 @@ export class Engine extends EventEmitter {
 
   reloadConfig() {
     this.config = loadConfig();
-    this.pricing = loadPricingOverrides();
   }
 
   async start() {
@@ -126,11 +134,15 @@ export class Engine extends EventEmitter {
       if (this.opts.watch === false) await refresh;
     }
     if (this.opts.watch === false) {
-      // one-shot callers (CLI status/agent --once) want the live limits in the first snapshot
-      await this.refreshLiveLimits(true);
+      // one-shot callers (CLI status/agent --once) want the live limits in the first snapshot — and
+      // current prices, unless the cached table is recent enough that the download would only add latency.
+      const stale = !this.pricingCache || Date.now() - this.pricingCache.syncedAt > PRICING_MS;
+      await Promise.all([this.refreshLiveLimits(true), stale ? this.refreshPricing() : Promise.resolve(false)]);
       return;
     }
     void this.refreshLiveLimits(true);
+    void this.refreshPricing();
+    this.timers.push(setInterval(() => void this.refreshPricing(), PRICING_MS));
     void this.checkUpdate(false);
     this.timers.push(setInterval(() => void this.checkUpdate(false), UPDATE_CHECK_MS));
     this.store.startWatching(() => void this.refresh(false));
@@ -204,6 +216,33 @@ export class Engine extends EventEmitter {
       this.emitSnapshot();
     } finally {
       this.liveLimitsInFlight = false;
+    }
+  }
+
+  /**
+   * Download the price table the backend bills with. Returns true when it differed from the cached
+   * one (the local numbers were recomputed). Never throws: the previous table stays in use.
+   */
+  async refreshPricing(): Promise<boolean> {
+    if (this.pricingInFlight) return false;
+    this.pricingInFlight = true;
+    try {
+      const r = await this.uploader.fetchPricing();
+      const cache: PricingCache = { version: r.version, fetchedAt: r.fetchedAt, syncedAt: Date.now(), entries: r.entries };
+      const changed = JSON.stringify(cache.entries) !== JSON.stringify(this.pricingCache?.entries ?? null);
+      this.pricingCache = cache;
+      savePricingCache(cache);
+      if (changed) {
+        this.pricing = pricingTableOf(cache);
+        this.opts.log?.(`price table updated from the backend (${cache.entries.length} models${r.fetchedAt ? `, OpenAI list as of ${new Date(r.fetchedAt).toISOString()}` : ""})`);
+        this.recompute();
+      }
+      return changed;
+    } catch (err) {
+      this.opts.log?.(`price table refresh failed: ${errorMessage(err)}`);
+      return false;
+    } finally {
+      this.pricingInFlight = false;
     }
   }
 
@@ -293,7 +332,7 @@ export class Engine extends EventEmitter {
    *  1. re-read the config so sources enabled since start-up are picked up,
    *  2. mark the parsed-file index stale and re-discover + re-parse every transcript of every agent
    *     (Codex plus every enabled agent source and custom `extraSessionDirs`),
-   *  3. recompute the aggregates with the current pricing table,
+   *  3. download the backend's current price table and recompute the local aggregates with it,
    *  4. re-upload every still-present local record — not just what changed — using idempotent upserts
    *     (remote rows whose source disappeared are not deleted by this protocol),
    *  5. pull the other devices' rows and the live rate limits back down.
@@ -323,6 +362,7 @@ export class Engine extends EventEmitter {
       await this.store.refreshDeep();
 
       phase("computing");
+      await this.refreshPricing();
       this.recompute();
 
       let uploadedBuckets = 0;
@@ -562,6 +602,9 @@ export class Engine extends EventEmitter {
       configDir: configDir(),
       launchAtLogin: this.config.launchAtLogin,
       trayTitle: this.config.trayTitle,
+      pricing: this.pricingCache
+        ? { syncedAt: this.pricingCache.syncedAt, fetchedAt: this.pricingCache.fetchedAt, version: this.pricingCache.version, models: this.pricingCache.entries.length }
+        : null,
     };
   }
 }

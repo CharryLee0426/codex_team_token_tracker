@@ -52,11 +52,15 @@ const long = (
 });
 
 /**
- * Standard OpenAI API list prices (USD / 1M tokens), used to express subscription usage as
+ * Bundled OpenAI API list prices (USD / 1M tokens), used to express subscription usage as
  * "API-equivalent" dollars. Mirrors https://developers.openai.com/api/docs/pricing (standard tier —
- * not batch/flex/fast) as of 2026-09-05. Models newer than this table are priced by family fallback
- * and flagged `estimated`; override anything via `pricing.json` (menubar). The dashboard displays the
- * costs devices computed and only consults this table to flag estimates.
+ * not batch/flex/fast) as of 2026-09-05.
+ *
+ * This is the *seed*, not the source of truth: the backend refreshes its table from the pricing page
+ * (`openai-pricing-page.ts`, `packages/backend/convex/pricing.ts`) and prices every uploaded row
+ * itself; the menubar downloads that table for its local display. The seed fills in models the page
+ * no longer lists and is what everything falls back to before a first refresh. Models in neither are
+ * priced by family fallback and flagged `estimated`.
  *
  * `-codex` variants are billed at their base model's rate and are listed explicitly so Codex CLI
  * model ids resolve exactly instead of through the family fallback.
@@ -211,17 +215,51 @@ export function resolvePrice(model: string, overrides?: Record<string, ModelPric
  * `cacheWrite` rate, or its `input` rate when the model has none.
  */
 export function computeCost(u: Partial<TokenUsage>, p: ModelPrice): number {
-  const input = u.input ?? 0;
-  const rate = p.long && input > p.long.threshold ? p.long : p;
-  const cached = Math.min(u.cached ?? 0, input);
-  const cacheWrite = Math.min(u.cacheWrite ?? 0, Math.max(0, input - cached));
-  const fresh = Math.max(0, input - cached - cacheWrite);
-  const output = u.output ?? 0;
-  const cost =
-    fresh * rate.input + cached * rate.cachedInput + cacheWrite * (rate.cacheWrite ?? rate.input) + output * rate.output;
-  return cost / 1_000_000;
+  return costAtRate(u, isLongContextRequest(u, p) ? p.long! : p);
+}
+
+/** Does this single request's prompt fall into the model's long-context tier? */
+export function isLongContextRequest(u: Partial<TokenUsage>, p: ModelPrice): boolean {
+  return Boolean(p.long) && (u.input ?? 0) > p.long!.threshold;
 }
 
 export function costForModel(model: string, u: Partial<TokenUsage>, overrides?: Record<string, ModelPrice>): number {
   return computeCost(u, resolvePrice(model, overrides).price);
+}
+
+/** The flat rate of a price: what an aggregate is billed at when nothing says which requests ran long. */
+export function standardTier(p: ModelPrice): ModelPrice {
+  const { long: _long, ...flat } = p;
+  return flat;
+}
+
+/** Cost of `u` at exactly `rate`, ignoring any tier selection. */
+function costAtRate(u: Partial<TokenUsage>, rate: ModelPrice | LongContextPrice): number {
+  const input = u.input ?? 0;
+  const cached = Math.min(u.cached ?? 0, input);
+  const cacheWrite = Math.min(u.cacheWrite ?? 0, Math.max(0, input - cached));
+  const fresh = Math.max(0, input - cached - cacheWrite);
+  const output = u.output ?? 0;
+  return (fresh * rate.input + cached * rate.cachedInput + cacheWrite * (rate.cacheWrite ?? rate.input) + output * rate.output) / 1_000_000;
+}
+
+/**
+ * Cost of an *aggregate* (an hour bucket, a session) whose per-request prompt sizes are gone.
+ *
+ * `long` is the part of `u` that came from requests whose prompt exceeded `LONG_CONTEXT_THRESHOLD`
+ * (clients split it out before uploading, see `wire.ts`). That part bills at the model's long-context
+ * tier; the rest at the standard tier. Without a split the whole aggregate is billed at the standard
+ * tier — a lower bound for models with a long tier, never an over-charge — because an aggregate's
+ * summed `input` must not be mistaken for one request's prompt.
+ */
+export function computeAggregateCost(u: Partial<TokenUsage>, p: ModelPrice, long?: Partial<TokenUsage> | null): number {
+  const flat = standardTier(p);
+  if (!long) return costAtRate(u, flat);
+  const rest: Partial<TokenUsage> = {
+    input: Math.max(0, (u.input ?? 0) - (long.input ?? 0)),
+    cached: Math.max(0, (u.cached ?? 0) - (long.cached ?? 0)),
+    cacheWrite: Math.max(0, (u.cacheWrite ?? 0) - (long.cacheWrite ?? 0)),
+    output: Math.max(0, (u.output ?? 0) - (long.output ?? 0)),
+  };
+  return costAtRate(rest, flat) + costAtRate(long, p.long ?? flat);
 }

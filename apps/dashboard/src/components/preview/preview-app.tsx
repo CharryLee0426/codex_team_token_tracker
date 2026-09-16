@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { DEMO_LIVE_USER_IDS, DEMO_ME_ID, DEMO_ORG_NAME, DEMO_USERS, demoDevices, demoInvites, demoMembers, demoRows, demoSessions } from "@/lib/demo-data";
+import { DEMO_LIVE_USER_IDS, DEMO_ME_ID, DEMO_ORG_NAME, DEMO_USERS, demoDevices, demoInvites, demoMembers, demoPricing, demoRows, demoSessions } from "@/lib/demo-data";
 import { DEFAULT_RANGE, rangeBounds, type RangeSelection } from "@/lib/ranges";
 import { deriveUsageModel, heatmapWeeksFor } from "@/lib/usage-model";
 import { AppShell } from "@/components/shell/app-shell";
@@ -14,6 +14,7 @@ import { MembersTable } from "@/components/dashboard/members-table";
 import { InviteLinksPanel } from "@/components/dashboard/invite-links";
 import { OnboardingTour } from "@/components/onboarding/onboarding-tour";
 import { SettingsPanel } from "@/components/settings/settings-panel";
+import { PricingCardView } from "@/components/settings/pricing-card";
 import { Card } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
@@ -97,7 +98,7 @@ export function PreviewApp({ view, initialSidebar }: { view: PreviewView; initia
       );
       break;
     default:
-      content = <SettingsPanel tourHref={`/preview/personal?${TOUR_QUERY}=1`} />;
+      content = <SettingsPanel tourHref={`/preview/personal?${TOUR_QUERY}=1`} pricing={<PricingCardView pricing={demoPricing(now)} now={now} />} />;
   }
 
   return (

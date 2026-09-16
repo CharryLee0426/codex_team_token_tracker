@@ -85,7 +85,7 @@ Keep the agent running (tmux, `nohup`, or a `systemd --user` service).
 | **Heatmap** | Last 16 weeks, this machine plus your other devices |
 | **Models** | Tokens, share and cost per model; *est.* = model newer than the price table |
 
-"API-equivalent cost" is what the same tokens would cost on the public OpenAI API at list prices — a way to compare usage, not a bill.
+"API-equivalent cost" is what the same tokens would cost on the public OpenAI API at list prices — a way to compare usage, not a bill. The dashboard's backend computes it from the uploaded token counts using a price table it re-reads from OpenAI's pricing page every hour, so every device and the dashboard show the same dollars; the app downloads that table for its own display (Settings → Pricing on the dashboard shows the table in force).
 
 ## 5. Dashboard tour
 
@@ -146,7 +146,7 @@ codex-tracker config set <key> <value>
 codex-tracker update [--check]  install the newest published version
 ```
 
-Settings live in `~/.codex-tracker/config.json`; `~/.codex-tracker/pricing.json` overrides model prices.
+Settings live in `~/.codex-tracker/config.json`. Prices are not configured on the device: the app uses the table the dashboard's backend bills with (cached in `~/.codex-tracker/pricing-cache.json`); a wrong rate is corrected by the dashboard admin, once, for everyone.
 
 ## 8. Privacy
 

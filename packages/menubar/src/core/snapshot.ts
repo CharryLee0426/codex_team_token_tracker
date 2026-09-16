@@ -147,6 +147,18 @@ export interface Snapshot {
   configDir: string;
   launchAtLogin: boolean;
   trayTitle: "tokens" | "cost" | "none";
+  /**
+   * The price table behind the local dollar figures: downloaded from the backend, which prices every
+   * upload itself. Null until the first download (the bundled seed table is in use).
+   */
+  pricing: {
+    /** When this device downloaded the table. */
+    syncedAt: number;
+    /** When the backend read it from OpenAI's pricing page; null while the backend runs on its seed. */
+    fetchedAt: number | null;
+    version: string | null;
+    models: number;
+  } | null;
 }
 
 /** API exposed to the popover renderer through the preload bridge. */

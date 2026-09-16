@@ -85,7 +85,7 @@ npx codex-token-tracker status   # 今日用量、实时限额、来源
 | **Heatmap（热力图）** | 最近 16 周，包含本机和你的其他设备 |
 | **Models（模型）** | 每个模型的 token、占比与费用；*est.* = 模型比定价表更新，价格为估算 |
 
-“API 等价费用”是指同样的 token 在公开的 OpenAI API 按标价计费时的花费 —— 用来比较用量，并不是账单。
+“API 等价费用”是指同样的 token 在公开的 OpenAI API 按标价计费时的花费 —— 用来比较用量，并不是账单。这个数字由仪表盘的后端根据上传的 token 数量计算，所用价目表每小时从 OpenAI 定价页面重新读取，因此每台设备与仪表盘显示的金额一致；应用会下载这张表用于本地显示（仪表盘的 设置 → 价目表 可查看当前生效的价目）。
 
 ## 5. 仪表盘导览
 
@@ -146,7 +146,7 @@ codex-tracker config set <key> <value>
 codex-tracker update [--check]  安装最新发布版本
 ```
 
-设置保存在 `~/.codex-tracker/config.json`；`~/.codex-tracker/pricing.json` 可覆盖模型价格。
+设置保存在 `~/.codex-tracker/config.json`。价格不在设备上配置：应用使用仪表盘后端计费所用的价目表（缓存于 `~/.codex-tracker/pricing-cache.json`）；价格有误时由仪表盘管理员统一修正一次，对所有人生效。
 
 ## 8. 隐私
 

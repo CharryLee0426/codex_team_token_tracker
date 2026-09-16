@@ -1,21 +1,26 @@
 /** Wire types shared between the menubar/agent uploader, the Convex backend and the dashboard. */
+import type { PricingEntry } from "./openai-pricing-page.ts";
 
 /**
  * Bumped when the client sends fields an older backend would reject. Clients read it from
  * `<dashboard>/api/config` and only send the newer fields when the backend understands them.
  *   1 — initial protocol
  *   2 — `machineId` on device-auth start and heartbeats (one device per machine, 0.3.0)
+ *   3 — the backend prices uploads itself: buckets and sessions carry token counts only (`cost` is
+ *       omitted, as is the heartbeat's `todayCost`), plus the `long` split and per-session `models`
+ *       breakdown that make server-side pricing exact (0.5.0). Backends < 3 still need the
+ *       device-computed dollars. Any dollar figure a device shows is for its own display only.
  */
-export const WIRE_VERSION = 2;
+export const WIRE_VERSION = 3;
+/** Wire version from which the backend prices uploads and ignores a device-computed `cost`. */
+export const WIRE_SERVER_PRICING = 3;
 export const DEVICE_AUTH_TTL_MS = 15 * 60 * 1000;
 export const DEVICE_TOKEN_PREFIX = "cxt_";
 export const MAX_BUCKETS_PER_PUSH = 400;
 export const MAX_SESSIONS_PER_PUSH = 100;
 
-export interface UploadHourBucket {
-  hourStart: number; // UTC ms, floored to the hour
-  model: string;
-  agent: string; // which tool produced the usage: "codex" | "pi" | "hermes" | custom
+/** Token counts of an aggregate (see `TokenUsage` for the field invariants). */
+export interface UploadUsage {
   input: number;
   cached: number;
   cacheWrite: number;
@@ -23,25 +28,43 @@ export interface UploadHourBucket {
   reasoning: number;
   total: number;
   requests: number;
-  cost: number; // USD, computed on the device with its pricing table
 }
 
-export interface UploadSession {
+/**
+ * The part of an aggregate that came from requests whose prompt exceeded `LONG_CONTEXT_THRESHOLD`
+ * (272K input tokens). Prompt sizes do not survive aggregation, so this is how the backend can still
+ * bill those requests at OpenAI's long-context tier. Token counts only — nothing about the prompts.
+ */
+export type UploadLongContextUsage = UploadUsage;
+
+export interface UploadHourBucket extends UploadUsage {
+  hourStart: number; // UTC ms, floored to the hour
+  model: string;
+  agent: string; // which tool produced the usage: "codex" | "pi" | "hermes" | custom
+  /** Wire ≥ 3: long-context share of this bucket. */
+  long?: UploadLongContextUsage;
+  /** Wire < 3 only: USD computed on the device. Backends ≥ 3 price the bucket themselves and ignore it. */
+  cost?: number;
+}
+
+/** Wire ≥ 3: a session's usage per model, so a session that switched models is priced exactly. */
+export interface UploadSessionModel extends UploadUsage {
+  model: string;
+  long?: UploadLongContextUsage;
+}
+
+export interface UploadSession extends UploadUsage {
   sessionId: string;
   agent: string;
-  model: string;
+  model: string; // most recent model of the session
   projectName: string | null;
   cwdHash: string | null; // sha256 of cwd – path itself never leaves the machine
   startedAt: number;
   lastActivityAt: number;
-  input: number;
-  cached: number;
-  cacheWrite: number;
-  output: number;
-  reasoning: number;
-  total: number;
-  requests: number;
-  cost: number;
+  /** Wire ≥ 3: per-model breakdown of the totals above. */
+  models?: UploadSessionModel[];
+  /** Wire < 3 only: USD computed on the device (see `UploadHourBucket.cost`). */
+  cost?: number;
   source: string | null;
   cliVersion: string | null;
 }
@@ -53,7 +76,11 @@ export interface LiveSnapshot {
   tokensPerSecond: number;
   lastEventAt: number | null;
   todayTotal: number; // machine-local "today" total tokens
-  todayCost: number;
+  /**
+   * Wire < 3 only: machine-local "today" USD computed on the device. Backends ≥ 3 compute it from the
+   * device's stored (backend-priced) hourly rows in its time zone; the device's number is display-only.
+   */
+  todayCost?: number;
 }
 
 export interface HeartbeatPayload {
@@ -74,6 +101,23 @@ export interface DashboardConfigResponse {
 }
 
 export type DeviceAuthStatus = "pending" | "approved" | "expired" | "consumed" | "denied";
+
+/**
+ * The price table the backend currently bills with (`pricing.current`). The menubar downloads it for
+ * its local display and the dashboard shows where each rate came from. Not secret: list prices.
+ */
+export interface PricingTableResponse {
+  entries: PricingEntry[];
+  /** Id of the snapshot the entries come from; null before the first successful refresh (seed table). */
+  version: string | null;
+  /** When the current snapshot was read from OpenAI's pricing page; null for the seed table. */
+  fetchedAt: number | null;
+  /** When the backend last looked for a change (successful or not). */
+  checkedAt: number | null;
+  /** Why the last check failed, when it did; the previous snapshot stays in force. */
+  lastError: string | null;
+  sourceUrl: string;
+}
 
 /** Compact hourly row as returned by dashboard/menubar queries (short keys keep payloads small). */
 export interface CompactModelUsage {

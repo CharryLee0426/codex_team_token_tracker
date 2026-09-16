@@ -1,13 +1,21 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import { requireDevice, publicUser } from "./lib/auth";
-import { usageFields, liveValidator } from "./schema";
+import { tokenFields, longContextValidator, liveValidator } from "./schema";
 import { MAX_BUCKETS_PER_PUSH, MAX_SESSIONS_PER_PUSH } from "@codex-tracker/shared/wire";
 import { isMachineId } from "@codex-tracker/shared/device-identity";
+import { localDayKey } from "@codex-tracker/shared/time";
 import { noteMachineId } from "./devices";
-import type { Doc } from "./_generated/dataModel";
+import { effectivePricing, ensureRefreshScheduled, priceSession, priceUsage, sanitizeLong } from "./pricing";
+import type { Doc, Id } from "./_generated/dataModel";
 
-const bucketValidator = v.object({ hourStart: v.number(), model: v.string(), agent: v.optional(v.string()), ...usageFields });
+/**
+ * Uploads carry token counts; the backend prices them (`pricing.ts`). `cost` is still accepted from
+ * clients older than wire 3 but ignored — the stored cost is always the backend's.
+ */
+const uploadFields = { ...tokenFields, cost: v.optional(v.number()), long: v.optional(longContextValidator) };
+
+const bucketValidator = v.object({ hourStart: v.number(), model: v.string(), agent: v.optional(v.string()), ...uploadFields });
 
 function sumModels(models: Array<{ input: number; cached: number; cacheWrite: number; output: number; reasoning: number; total: number; requests: number; cost: number }>) {
   const t = { input: 0, cached: 0, cacheWrite: 0, output: 0, reasoning: 0, total: 0, requests: 0, cost: 0 };
@@ -55,6 +63,8 @@ export const pushHourly = mutation({
     }
     const { device, user } = await requireDevice(ctx, token);
     const now = Date.now();
+    const { table } = await effectivePricing(ctx);
+    await ensureRefreshScheduled(ctx);
     const byHour = new Map<number, typeof buckets>();
     for (const b of buckets) {
       if (!Number.isFinite(b.hourStart) || b.hourStart % 3_600_000 !== 0) continue;
@@ -68,14 +78,17 @@ export const pushHourly = mutation({
         .query("hourlyUsage")
         .withIndex("by_device_hour", (q) => q.eq("deviceId", device._id).eq("hourStart", hourStart))
         .unique();
-      type ModelEntry = { model: string; agent?: string; input: number; cached: number; cacheWrite: number; output: number; reasoning: number; total: number; requests: number; cost: number };
+      type ModelEntry = Doc<"hourlyUsage">["models"][number];
       const keyOf = (m: { model: string; agent?: string }) => `${m.agent ?? "codex"}|${m.model}`;
       const models = new Map<string, ModelEntry>();
       for (const m of existing?.models ?? []) models.set(keyOf(m), m);
       for (const b of list) {
+        const long = sanitizeLong(b, b.long);
         models.set(keyOf(b), {
           model: b.model, agent: b.agent ?? "codex", input: b.input, cached: b.cached, cacheWrite: b.cacheWrite, output: b.output,
-          reasoning: b.reasoning, total: b.total, requests: b.requests, cost: b.cost,
+          reasoning: b.reasoning, total: b.total, requests: b.requests,
+          cost: priceUsage(table, b.model, b, long),
+          ...(long ? { long } : {}),
         });
       }
       const arr = [...models.values()].filter((m) => m.total > 0 || m.requests > 0);
@@ -100,7 +113,9 @@ const sessionValidator = v.object({
   cwdHash: v.union(v.string(), v.null()),
   startedAt: v.number(),
   lastActivityAt: v.number(),
-  ...usageFields,
+  ...uploadFields,
+  /** Wire ≥ 3: the totals above split by model, so a session that switched models is priced exactly. */
+  models: v.optional(v.array(v.object({ model: v.string(), ...uploadFields }))),
   source: v.union(v.string(), v.null()),
   cliVersion: v.union(v.string(), v.null()),
 });
@@ -113,8 +128,19 @@ export const pushSessions = mutation({
     }
     const { device, user } = await requireDevice(ctx, token);
     const now = Date.now();
+    const { table } = await effectivePricing(ctx);
     for (const s of sessions) {
       const agent = s.agent ?? "codex";
+      const models = s.models?.length
+        ? s.models.map((m) => {
+            const long = sanitizeLong(m, m.long);
+            return {
+              model: m.model, input: m.input, cached: m.cached, cacheWrite: m.cacheWrite, output: m.output,
+              reasoning: m.reasoning, total: m.total, requests: m.requests, cost: 0, ...(long ? { long } : {}),
+            };
+          })
+        : undefined;
+      const priced = priceSession(table, { ...s, cost: 0, models });
       const candidates = await ctx.db
         .query("sessions")
         .withIndex("by_device_session", (q) => q.eq("deviceId", device._id).eq("sessionId", s.sessionId))
@@ -134,7 +160,8 @@ export const pushSessions = mutation({
         startedAt: s.startedAt,
         lastActivityAt: s.lastActivityAt,
         input: s.input, cached: s.cached, cacheWrite: s.cacheWrite, output: s.output, reasoning: s.reasoning,
-        total: s.total, requests: s.requests, cost: s.cost,
+        total: s.total, requests: s.requests, cost: priced.cost,
+        models: priced.models ?? undefined,
         source: s.source ?? undefined,
         cliVersion: s.cliVersion ?? undefined,
         updatedAt: now,
@@ -145,6 +172,34 @@ export const pushSessions = mutation({
     return { upserted: sessions.length };
   },
 });
+
+/**
+ * The device's spend so far on its local calendar day, summed from its stored (backend-priced) hourly
+ * rows. The device also computes a number like this for its own tray, but no device-computed dollars
+ * are ever shown by the dashboard or the mobile apps — this is what `live.todayCost` holds.
+ */
+async function todayCostFor(ctx: MutationCtx, deviceId: Id<"devices">, timezone: string, now: number): Promise<number> {
+  const tz = safeTimeZone(timezone);
+  const today = localDayKey(now, tz);
+  // A local day spans at most 25 UTC hours, all of which start within the last 36 h.
+  const rows = await ctx.db
+    .query("hourlyUsage")
+    .withIndex("by_device_hour", (q) => q.eq("deviceId", deviceId).gte("hourStart", now - 36 * 3_600_000).lt("hourStart", now + 3_600_000))
+    .collect();
+  let cost = 0;
+  for (const r of rows) if (localDayKey(r.hourStart, tz) === today) cost += r.cost;
+  return cost;
+}
+
+/** An IANA zone the runtime knows, else UTC — a client's `timezone` is free text. */
+function safeTimeZone(tz: string): string {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return tz;
+  } catch {
+    return "UTC";
+  }
+}
 
 /**
  * Liveness + the "live now" snapshot. Also where a machine's identity is reconciled: the heartbeat's
@@ -164,7 +219,8 @@ export const heartbeat = mutation({
       tokensPerSecond: v.number(),
       lastEventAt: v.union(v.number(), v.null()),
       todayTotal: v.number(),
-      todayCost: v.number(),
+      /** Wire < 3 clients still send this; it is ignored — see `todayCostFor`. */
+      todayCost: v.optional(v.number()),
     })),
     machineId: v.optional(v.string()),
   },
@@ -176,7 +232,7 @@ export const heartbeat = mutation({
       lastSeenAt: now,
       appVersion: args.appVersion,
       timezone: args.timezone,
-      live: args.live ? { ...args.live, updatedAt: now } : undefined,
+      live: args.live ? { ...args.live, todayCost: await todayCostFor(ctx, device._id, args.timezone, now), updatedAt: now } : undefined,
       // An alias (e.g. the WSL agent of a Windows tray device) must not relabel the machine.
       ...(isCanonical ? { platform: args.platform, hostname: args.hostname ?? undefined } : {}),
     });

@@ -1,7 +1,8 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-export const usageFields = {
+/** Token counts of an aggregate; the invariants are documented on `TokenUsage` in `@codex-tracker/shared`. */
+export const tokenFields = {
   input: v.number(),
   cached: v.number(),
   cacheWrite: v.number(),
@@ -9,11 +10,50 @@ export const usageFields = {
   reasoning: v.number(),
   total: v.number(),
   requests: v.number(),
+};
+
+/**
+ * The share of an aggregate that came from requests above the long-context threshold (see
+ * `UploadLongContextUsage` in `@codex-tracker/shared/wire`). Absent on rows uploaded by clients
+ * older than wire 3, which are then billed at the standard tier throughout.
+ */
+export const longContextValidator = v.object(tokenFields);
+
+/** `cost` is USD computed by the backend from the token counts and the current price table (`pricing.ts`). */
+export const usageFields = {
+  ...tokenFields,
   cost: v.number(),
 };
 
 /** `agent` = tool that produced the usage ("codex" | "pi" | "hermes" | custom); absent means "codex". */
-export const modelUsageValidator = v.object({ model: v.string(), agent: v.optional(v.string()), ...usageFields });
+export const modelUsageValidator = v.object({
+  model: v.string(),
+  agent: v.optional(v.string()),
+  ...usageFields,
+  long: v.optional(longContextValidator),
+});
+
+/** A session's usage on one of the models it ran (wire ≥ 3); lets a mixed-model session be priced exactly. */
+export const sessionModelValidator = v.object({ model: v.string(), ...usageFields, long: v.optional(longContextValidator) });
+
+/** One model's rates, USD per 1M tokens (`ModelPrice` in `@codex-tracker/shared/pricing`). */
+export const priceFields = {
+  input: v.number(),
+  cachedInput: v.number(),
+  output: v.number(),
+  cacheWrite: v.optional(v.number()),
+  long: v.optional(v.object({
+    threshold: v.number(),
+    input: v.number(),
+    cachedInput: v.number(),
+    output: v.number(),
+    cacheWrite: v.optional(v.number()),
+  })),
+};
+
+export const pricingSourceValidator = v.union(v.literal("openai"), v.literal("alias"), v.literal("builtin"), v.literal("override"));
+
+export const pricingEntryValidator = v.object({ model: v.string(), source: pricingSourceValidator, ...priceFields });
 
 export const liveValidator = v.object({
   sessionId: v.union(v.string(), v.null()),
@@ -153,16 +193,54 @@ export default defineSchema({
     deviceId: v.id("devices"),
     sessionId: v.string(),
     agent: v.optional(v.string()),
+    /** Most recent model of the session; `models` has the full breakdown for clients ≥ wire 3. */
     model: v.string(),
     projectName: v.optional(v.string()),
     cwdHash: v.optional(v.string()),
     startedAt: v.number(),
     lastActivityAt: v.number(),
     ...usageFields,
+    models: v.optional(v.array(sessionModelValidator)),
     source: v.optional(v.string()),
     cliVersion: v.optional(v.string()),
     updatedAt: v.number(),
   })
     .index("by_device_session", ["deviceId", "sessionId"])
     .index("by_user_lastActivity", ["userId", "lastActivityAt"]),
+
+  /**
+   * Price tables read from OpenAI's pricing page (`pricing.refresh`). A new row is written only when
+   * the table actually changed, so the newest row is the one in force and older rows are history.
+   */
+  pricingSnapshots: defineTable({
+    createdAt: v.number(),
+    /** When the page was fetched. */
+    fetchedAt: v.number(),
+    sourceUrl: v.string(),
+    /** `pricingEntriesKey` digest — what "changed" means. */
+    key: v.string(),
+    entries: v.array(pricingEntryValidator),
+  }).index("by_createdAt", ["createdAt"]),
+
+  /** Admin-set rates that win over the snapshot (`pricing.setOverride`); one row per model id. */
+  pricingOverrides: defineTable({
+    model: v.string(),
+    ...priceFields,
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_model", ["model"]),
+
+  /** Singleton: outcome of the last refresh attempt, kept apart from the snapshots so a quiet check writes no table row. */
+  pricingStatus: defineTable({
+    checkedAt: v.number(),
+    /** Last time the page was read successfully (a check that found no change still counts). */
+    okAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    /** Set while a re-price sweep is walking the stored rows. */
+    repriceStartedAt: v.optional(v.number()),
+    repriceFinishedAt: v.optional(v.number()),
+    /** Rows rewritten by the last sweep. */
+    repriced: v.optional(v.number()),
+  }),
 });

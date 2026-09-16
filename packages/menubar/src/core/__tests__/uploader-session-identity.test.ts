@@ -78,6 +78,7 @@ test("a session-identity epoch replays summaries cached before agent-aware backe
         model: "gpt-5-codex",
         agent: "codex",
         usage: { ...emptyUsage(), input: Number.POSITIVE_INFINITY, total: Number.POSITIVE_INFINITY },
+        long: emptyUsage(),
         cost: 0,
       }],
       [{ ...session, cumulative: { ...session.cumulative, total: Number.NaN } }],

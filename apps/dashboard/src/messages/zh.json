@@ -298,7 +298,37 @@
     "connectBody": "在每台机器上用 npx 运行追踪器——无需安装，每次启动都会获取最新版本（需要 Node.js 20+）：",
     "connectStep1": "第一次——登录；本仪表盘会自动打开，授权该设备即可",
     "connectStep2": "之后每天——托盘图标显示今日用量；在 WSL2 或服务器上请使用无界面代理",
-    "connectStep3": "小提示——右键托盘图标 → 开机自启动。想全局安装？之后也可以用更短的 `codex-tracker` 命令"
+    "connectStep3": "小提示——右键托盘图标 → 开机自启动。想全局安装？之后也可以用更短的 `codex-tracker` 命令",
+    "pricing": {
+      "title": "价目表",
+      "hintLive": "按 OpenAI 官方公布的列表价格计费，于 {fetched} 从 developers.openai.com 读取",
+      "hintSeed": "按内置列表价格计费——尚未读取 OpenAI 定价页面",
+      "hintLoading": "正在加载价目表…",
+      "source": "OpenAI 定价页面 ↗",
+      "checked": "上次检查",
+      "never": "从未",
+      "models": "模型数",
+      "fromPage": "来自 OpenAI",
+      "overrides": "手动覆盖",
+      "lastError": "上次检查失败（{error}）；仍沿用之前的价目表。",
+      "explainer": "本仪表盘的所有费用都由后端根据上传的 token 数量和这张价目表计算。价目表每小时从 OpenAI 定价页面重新读取；价格一旦变动，全部历史数据会自动重新计价。单位：美元 / 每百万 token。",
+      "colModel": "模型",
+      "colInput": "输入",
+      "colCached": "缓存输入",
+      "colCacheWrite": "缓存写入",
+      "colOutput": "输出",
+      "colLong": "长上下文",
+      "colSource": "来源",
+      "longAbove": "> {k}K",
+      "sources": {
+        "openai": "openai.com",
+        "alias": "别名",
+        "builtin": "内置",
+        "override": "覆盖"
+      },
+      "showAll": "显示全部 {count} 个模型",
+      "showFewer": "收起"
+    }
   },
   "auth": {
     "signInTitle": "登录 Codex Tracker",

@@ -298,7 +298,37 @@
     "connectBody": "Run the tracker with npx on each machine — nothing to install, and every start picks up the newest version (Node.js 20+):",
     "connectStep1": "First time — sign in; this dashboard opens so you can approve the device",
     "connectStep2": "Every day after — the tray icon shows today's usage; on WSL2 or a server use the headless agent",
-    "connectStep3": "Tip — right-click the tray icon → Launch at login. Prefer a global install? Then the short `codex-tracker` command works too"
+    "connectStep3": "Tip — right-click the tray icon → Launch at login. Prefer a global install? Then the short `codex-tracker` command works too",
+    "pricing": {
+      "title": "Pricing",
+      "hintLive": "Billed at OpenAI's published list prices, read from developers.openai.com on {fetched}",
+      "hintSeed": "Billed at the bundled list prices — OpenAI's pricing page has not been read yet",
+      "hintLoading": "Loading the price table…",
+      "source": "OpenAI pricing page ↗",
+      "checked": "Last checked",
+      "never": "never",
+      "models": "Models",
+      "fromPage": "From OpenAI",
+      "overrides": "Overrides",
+      "lastError": "The last check failed ({error}); the previous table stays in force.",
+      "explainer": "Every cost on this dashboard is computed by the backend from the uploaded token counts and this table. The table is re-read from OpenAI's pricing page every hour, and when a rate changes all history is re-priced. USD per 1M tokens.",
+      "colModel": "Model",
+      "colInput": "Input",
+      "colCached": "Cached",
+      "colCacheWrite": "Cache write",
+      "colOutput": "Output",
+      "colLong": "Long context",
+      "colSource": "Source",
+      "longAbove": "> {k}K",
+      "sources": {
+        "openai": "openai.com",
+        "alias": "alias",
+        "builtin": "bundled",
+        "override": "override"
+      },
+      "showAll": "Show all {count} models",
+      "showFewer": "Show fewer"
+    }
   },
   "auth": {
     "signInTitle": "Sign in to Codex Tracker",

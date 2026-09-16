@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo, useRef } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@codex-tracker/backend/convex/_generated/api";
 import type { Id } from "@codex-tracker/backend/convex/_generated/dataModel";
+import { entriesToTable } from "@codex-tracker/shared/openai-pricing-page";
 import { HOUR, hourStartOf, startOfLocalDay } from "@codex-tracker/shared/time";
 import { rangeBounds, weekdayWindow, type RangeSelection } from "@/lib/ranges";
 import { deriveUsageModel, heatmapWeeksFor, spanStart, type UsageModel } from "@/lib/usage-model";
@@ -35,15 +38,18 @@ export function useUsageData(scope: Scope, orgId: Id<"orgs"> | undefined, range:
   // A historical end date may fall before Sunday; fetch that entire comparison week as well.
   const toMs = Math.max(bounds.toMs, Math.min(weekdayWindow(bounds).toMs, hourTick + HOUR));
   const data = useHourlyRange(scope, orgId, span.fromMs, toMs, enabled);
+  // The backend's price table (public list prices) decides which models are flagged as estimated.
+  const pricingResponse = useQuery(api.pricing.current, enabled ? {} : "skip");
+  const pricing = useMemo(() => (pricingResponse ? entriesToTable(pricingResponse.entries) : undefined), [pricingResponse]);
 
   // Stable series → color assignment: a model keeps its slot once it has one.
   const seriesRef = useRef<string[]>([]);
   const fresh = useMemo(() => {
     if (!data.active || data.loading || data.error) return null;
-    const m = deriveUsageModel(data.rows, bounds, weeks, seriesRef.current, scope === "team");
+    const m = deriveUsageModel(data.rows, bounds, weeks, seriesRef.current, scope === "team", pricing);
     seriesRef.current = m.series;
     return m;
-  }, [data.active, data.loading, data.error, data.rows, bounds, weeks, scope]);
+  }, [data.active, data.loading, data.error, data.rows, bounds, weeks, scope, pricing]);
 
   const lastRef = useRef<UsageModel | null>(null);
   if (fresh) lastRef.current = fresh;

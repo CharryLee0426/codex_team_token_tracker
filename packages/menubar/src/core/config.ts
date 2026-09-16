@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { ModelPrice } from "@codex-tracker/shared";
+import type { ModelPrice, PricingEntry } from "@codex-tracker/shared";
 import type { LanguageSetting } from "../i18n";
 import { IS_DEV_BUILD } from "../version";
 
@@ -293,27 +293,57 @@ export function clearState() {
   saveState({ pushedBuckets: {}, pushedSessions: {}, lastUploadAt: null });
 }
 
-export function pricingPath(): string {
-  return path.join(configDir(), "pricing.json");
+/**
+ * The price table this device last downloaded from the backend (`pricing.current`), used only for the
+ * local display — the backend prices everything that is uploaded. Nothing here is user-editable:
+ * price corrections are made on the backend (`pricing:setOverride`) so every device and the
+ * dashboard agree.
+ */
+export interface PricingCache {
+  /** Backend snapshot id; null while the backend still runs on its bundled seed table. */
+  version: string | null;
+  /** When the backend read the table from OpenAI's pricing page. */
+  fetchedAt: number | null;
+  /** When this device downloaded it. */
+  syncedAt: number;
+  entries: PricingEntry[];
 }
 
-/**
- * Optional per-model price overrides (USD per 1M tokens), e.g.
- * { "gpt-5.6-sol": { "input": 2, "cachedInput": 0.2, "output": 16 } }
- */
-export function loadPricingOverrides(): Record<string, ModelPrice> | undefined {
-  const raw = readJson<Record<string, unknown>>(pricingPath(), {});
+export function pricingCachePath(): string {
+  return path.join(configDir(), "pricing-cache.json");
+}
+
+function isPrice(p: unknown): p is ModelPrice {
+  if (!p || typeof p !== "object") return false;
+  const o = p as Record<string, unknown>;
+  const nums = [o.input, o.cachedInput, o.output, ...(o.cacheWrite === undefined ? [] : [o.cacheWrite])];
+  if (!nums.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0)) return false;
+  if (o.long === undefined) return true;
+  const l = o.long as Record<string, unknown> | null;
+  return Boolean(l) && typeof l === "object" && typeof l!.threshold === "number" && isPrice({ input: l!.input, cachedInput: l!.cachedInput, output: l!.output, ...(l!.cacheWrite === undefined ? {} : { cacheWrite: l!.cacheWrite }) });
+}
+
+export function loadPricingCache(): PricingCache | null {
+  const raw = readJson<Partial<PricingCache>>(pricingCachePath(), {});
+  if (typeof raw.syncedAt !== "number" || !Array.isArray(raw.entries)) return null;
+  const entries = raw.entries.filter((e): e is PricingEntry => Boolean(e) && typeof e === "object" && typeof (e as PricingEntry).model === "string" && isPrice(e));
+  if (!entries.length) return null;
+  return {
+    version: typeof raw.version === "string" ? raw.version : null,
+    fetchedAt: typeof raw.fetchedAt === "number" ? raw.fetchedAt : null,
+    syncedAt: raw.syncedAt,
+    entries,
+  };
+}
+
+export function savePricingCache(cache: PricingCache) {
+  writeJsonAtomic(pricingCachePath(), cache);
+}
+
+/** `resolvePrice`-ready table from a cache, or undefined to fall back to the bundled seed. */
+export function pricingTableOf(cache: PricingCache | null): Record<string, ModelPrice> | undefined {
+  if (!cache) return undefined;
   const out: Record<string, ModelPrice> = {};
-  for (const [model, p] of Object.entries(raw)) {
-    if (!p || typeof p !== "object") continue;
-    const o = p as Record<string, unknown>;
-    if (typeof o.input !== "number" || typeof o.output !== "number") continue;
-    out[model.toLowerCase()] = {
-      input: o.input,
-      cachedInput: typeof o.cachedInput === "number" ? o.cachedInput : o.input,
-      output: o.output,
-      cacheWrite: typeof o.cacheWrite === "number" ? o.cacheWrite : undefined,
-    };
-  }
-  return Object.keys(out).length ? out : undefined;
+  for (const { model, source: _s, ...price } of cache.entries) out[model] = price;
+  return out;
 }

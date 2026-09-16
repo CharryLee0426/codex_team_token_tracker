@@ -10,8 +10,9 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
 import { TOUR_HREF, trackerCommands } from "@/lib/onboarding";
+import { PricingCard } from "./pricing-card";
 
-export function SettingsPanel({ tourHref = TOUR_HREF }: { tourHref?: string }) {
+export function SettingsPanel({ tourHref = TOUR_HREF, pricing = <PricingCard /> }: { tourHref?: string; pricing?: React.ReactNode }) {
   const t = useTranslations("settings");
   const tn = useTranslations("nav");
   const to = useTranslations("onboarding");
@@ -42,6 +43,7 @@ export function SettingsPanel({ tourHref = TOUR_HREF }: { tourHref?: string }) {
           }
         />
       </Card>
+      {pricing}
       <Card>
         <CardHeader title={t("connectTitle")} hint={t("connectBody")} />
         <CardBody className="space-y-4">
