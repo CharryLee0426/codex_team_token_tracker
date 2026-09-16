@@ -1,12 +1,13 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 import { requireDevice, publicUser } from "./lib/auth";
 import { tokenFields, longContextValidator, liveValidator } from "./schema";
 import { MAX_BUCKETS_PER_PUSH, MAX_SESSIONS_PER_PUSH } from "@codex-tracker/shared/wire";
 import { isMachineId } from "@codex-tracker/shared/device-identity";
+import { localDayKey } from "@codex-tracker/shared/time";
 import { noteMachineId } from "./devices";
 import { effectivePricing, ensureRefreshScheduled, priceSession, priceUsage, sanitizeLong } from "./pricing";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 
 /**
  * Uploads carry token counts; the backend prices them (`pricing.ts`). `cost` is still accepted from
@@ -173,6 +174,34 @@ export const pushSessions = mutation({
 });
 
 /**
+ * The device's spend so far on its local calendar day, summed from its stored (backend-priced) hourly
+ * rows. The device also computes a number like this for its own tray, but no device-computed dollars
+ * are ever shown by the dashboard or the mobile apps — this is what `live.todayCost` holds.
+ */
+async function todayCostFor(ctx: MutationCtx, deviceId: Id<"devices">, timezone: string, now: number): Promise<number> {
+  const tz = safeTimeZone(timezone);
+  const today = localDayKey(now, tz);
+  // A local day spans at most 25 UTC hours, all of which start within the last 36 h.
+  const rows = await ctx.db
+    .query("hourlyUsage")
+    .withIndex("by_device_hour", (q) => q.eq("deviceId", deviceId).gte("hourStart", now - 36 * 3_600_000).lt("hourStart", now + 3_600_000))
+    .collect();
+  let cost = 0;
+  for (const r of rows) if (localDayKey(r.hourStart, tz) === today) cost += r.cost;
+  return cost;
+}
+
+/** An IANA zone the runtime knows, else UTC — a client's `timezone` is free text. */
+function safeTimeZone(tz: string): string {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return tz;
+  } catch {
+    return "UTC";
+  }
+}
+
+/**
  * Liveness + the "live now" snapshot. Also where a machine's identity is reconciled: the heartbeat's
  * `machineId` is backfilled onto devices created before 0.3.0, and duplicate device rows for the same
  * machine (a tray app and an agent that each ran `login`) are folded together — see `devices.ts`.
@@ -190,7 +219,8 @@ export const heartbeat = mutation({
       tokensPerSecond: v.number(),
       lastEventAt: v.union(v.number(), v.null()),
       todayTotal: v.number(),
-      todayCost: v.number(),
+      /** Wire < 3 clients still send this; it is ignored — see `todayCostFor`. */
+      todayCost: v.optional(v.number()),
     })),
     machineId: v.optional(v.string()),
   },
@@ -202,7 +232,7 @@ export const heartbeat = mutation({
       lastSeenAt: now,
       appVersion: args.appVersion,
       timezone: args.timezone,
-      live: args.live ? { ...args.live, updatedAt: now } : undefined,
+      live: args.live ? { ...args.live, todayCost: await todayCostFor(ctx, device._id, args.timezone, now), updatedAt: now } : undefined,
       // An alias (e.g. the WSL agent of a Windows tray device) must not relabel the machine.
       ...(isCanonical ? { platform: args.platform, hostname: args.hostname ?? undefined } : {}),
     });

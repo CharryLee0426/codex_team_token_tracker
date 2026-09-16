@@ -8,6 +8,7 @@ import { api, internal } from "./_generated/api";
 import schema from "./schema";
 import { DEFAULT_PRICING, LONG_CONTEXT_THRESHOLD, computeAggregateCost, computeCost, resolvePrice } from "@codex-tracker/shared/pricing";
 import { OPENAI_PRICING_URL } from "@codex-tracker/shared/openai-pricing-page";
+import { localDayKey } from "@codex-tracker/shared/time";
 import { hashToken } from "./lib/auth";
 
 const modules = import.meta.glob("./**/*.ts");
@@ -241,6 +242,36 @@ test("overrides win over the snapshot and re-price stored rows; clearing one re-
   await settle(t);
   const restored = await t.run(async (ctx) => await ctx.db.query("hourlyUsage").collect());
   expect(restored.every((r) => Math.abs(r.cost - seedCost) < 1e-9)).toBe(true);
+});
+
+test("a heartbeat's today's-spend figure is computed by the backend, never taken from the device", async () => {
+  const t = createTest();
+  stubOpenAI(); // the first upload schedules a page refresh; keep it off the network and drain it below
+  const { deviceId } = await seedDevice(t);
+  const now = Date.now();
+  const thisHour = now - (now % 3_600_000);
+  // Two hours today and one two days ago, all priced by the backend on upload.
+  await t.mutation(api.ingest.pushHourly, { token: TOKEN, buckets: [
+    { hourStart: thisHour, model: "gpt-5.4-mini", agent: "codex", ...SMALL },
+    { hourStart: thisHour - 3_600_000, model: "gpt-5.4-mini", agent: "codex", ...SMALL },
+    { hourStart: thisHour - 48 * 3_600_000, model: "gpt-5.4-mini", agent: "codex", ...SMALL },
+  ] });
+  const rows = await t.run(async (ctx) => await ctx.db.query("hourlyUsage").collect());
+  const expected = rows.filter((r) => r.hourStart >= thisHour - 3_600_000).reduce((s, r) => s + r.cost, 0);
+
+  const live = { sessionId: null, model: null, tokensPerSecond: 0, lastEventAt: null, todayTotal: 2 * SMALL.total };
+  for (const sent of [live, { ...live, todayCost: 999 }]) {
+    await t.mutation(api.ingest.heartbeat, { token: TOKEN, appVersion: "0.5.0", platform: "darwin", hostname: null, timezone: "UTC", live: sent });
+    const device = await t.run(async (ctx) => await ctx.db.get(deviceId));
+    // The UTC hour just before midnight can fall on yesterday; the assertion tolerates that boundary.
+    const yesterdayHour = localDayKey(thisHour - 3_600_000, "UTC") !== localDayKey(thisHour, "UTC");
+    expect(device!.live!.todayCost).toBeCloseTo(yesterdayHour ? expected / 2 : expected, 9);
+    expect(device!.live!.todayCost).not.toBe(999);
+  }
+  // An unknown zone falls back to UTC instead of failing the heartbeat.
+  await t.mutation(api.ingest.heartbeat, { token: TOKEN, appVersion: "0.5.0", platform: "darwin", hostname: null, timezone: "Mars/Olympus", live });
+  expect((await t.run(async (ctx) => await ctx.db.get(deviceId)))!.live!.todayCost).toBeGreaterThan(0);
+  await settle(t);
 });
 
 test("the first upload on a deployment that never fetched the page schedules a refresh", async () => {

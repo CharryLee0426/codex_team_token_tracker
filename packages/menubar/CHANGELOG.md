@@ -11,8 +11,10 @@ All notable changes to `codex-token-tracker`. This project follows [Semantic Ver
   requests above the 272K long-context threshold, and a per-model breakdown of every session — and the
   dashboard's Convex backend prices them against a table it re-reads from OpenAI's pricing page every
   hour, re-pricing all history whenever a rate changes. A stale table on a machine can therefore no
-  longer skew the team's numbers, and a price fix reaches old rows without a re-sync. Against a backend
-  older than wire 3 the device-computed cost is still sent.
+  longer skew the team's numbers, and a price fix reaches old rows without a re-sync. The "today" spend
+  shown beside each device on the dashboard is likewise computed by the backend; the heartbeat only
+  reports today's token total. Against a backend older than wire 3 the device-computed dollars are
+  still sent. Every dollar figure the app itself shows is for local display only.
 - **Local figures use the backend's table.** The tray, popover and CLI download the price table the
   backend bills with (`~/.codex-tracker/pricing-cache.json`, refreshed hourly and on every sync) instead
   of a bundled copy, so they agree with the dashboard to the cent; `codex-tracker status` reports when

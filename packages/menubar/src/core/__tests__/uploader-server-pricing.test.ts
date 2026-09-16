@@ -88,6 +88,20 @@ test("against a pricing backend the payloads carry tokens and splits, never a de
   }
 });
 
+test("the heartbeat carries today's tokens but, on wire 3, not the device's dollars", async () => {
+  for (const wireVersion of [2, 3]) {
+    const uploader = new Uploader({ getConfig: () => ({ deviceToken: "t", wireVersion } as TrackerConfig), onSignedOut: () => null });
+    const mutations: Array<Record<string, unknown>> = [];
+    const fakeClient = { mutation: async (_ref: unknown, args: Record<string, unknown>) => { mutations.push(args); return { ok: true }; } };
+    (uploader as unknown as { call: <T>(fn: (client: typeof fakeClient, token: string) => Promise<T>) => Promise<T> }).call = async (fn) => fn(fakeClient, "t");
+    await uploader.heartbeat({ appVersion: "0.5.0", platform: "darwin", hostname: null, timezone: "UTC", live: { sessionId: "s1", model: "gpt-6-astra", tokensPerSecond: 3, lastEventAt: HOUR, todayTotal: 10, todayCost: 1.5 } });
+    const live = mutations[0].live as Record<string, unknown>;
+    assert.equal(live.todayTotal, 10);
+    assert.equal("todayCost" in live, wireVersion < 3, `wire ${wireVersion}`);
+    if (wireVersion < 3) assert.equal(live.todayCost, 1.5);
+  }
+});
+
 test("the wire-3 session hash ignores the local cost but covers the breakdown", () => {
   const base = sessionUploadHash(session, 1, true);
   assert.equal(sessionUploadHash(session, 2, true), base);

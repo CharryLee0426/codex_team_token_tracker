@@ -168,8 +168,14 @@ function uploadableLive(live: LiveSnapshot): boolean {
     && (live.lastEventAt === null || (Number.isFinite(live.lastEventAt) && live.lastEventAt >= 0))
     && Number.isSafeInteger(live.todayTotal)
     && live.todayTotal >= 0
-    && Number.isFinite(live.todayCost)
-    && live.todayCost >= 0;
+    && (live.todayCost === undefined || (Number.isFinite(live.todayCost) && live.todayCost >= 0));
+}
+
+/** The heartbeat's live snapshot as sent: backends that price uploads compute today's dollars themselves. */
+function uploadLive(live: LiveSnapshot, serverPricing: boolean): LiveSnapshot {
+  if (!serverPricing) return live;
+  const { todayCost: _local, ...rest } = live;
+  return rest;
 }
 
 /** The session as sent (see `uploadBucket` for the wire-version split). */
@@ -389,8 +395,9 @@ export class Uploader {
 
   async heartbeat(input: { appVersion: string; platform: string; hostname: string | null; timezone: string; live: LiveSnapshot | null }) {
     // The machine id lets the backend fold a second login from this computer into the same device.
-    const extra = backendSupports(this.opts.getConfig(), WIRE_MACHINE_ID) ? { machineId: machineId() } : {};
-    const live = input.live && uploadableLive(input.live) ? input.live : null;
+    const cfg = this.opts.getConfig();
+    const extra = backendSupports(cfg, WIRE_MACHINE_ID) ? { machineId: machineId() } : {};
+    const live = input.live && uploadableLive(input.live) ? uploadLive(input.live, backendSupports(cfg, WIRE_SERVER_PRICING)) : null;
     await this.call((c, token) => c.mutation(api.ingest.heartbeat, { token, ...input, live, ...extra }));
   }
 

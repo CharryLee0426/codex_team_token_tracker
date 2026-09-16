@@ -282,7 +282,7 @@ accurate number; the values inside Codex logs are just snapshots from Codex's ow
 
 ## What gets uploaded
 
-Only aggregates: token counts per UTC hour and model (with the share from requests whose prompt exceeded 272K tokens, so the backend can apply the long-context tier), per-session totals and their per-model split, the model name, the project **folder name** and a SHA-256 of its path, plus a heartbeat (tokens/s, today's totals) that carries a SHA-256 of the machine's hardware id (so one computer maps to one device however often it logs in). No dollar figures: the backend prices the counts itself. Prompts, code, file paths, session contents and the raw hardware id never leave your machine. Timestamps are stored in UTC; the app and dashboard display them in your local time zone.
+Only aggregates: token counts per UTC hour and model (with the share from requests whose prompt exceeded 272K tokens, so the backend can apply the long-context tier), per-session totals and their per-model split, the model name, the project **folder name** and a SHA-256 of its path, plus a heartbeat (tokens/s, today's token total) that carries a SHA-256 of the machine's hardware id (so one computer maps to one device however often it logs in). No dollar figures: the backend prices the counts itself, including the "today" spend shown next to each device on the dashboard. The dollars in the tray, popover and CLI are for your eyes only. Prompts, code, file paths, session contents and the raw hardware id never leave your machine. Timestamps are stored in UTC; the app and dashboard display them in your local time zone.
 
 ## Development
 

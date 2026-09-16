@@ -7,8 +7,9 @@ import type { PricingEntry } from "./openai-pricing-page.ts";
  *   1 — initial protocol
  *   2 — `machineId` on device-auth start and heartbeats (one device per machine, 0.3.0)
  *   3 — the backend prices uploads itself: buckets and sessions carry token counts only (`cost` is
- *       omitted), plus the `long` split and per-session `models` breakdown that make server-side
- *       pricing exact (0.5.0). Backends < 3 still need the device-computed `cost`.
+ *       omitted, as is the heartbeat's `todayCost`), plus the `long` split and per-session `models`
+ *       breakdown that make server-side pricing exact (0.5.0). Backends < 3 still need the
+ *       device-computed dollars. Any dollar figure a device shows is for its own display only.
  */
 export const WIRE_VERSION = 3;
 /** Wire version from which the backend prices uploads and ignores a device-computed `cost`. */
@@ -75,8 +76,11 @@ export interface LiveSnapshot {
   tokensPerSecond: number;
   lastEventAt: number | null;
   todayTotal: number; // machine-local "today" total tokens
-  /** Machine-local "today" USD, priced with the table the device last downloaded from the backend. */
-  todayCost: number;
+  /**
+   * Wire < 3 only: machine-local "today" USD computed on the device. Backends ≥ 3 compute it from the
+   * device's stored (backend-priced) hourly rows in its time zone; the device's number is display-only.
+   */
+  todayCost?: number;
 }
 
 export interface HeartbeatPayload {
