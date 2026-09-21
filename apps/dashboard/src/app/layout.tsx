@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale } from "next-intl/server";
 import { Providers } from "@/components/providers";
 import { SceneCanvas } from "@/components/scene/scene-canvas";
 import { SceneProvider } from "@/components/scene/scene-provider";
-import { THEMES } from "@/lib/theme";
+import { DASHBOARD_MOTION_COOKIE, DASHBOARD_THEME_COOKIE, THEMES, toDashboardMotion, toDashboardTheme } from "@/lib/theme";
 import "./globals.css";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
@@ -28,12 +29,15 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
+  const store = await cookies();
+  const dashboardTheme = toDashboardTheme(store.get(DASHBOARD_THEME_COOKIE)?.value);
+  const dashboardMotion = toDashboardMotion(store.get(DASHBOARD_MOTION_COOKIE)?.value);
   return (
     <html lang={locale} suppressHydrationWarning className={`${geist.variable} ${geistMono.variable}`}>
       <body className="min-h-screen bg-bg text-fg">
         {/* Rendered in a Server Component so locale, messages and timeZone are inherited from src/i18n/request.ts */}
         <NextIntlClientProvider>
-          <Providers locale={locale}>
+          <Providers locale={locale} dashboardTheme={dashboardTheme} dashboardMotion={dashboardMotion}>
             <SceneProvider>
               <SceneCanvas />
               {children}

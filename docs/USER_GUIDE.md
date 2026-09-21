@@ -94,6 +94,7 @@ Keep the agent running (tmux, `nohup`, or a `systemd --user` service).
 - **Share usage** (Personal and Team) — renders the selected range as an image card, like the mobile apps: total tokens, a daily trend strip, API cost, requests, cache hit rate, input/output, devices or active members, and model count, with your name and avatar (Personal) or the organization's (Team). Copy it to the clipboard, download the PNG, or hand it to the system share sheet where the browser offers one. The card follows the dashboard language; it never includes emails, devices, sessions or prompts, and nothing is uploaded — the image is drawn in your browser.
 - **Members** — roster, last seen, who is live. **Devices** — your connected computers; **Revoke** disconnects one.
 - Header: organization switcher, language (EN / 中文), theme (light / dark / system).
+- **Settings → Appearance → Visual theme** — choose the original **Mission Control** or **Ghost of Tsushima**, with an animated landscape, drifting mist, wind, and vermilion leaves. Both retain the same navigation, charts, and controls, support English and Chinese, and work with light, dark, or system mode. Pause or play Tsushima's **Background motion** from Settings or the header. Motion pauses while the tab is hidden and stays off when your system requests reduced motion. Visual theme, background motion, color mode, and language are saved in the current browser. Themes contain no audio.
 
 ## 6. Which agents are tracked
 

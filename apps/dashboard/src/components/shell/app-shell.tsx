@@ -8,6 +8,8 @@ import { useTranslations } from "next-intl";
 import { Logo, LogoMark } from "@/components/header/logo";
 import { LanguageSwitcher } from "@/components/header/language-switcher";
 import { ThemeToggle } from "@/components/header/theme-toggle";
+import { useDashboardTheme } from "@/components/theme/dashboard-theme-provider";
+import { SceneMotionToggle } from "@/components/theme/scene-motion-toggle";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -36,6 +38,7 @@ interface AppShellProps {
  */
 export function AppShell({ children, hrefFor = defaultHrefFor, demo = false, banner, initialSidebar = "auto" }: AppShellProps) {
   const pathname = usePathname();
+  const { theme } = useDashboardTheme();
   const t = useTranslations("nav");
   const tShell = useTranslations("shell");
   const homeHref = hrefFor("personal");
@@ -72,7 +75,7 @@ export function AppShell({ children, hrefFor = defaultHrefFor, demo = false, ban
   };
 
   return (
-    <div className="app-shell flex min-h-dvh" data-sidebar={state}>
+    <div className="app-shell flex min-h-dvh" data-sidebar={state} data-dashboard-theme={theme}>
       {/* Desktop rail */}
       <aside
         id="app-rail"
@@ -134,6 +137,7 @@ export function AppShell({ children, hrefFor = defaultHrefFor, demo = false, ban
             <div className="flex items-center gap-2">
               <LanguageSwitcher className="hidden sm:grid" />
               <ThemeToggle />
+              <SceneMotionToggle />
               {demo ? <Avatar name="Demo User" size={30} /> : <UserButton appearance={{ elements: { userButtonAvatarBox: "h-8 w-8 ring-1 ring-border" } }} />}
             </div>
           </div>
