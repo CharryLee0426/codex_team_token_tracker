@@ -3,13 +3,14 @@
 import { ClerkProvider, useAuth } from "@clerk/nextjs";
 import { zhCN } from "@clerk/localizations";
 import { ConvexProviderWithAuth, ConvexReactClient, useConvexAuth } from "convex/react";
-import { ThemeProvider, useTheme } from "next-themes";
+import { ThemeProvider } from "next-themes";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { STATUS } from "@codex-tracker/shared/palette";
-import { useMounted } from "@/hooks/use-mounted";
-import { THEMES } from "@/lib/theme";
+import { THEMES, type DashboardTheme } from "@/lib/theme";
 import { sceneModeForPath } from "@/components/scene/scene-canvas";
+import { DashboardThemeProvider } from "@/components/theme/dashboard-theme-provider";
+import { useThemeColors } from "@/components/theme/use-theme-colors";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL || "https://placeholder-000.convex.cloud";
 let convexClient: ConvexReactClient | null = null;
@@ -18,22 +19,22 @@ function getConvex(): ConvexReactClient {
   return convexClient;
 }
 
-export function Providers({ locale, children }: { locale: string; children: React.ReactNode }) {
+export function Providers({ locale, dashboardTheme, dashboardMotion, children }: { locale: string; dashboardTheme: DashboardTheme; dashboardMotion: boolean; children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <ThemedClerk locale={locale}>{children}</ThemedClerk>
+      <DashboardThemeProvider initialTheme={dashboardTheme} initialMotion={dashboardMotion}>
+        <ThemedClerk locale={locale}>{children}</ThemedClerk>
+      </DashboardThemeProvider>
     </ThemeProvider>
   );
 }
 
 function ThemedClerk({ locale, children }: { locale: string; children: React.ReactNode }) {
-  const { resolvedTheme } = useTheme();
-  const mounted = useMounted();
+  const { colors } = useThemeColors();
   const pathname = usePathname();
   // Landing and auth pages are always dark; inside the app Clerk follows the user's theme.
-  const dark = sceneModeForPath(pathname) !== "app" || (mounted && resolvedTheme === "dark");
+  const c = sceneModeForPath(pathname) !== "app" ? THEMES.dark : colors;
   const appearance = useMemo(() => {
-    const c = THEMES[dark ? "dark" : "light"];
     return {
       variables: {
         colorPrimary: c.accent,
@@ -57,7 +58,7 @@ function ThemedClerk({ locale, children }: { locale: string; children: React.Rea
         userButtonPopoverCard: "border border-border shadow-2xl",
       },
     };
-  }, [dark]);
+  }, [c]);
   return (
     <ClerkProvider appearance={appearance} localization={locale === "zh" ? zhCN : undefined}>
       <ConvexProviderWithAuth client={getConvex()} useAuth={useClerkAuthForConvex}>

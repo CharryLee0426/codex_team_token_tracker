@@ -1,10 +1,9 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { useMemo } from "react";
 import { CATEGORICAL_DARK, CATEGORICAL_LIGHT, HEATMAP_LEVELS_DARK, HEATMAP_LEVELS_LIGHT, OTHER_COLOR } from "@codex-tracker/shared/palette";
-import { useMounted } from "@/hooks/use-mounted";
-import { THEMES } from "@/lib/theme";
+import { TSUSHIMA_HEATMAP } from "@/lib/theme";
+import { useThemeColors } from "@/components/theme/use-theme-colors";
 
 export interface ChartTheme {
   dark: boolean;
@@ -24,16 +23,13 @@ export interface ChartTheme {
 
 /** Concrete colors for SVG presentation attributes (recharts cannot read CSS custom properties). */
 export function useChartTheme(): ChartTheme {
-  const { resolvedTheme } = useTheme();
-  const mounted = useMounted();
-  const dark = mounted && resolvedTheme === "dark";
+  const { colors, dark, mode, tsushima } = useThemeColors();
   return useMemo(() => {
-    const colors = THEMES[dark ? "dark" : "light"];
     const categorical = dark ? CATEGORICAL_DARK : CATEGORICAL_LIGHT;
     return {
       dark,
       categorical,
-      heatmap: dark ? HEATMAP_LEVELS_DARK : HEATMAP_LEVELS_LIGHT,
+      heatmap: tsushima ? TSUSHIMA_HEATMAP[mode] : dark ? HEATMAP_LEVELS_DARK : HEATMAP_LEVELS_LIGHT,
       other: OTHER_COLOR,
       grid: colors.grid,
       axis: colors.axis,
@@ -44,5 +40,5 @@ export function useChartTheme(): ChartTheme {
       accent: colors.accent,
       colorAt: (i: number) => (i < categorical.length ? categorical[i] : OTHER_COLOR),
     };
-  }, [dark]);
+  }, [colors, dark, mode, tsushima]);
 }

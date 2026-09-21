@@ -62,6 +62,7 @@ In the Convex dashboard (Settings → Environment Variables) for each deployment
 - `src/app` – routes: `/` landing, `/dashboard/{personal,team,members,devices}`, `/cli-auth` (device approval), `/settings`, `/sign-in`, `/sign-up`, `/preview/*` (design harness, dev only), `/api/config`, `/api/health`
 - `src/components/onboarding` – the guided tour (see below)
 - `src/app/globals.css` + `src/lib/theme.ts` – design tokens (dark-first palette with a light variant); the TS copy feeds charts, the canvas scene and Clerk's appearance
+- `src/components/theme` – dashboard visual themes, independent of light/dark/system mode. Settings offers the original Mission Control and Ghost of Tsushima themes; a browser cookie supplies the initial server-rendered selection. Tsushima animates locally bundled artwork in `public/themes/tsushima` (with generation provenance) with wind, mist and drifting leaves, alongside warm ink/paper tokens and a maple heatmap ramp. Its background motion can be paused from Settings or the header; the independent `dashboard-motion` cookie preserves that choice across reloads. Categorical chart colors keep the shared palette. Dashboard, settings and device approval share the theme; landing/sign-in keep their original appearance. All theme and motion labels have English and Chinese translations. No audio is included.
 - `src/components/scene` – the canvas particle engine (starfield, landing constellation, warp transition) mounted once in the root layout so it persists across navigation
 - `src/components/landing` – hero, telemetry strip, feature cards, how-it-works, product preview (the real board on sample data)
 - `src/components/providers.tsx` – Clerk + Convex providers; token fetches retry and an auth watchdog re-arms Convex auth when a refresh failed (sleep/wake, network blip), so subscriptions never silently freeze
@@ -103,4 +104,5 @@ Code: `src/components/onboarding` — `steps.ts` (the stages and their `data-tou
 ## Motion & performance notes
 
 - The scene respects `prefers-reduced-motion` (static frame, plain navigation instead of the warp), pauses when the tab is hidden, caps the frame rate at 30 fps inside the app, and scales particle counts by a coarse device tier (`src/hooks/use-perf-tier.ts`).
+- Tsushima's landscape motion also pauses when hidden or manually paused. System reduced motion takes precedence over the saved preference and disables the motion control with a translated explanation; the static landscape remains visible.
 - Charts animate only on first render; live updates never replay transitions. Range changes keep the previous render dimmed instead of flashing skeletons.

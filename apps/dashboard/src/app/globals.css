@@ -56,6 +56,52 @@
   --tour-dim: rgba(3, 5, 10, 0.8);
 }
 
+/* Visual themes are scoped to the dashboard shell. :has also themes body-level popovers without
+   changing the landing/auth palette. The shell preference is server-rendered from its cookie. */
+:root:has(.app-shell[data-dashboard-theme="tsushima"]) {
+  --bg: #f1eee5;
+  --bg-2: #f8f5ed;
+  --card: #fffcf5;
+  --card-2: #ede9dd;
+  --border: rgba(54, 65, 57, 0.16);
+  --border-strong: rgba(54, 65, 57, 0.32);
+  --fg: #222d2b;
+  --fg-2: #4f5b54;
+  --muted: #64706c;
+  --accent: #aa352d;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(170, 53, 45, 0.09);
+  --accent-glow: rgba(170, 53, 45, 0.22);
+  --grid: rgba(54, 65, 57, 0.09);
+  --ring: #aa352d;
+  --glass: rgba(248, 245, 237, 0.94);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.65) inset, 0 12px 32px -24px rgba(40, 47, 38, 0.25);
+  --tour-dim: rgba(24, 31, 28, 0.65);
+  --landscape-veil: rgba(241, 238, 229, 0.72);
+}
+
+:root.dark:has(.app-shell[data-dashboard-theme="tsushima"]) {
+  --bg: #0c1112;
+  --bg-2: #101718;
+  --card: #141c1d;
+  --card-2: #202a2a;
+  --border: rgba(191, 199, 181, 0.18);
+  --border-strong: rgba(191, 199, 181, 0.34);
+  --fg: #f0eee5;
+  --fg-2: #c0c6ba;
+  --muted: #9faaa7;
+  --accent: #ed8575;
+  --accent-fg: #26110d;
+  --accent-soft: rgba(237, 133, 117, 0.13);
+  --accent-glow: rgba(237, 133, 117, 0.24);
+  --grid: rgba(191, 199, 181, 0.1);
+  --ring: #ed8575;
+  --glass: rgba(16, 23, 24, 0.94);
+  --shadow-card: 0 1px 0 rgba(221, 216, 186, 0.04) inset, 0 16px 40px -24px rgba(0, 0, 0, 0.75);
+  --tour-dim: rgba(5, 10, 10, 0.82);
+  --landscape-veil: rgba(12, 17, 18, 0.57);
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-bg-2: var(--bg-2);
@@ -130,6 +176,64 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+.tsushima-scene {
+  overflow: hidden;
+  background-color: var(--bg);
+  contain: strict;
+}
+
+.tsushima-landscape {
+  position: absolute;
+  inset: -18px;
+  background-image: url("/themes/tsushima/landscape.webp");
+  background-size: cover;
+  background-position: center top;
+  transform: translate3d(var(--scene-x, 0px), var(--scene-y, 0px), 0);
+}
+
+.tsushima-scene[data-motion="animated"] .tsushima-landscape {
+  will-change: transform;
+}
+
+.tsushima-veil,
+.tsushima-atmosphere {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.tsushima-veil {
+  background: linear-gradient(180deg, var(--landscape-veil), var(--landscape-veil) 20%, var(--bg) 100%);
+}
+
+.app-shell[data-dashboard-theme="tsushima"] h1 {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+  font-weight: 600;
+  letter-spacing: 0.015em;
+}
+
+.app-shell[data-dashboard-theme="tsushima"] .surface {
+  border-top-color: var(--border-strong);
+}
+
+@media (max-width: 767.98px) {
+  .tsushima-landscape {
+    background-image: url("/themes/tsushima/landscape-mobile.webp");
+    background-position: 65% top;
+  }
+  .tsushima-veil {
+    background: linear-gradient(180deg, var(--landscape-veil), var(--bg) 90%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tsushima-landscape {
+    transform: none;
+    will-change: auto !important;
+  }
 }
 
 /* ------------------------------------------------------------------------------------------------

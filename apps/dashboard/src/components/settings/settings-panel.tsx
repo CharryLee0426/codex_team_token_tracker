@@ -5,11 +5,13 @@ import { useTranslations } from "next-intl";
 import { Compass } from "lucide-react";
 import { LanguageSwitcher } from "@/components/header/language-switcher";
 import { ThemeToggle } from "@/components/header/theme-toggle";
+import { SceneMotionToggle } from "@/components/theme/scene-motion-toggle";
 import { LinkButton } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
 import { TOUR_HREF, trackerCommands } from "@/lib/onboarding";
+import { DashboardThemePicker } from "./dashboard-theme-picker";
 import { PricingCard } from "./pricing-card";
 
 export function SettingsPanel({ tourHref = TOUR_HREF, pricing = <PricingCard /> }: { tourHref?: string; pricing?: React.ReactNode }) {
@@ -29,8 +31,10 @@ export function SettingsPanel({ tourHref = TOUR_HREF, pricing = <PricingCard /> 
       </Card>
       <Card>
         <CardHeader title={t("theme")} hint={t("themeHint")} action={<ThemeToggle labels className="max-sm:hidden" />} />
-        <CardBody className="sm:hidden">
-          <ThemeToggle labels />
+        <CardBody className="space-y-4 pt-2">
+          <div className="sm:hidden"><ThemeToggle labels /></div>
+          <DashboardThemePicker />
+          <SceneMotionToggle labels />
         </CardBody>
       </Card>
       <Card>

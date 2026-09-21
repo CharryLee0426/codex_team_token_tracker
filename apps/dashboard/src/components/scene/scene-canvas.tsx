@@ -6,9 +6,11 @@ import { useTheme } from "next-themes";
 import { useMounted } from "@/hooks/use-mounted";
 import { usePerfTier } from "@/hooks/use-perf-tier";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
-import { SPACE_BG } from "@/lib/theme";
+import { isDashboardThemePath, SPACE_BG } from "@/lib/theme";
+import { useDashboardTheme } from "@/components/theme/dashboard-theme-provider";
 import { StarScene, type SceneMode } from "./particles";
 import { useScene } from "./scene-provider";
+import { TsushimaScene } from "./tsushima-scene";
 
 export function sceneModeForPath(pathname: string | null): SceneMode {
   if (!pathname || pathname === "/") return "landing";
@@ -26,6 +28,8 @@ export function SceneCanvas() {
   const pathname = usePathname();
   const mode = sceneModeForPath(pathname);
   const { resolvedTheme } = useTheme();
+  const { theme } = useDashboardTheme();
+  const tsushima = theme === "tsushima" && isDashboardThemePath(pathname);
   const mounted = useMounted();
   const reduced = useReducedMotion();
   const tier = usePerfTier();
@@ -36,6 +40,7 @@ export function SceneCanvas() {
   const dark = mode !== "app" ? true : resolvedTheme !== "light";
 
   useEffect(() => {
+    if (tsushima) return;
     const canvas = ref.current;
     if (!canvas) return;
     const engine = new StarScene(canvas);
@@ -72,12 +77,13 @@ export function SceneCanvas() {
       engine.destroy();
       engineRef.current = null;
     };
-  }, [attach]);
+  }, [attach, tsushima]);
 
   useEffect(() => {
     if (!mounted || !themeKnown) return;
     engineRef.current?.setOptions({ mode, dark, tier, reducedMotion: reduced });
-  }, [mounted, themeKnown, mode, dark, tier, reduced]);
+  }, [mounted, themeKnown, mode, dark, tier, reduced, tsushima]);
 
+  if (tsushima) return <TsushimaScene />;
   return <canvas ref={ref} aria-hidden className="scene-canvas" style={{ background: mode === "app" ? "var(--bg)" : SPACE_BG }} />;
 }

@@ -294,6 +294,26 @@
     "languageHint": "Defaults to your system language",
     "theme": "Appearance",
     "themeHint": "Light, dark or follow the system",
+    "visualTheme": {
+      "label": "Visual theme",
+      "hint": "Saved in this browser. Both themes support light and dark modes.",
+      "selected": "Selected",
+      "default": {
+        "title": "Mission Control",
+        "description": "Deep space, cool blue, and a familiar view."
+      },
+      "tsushima": {
+        "title": "Ghost of Tsushima",
+        "description": "Wind, drifting mist, and vermilion leaves."
+      }
+    },
+    "backgroundMotion": {
+      "label": "Background motion",
+      "hint": "Wind and mist bring the landscape to life. Your choice is saved in this browser.",
+      "pause": "Pause motion",
+      "play": "Play motion",
+      "reduced": "Paused to match your system's reduced-motion setting."
+    },
     "connectTitle": "Connect the menu bar app",
     "connectBody": "Run the tracker with npx on each machine — nothing to install, and every start picks up the newest version (Node.js 20+):",
     "connectStep1": "First time — sign in; this dashboard opens so you can approve the device",

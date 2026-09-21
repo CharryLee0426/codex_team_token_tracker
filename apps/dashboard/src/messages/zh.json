@@ -294,6 +294,26 @@
     "languageHint": "默认跟随系统语言",
     "theme": "外观",
     "themeHint": "浅色、深色或跟随系统",
+    "visualTheme": {
+      "label": "视觉主题",
+      "hint": "选择保存在当前浏览器中。两款主题均支持浅色和深色模式。",
+      "selected": "已选择",
+      "default": {
+        "title": "任务控制中心",
+        "description": "深邃星空、清冷蓝调，熟悉的仪表盘。"
+      },
+      "tsushima": {
+        "title": "对马岛之魂",
+        "description": "风拂山野，薄雾流转，红叶飘落。"
+      }
+    },
+    "backgroundMotion": {
+      "label": "背景动态效果",
+      "hint": "让风与薄雾为山野增添生机。选择保存在当前浏览器中。",
+      "pause": "暂停动态效果",
+      "play": "播放动态效果",
+      "reduced": "已遵循系统的减少动态效果设置，暂停播放。"
+    },
     "connectTitle": "连接菜单栏应用",
     "connectBody": "在每台机器上用 npx 运行追踪器——无需安装，每次启动都会获取最新版本（需要 Node.js 20+）：",
     "connectStep1": "第一次——登录；本仪表盘会自动打开，授权该设备即可",
